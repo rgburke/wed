@@ -48,7 +48,7 @@ void draw_status(Session *);
 void draw_text(Session *, int);
 void move_cursor(Window, int, int);
 void update_display(Session *);
-size_t byte_screen_length(char);
+size_t byte_screen_length(char, size_t);
 size_t char_byte_length(char);
 size_t editor_screen_width(void);
 size_t editor_screen_height(void);

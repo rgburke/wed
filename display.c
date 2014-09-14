@@ -59,7 +59,7 @@ void init_display(void)
     idlok(stdscr, TRUE);
     keypad(stdscr, TRUE);
     meta(stdscr, TRUE);
-    //set_tabsize(WED_TAB_SIZE);
+    set_tabsize(WED_TAB_SIZE);
 
     text_y = LINES - 2;
     text_x = COLS;
@@ -238,7 +238,7 @@ size_t line_screen_length(Line *line, size_t start_offset, size_t limit_offset)
     size_t screen_length = 0;
 
     for (size_t k = start_offset; k < line->length && k < limit_offset; k++) {
-        screen_length += byte_screen_length(line->text[k]);
+        screen_length += byte_screen_length(line->text[k], k);
     }
 
     return screen_length;
@@ -276,11 +276,10 @@ size_t screen_height_from_screen_length(size_t screen_length)
 
 /* The number of columns a byte takes up on the screen.
  * Continuation bytes take up no screen space for example. */
-size_t byte_screen_length(char c)
+size_t byte_screen_length(char c, size_t offset)
 {
-    /* TODO This isn't how tabs work. Need to handle tabs correctly. */
     if (c == '\t') {
-        return WED_TAB_SIZE;
+        return WED_TAB_SIZE - (offset % WED_TAB_SIZE);
     }
 
     return ((c & 0xc0) != 0x80);

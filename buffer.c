@@ -181,7 +181,7 @@ static Line *add_to_buffer(const char buffer[], size_t bsize, Line *line)
             line->next->prev = line;
             line = line->next;
         } else {
-            line->screen_length += byte_screen_length(buffer[idx]);
+            line->screen_length += byte_screen_length(buffer[idx], line->length);
             line->text[line->length++] = buffer[idx];
         }
 
@@ -258,7 +258,7 @@ Status pos_change_line(Buffer *buffer, BufferPos *pos, int direction)
     pos->offset = -1;
 
     while (++pos->offset < line->length && new_screen_offset < current_screen_offset) {
-        new_screen_offset += byte_screen_length(line->text[pos->offset]); 
+        new_screen_offset += byte_screen_length(line->text[pos->offset], pos->offset); 
     }
 
     return STATUS_SUCCESS;
@@ -317,7 +317,7 @@ Status pos_change_char(Buffer *buffer, BufferPos *pos, int direction)
     /* Ensure we're not on a continuation byte */
     while ((pos->offset += direction) > 0 && 
            pos->offset < line->length && 
-           !byte_screen_length(line->text[pos->offset])) ;
+           !byte_screen_length(line->text[pos->offset], pos->offset)) ;
 
     return STATUS_SUCCESS;
 }
@@ -402,12 +402,13 @@ Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, int direction)
                 continue;
             }
         } else {
-            byte_col_num = byte_screen_length(pos->line->text[pos->offset]);
+            byte_col_num = byte_screen_length(pos->line->text[pos->offset], pos->offset);
         }
 
         while ((pos->offset || direction == 1) && 
                pos->offset < pos->line->length && 
-               !byte_screen_length(pos->line->text[pos->offset += direction])) ;
+               ((pos->offset += direction) || 1) &&
+               !byte_screen_length(pos->line->text[pos->offset], pos->offset)) ;
 
         cols -= byte_col_num;
     }
