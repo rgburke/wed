@@ -1,0 +1,6 @@
+This is the source code for the wed (Windows like EDitor) text editor.
+The intention of the wed project is to create a simple terminal text editor
+with windows like key bindings.
+
+At this first stage wed can only display a single file or an empty buffer. It doesn't have
+any editing functionality yet. This will be added subsequently.
