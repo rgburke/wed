@@ -68,7 +68,6 @@ void init_display(void)
     windows[1] = text = newwin(text_y, text_x, 1, 0);
     windows[2] = status = newwin(1, COLS, LINES - 1, 0);
 
-    scrollok(text, TRUE);
     refresh();
 }
 
@@ -195,7 +194,6 @@ void update_display(Session *sess)
     convert_pos_to_point(&cursor, buffer->pos);
 
     vertical_scroll(buffer, &screen_start, cursor);
-
     draw_text(sess, 0);
 
     wmove(text, cursor.line_no - screen_start.line_no, cursor.col_no);
@@ -373,6 +371,8 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
     pos_change_multi_screen_line(buffer, &buffer->screen_start, direction, diff);
     convert_pos_to_point(screen_start, buffer->screen_start);
 
+    scrollok(text, TRUE);
     wscrl(text, diff * direction);
+    scrollok(text, FALSE);
 }
 

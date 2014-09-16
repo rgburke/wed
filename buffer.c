@@ -304,20 +304,22 @@ Status pos_change_char(Buffer *buffer, BufferPos *pos, int direction)
         }
 
         pos->line = line = line->prev; 
-        pos->offset = line->length == 0 ? 1 : line->length;
-    } else if ((pos->offset == (line->length - 1) || line->length == 0) && direction == 1) {
+        pos->offset = line->length == 0 ? 0 : line->length;
+    } else if ((pos->offset == line->length || line->length == 0) && direction == 1) {
         if (line->next == NULL) {
             return STATUS_SUCCESS;
         }
 
         pos->line = line = line->next; 
-        pos->offset = -1;
+        pos->offset = 0;
+    } else {
+        pos->offset += direction;
     }
 
     /* Ensure we're not on a continuation byte */
-    while ((pos->offset += direction) > 0 && 
-           pos->offset < line->length && 
-           !byte_screen_length(line->text[pos->offset], pos->offset)) ;
+    while (!byte_screen_length(line->text[pos->offset], pos->offset) &&
+           pos->offset < line->length &&
+           (pos->offset += direction) > 0) ;
 
     return STATUS_SUCCESS;
 }
@@ -350,7 +352,6 @@ Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, int direction, size
  * down to a different part of the line displayed as a different line on the screen.
  * Therefore this function is dependent on the width of the screen. */
 
-/* TODO This function should be revisited, it's too long and unclear */
 Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, int direction)
 {
     (void)buffer;
@@ -360,57 +361,36 @@ Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, int direction)
         return STATUS_SUCCESS;
     }
 
+    Line *start_line = pos->line;
     size_t screen_line = line_pos_screen_height(*pos);
     size_t screen_lines = line_screen_height(pos->line);
-    int break_on_hardline = (screen_line > 1) && (screen_line != screen_lines);
-    size_t col_count, cols, byte_col_num;
-    col_count = cols = editor_screen_width();
+    int break_on_hardline = screen_lines > 1 && (screen_line + direction) > 0 && screen_line < screen_lines;
+    size_t cols, col_num;
+    cols = col_num = editor_screen_width();
+    Status status;
 
-    if ((screen_line == 1 && direction == -1 && pos->line->prev == NULL) ||
-        (screen_line == screen_lines && direction == 1 && pos->line->next == NULL)) {
+    while (cols > 0 && cols <= col_num) {
+        cols -= byte_screen_length(pos->line->text[pos->offset], pos->offset);
+        status = pos_change_char(buffer, pos, direction);
 
-        return STATUS_SUCCESS;
-    }
-
-    while (cols > 0 && cols <= col_count) {
-        byte_col_num = 1;
-
-        if (direction == -1 && pos->offset == 0) {
-            pos->line = pos->line->prev; 
-
-            if (pos->line->length == 0) {
-                pos->offset = 0;
+        if (!is_success(status)) {
+            return status;
+        } else if (break_on_hardline && (pos->offset == 0 || pos->offset == pos->line->length)) {
+           break; 
+        } else if (pos->line != start_line) {
+            if (break_on_hardline || pos->line->length == 0) {
                 break;
             }
 
-            pos->offset = pos->line->length - 1;
-            cols -= (col_count + 1 - (pos->line->screen_length % col_count));
-        } else if (direction == 1 && (pos->offset == pos->line->length - 1 || !pos->line->length)) {
-            if (break_on_hardline) {
-                break;
-            }
+            break_on_hardline = 1;
+            start_line = pos->line;
 
-            pos->line = pos->line->next;
-
-            if (pos->line->length == 0 || pos->line->prev->length == 0) {
-                pos->offset = 0;
-                break;
+            if (direction == 1) {
+                cols -= (col_num - 1 - (pos->line->prev->screen_length % col_num));
             } else {
-                pos->offset = 0;
-                cols -= (col_count + 1 - (pos->line->prev->screen_length % col_count));
-                break_on_hardline = 1;
-                continue;
+                cols -= (col_num - 1 - (pos->line->screen_length % col_num));
             }
-        } else {
-            byte_col_num = byte_screen_length(pos->line->text[pos->offset], pos->offset);
         }
-
-        while ((pos->offset || direction == 1) && 
-               pos->offset < pos->line->length && 
-               ((pos->offset += direction) || 1) &&
-               !byte_screen_length(pos->line->text[pos->offset], pos->offset)) ;
-
-        cols -= byte_col_num;
     }
 
     return STATUS_SUCCESS;
