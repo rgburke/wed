@@ -21,27 +21,6 @@
 
 #include <stddef.h>
 
-#define LIST_ALLOC 10
-#define LIST_EXPAND 1
-#define LIST_SHRINK -1
-
-typedef struct {
-    void **values;
-    size_t size;
-    size_t allocated;
-} List;
-
-List *new_list();
-List *new_sized_list(size_t);
-size_t list_size(List *);
-void *list_get(List *, size_t);
-void list_set(List *, void *, size_t);
-void list_add(List *, void *);
-void list_add_at(List *, void *, size_t);
-void *list_pop(List *);
-void *list_rm_at(List *, size_t);
-void free_list(List *);
-
 void fatal(const char *);
 void *alloc(size_t size);
 void *ralloc(void *, size_t);
