@@ -1,0 +1,48 @@
+.TH TERMKEY_NEW 3
+.SH NAME
+termkey_new, termkey_destroy \- create or destroy new termkey instance
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "TERMKEY_CHECK_VERSION;"
+.BI "TermKey *termkey_new(int " fd ", int " flags );
+.BI "TermKey *termkey_new_abstract(const char *" term ", int " flags );
+.BI "void termkey_destroy(TermKey *" tk );
+.fi
+.sp
+Link with \fI\-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_new\fP() creates a new \fBtermkey\fP(7) instance connected to the file handle opened by \fIfd\fP using the \fIflags\fP. The \fITermKey\fP structure should be considered opaque; its contents are not intended for use outside of the library.
+.PP
+\fBtermkey_new_abstract\fP() creates a new \fBtermkey\fP() instance with no file handle associated. As this is usually done for handling other sources of terminal byte input, it also takes a string indicating the termtype to use.
+.PP
+\fBtermkey_destroy\fP() destroys the given instance and releases any resources controlled by it. It will not close the underlying filehandle given as the \fIfd\fP argument to \fBtermkey_new\fP().
+.PP
+The constructor attempts to detect if the current locale is
+.SM UTF-8
+aware or not, and sets either the \fBTERMKEY_FLAG_UTF8\fP or \fBTERMKEY_FLAG_RAW\fP flag. One of these two bits will always be in effect. The current flags in effect can be obtained by \fBtermkey_get_flags\fP(3).
+.PP
+If a file handle is provided, the terminfo driver may send a string to initialise or set the state of the terminal before \fBtermkey_new\fP() returns. This will not be done if no file handle is provided, or if the file handle is a pipe (\fBS_ISFIFO\fP()). In this case it will be the caller's responsibility to ensure the terminal is in the correct mode. Once initialised, the terminal can be stopped by \fBtermkey_stop\fP(3), and started again by \fBtermkey_start\fP(3).
+.SH VERSION CHECK MACRO
+Before calling any functions in the \fBtermkey\fP library, an application should use the \fBTERMKEY_CHECK_VERSION\fP macro to check that the loaded version of the library is compatible with the version it was compiled against. This should be done early on, ideally just after entering its \fBmain\fP() function.
+.SH "RETURN VALUE"
+If successful, \fBtermkey_new\fP() returns a pointer to the new instance. On failure, \fBNULL\fP is returned with \fIerrno\fP set to indicate the failure. \fBtermkey_destroy\fP() returns no value.
+.SH ERRORS
+.TP
+.B ENOENT
+No driver was able to recognise the given terminal type.
+.TP
+.B ENOMEM
+A call to \fBmalloc\fP(3) failed to allocate memory.
+.PP
+Additionally, \fBtermkey_new\fP() may fail if \fBfstat\fP(2) or \fBwrite\fP(2) fails on the given file handle.
+.SH "SEE ALSO"
+.BR termkey_waitkey (3),
+.BR termkey_advisereadable (3),
+.BR termkey_getkey (3),
+.BR termkey_get_flags (3),
+.BR termkey_get_fd (3),
+.BR termkey_get_buffer_remaining (3),
+.BR termkey_get_buffer_size (3),
+.BR termkey (7)

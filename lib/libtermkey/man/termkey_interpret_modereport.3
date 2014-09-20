@@ -1,0 +1,26 @@
+.TH TERMKEY_INTERPRET_MODEREPORT 3
+.SH NAME
+termkey_interpret_modereport \- interpret opaque mode report data
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "TermKeyResult termkey_interpret_modereport(TermKey *" tk ", const TermKeyKey *" key ", "
+.BI "    int *" initial ", int *" mode ", int *" value );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_interpret_modereport\fP() fills in variables in the passed pointers according to the mode report event found in \fIkey\fP. It should be called if \fBtermkey_getkey\fP(3) or similar have returned a key event with the type of \fBTERMKEY_TYPE_MODEREPORT\fP.
+.PP
+Any pointer may instead be given as \fBNULL\fP to not return that value.
+.PP
+The \fIinitial\fP variable will be filled with 0 for an ANSI mode report, or \f(CW'?'\fP for a DEC mode report. The \fImode\fP variable will be filled with the number of the mode, and \fIvalue\fP will be filled with the value from the report.
+.SH "RETURN VALUE"
+If passed a \fIkey\fP event of the type \fBTERMKEY_TYPE_MODEREPORT\fP, this function will return \fBTERMKEY_RES_KEY\fP and will affect the variables whose pointers were passed in, as described above.
+.PP
+For other event types it will return \fBTERMKEY_RES_NONE\fP, and its effects on any variables whose pointers were passed in, are undefined.
+.SH "SEE ALSO"
+.BR termkey_waitkey (3),
+.BR termkey_getkey (3),
+.BR termkey (7)

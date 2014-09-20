@@ -1,0 +1,19 @@
+.TH TERMKEY_GET_FD 3
+.SH NAME
+termkey_get_fd \- obtain the file descriptor for the terminal
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "int termkey_get_fd(TermKey *" tk );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_get_fd\fP() returns the file descriptor that the \fBtermkey\fP(7) instance is using to read bytes from.
+.SH "RETURN VALUE"
+\fBtermkey_get_fd\fP() returns the current file descriptor, or -1 if no file descriptor is associated with this instance.
+.SH "SEE ALSO"
+.BR termkey_new (3),
+.BR termkey_get_flags (3),
+.BR termkey (7)

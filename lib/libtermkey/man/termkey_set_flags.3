@@ -1,0 +1,21 @@
+.TH TERMKEY_SET_FLAGS 3
+.SH NAME
+termkey_set_flags, termkey_get_flags \- control the operational flags
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "void termkey_set_flags(TermKey *" tk ", int " newflags );
+.BI "int termkey_get_flags(TermKey *" tk );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_set_flags\fP() changes the set of operation flags in the \fBtermkey\fP(7) instance to those given by \fInewflags\fP.
+.PP
+\fBtermkey_get_flags\fP() returns the value set by the last call to \fBtermkey_set_flags\fP(), or the value given to the constructor.
+.SH "RETURN VALUE"
+\fBtermkey_set_flags\fP() returns no value. \fBtermkey_get_flags\fP() returns the current operational flags.
+.SH "SEE ALSO"
+.BR termkey_new (3),
+.BR termkey (7)

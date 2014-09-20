@@ -1,0 +1,22 @@
+.TH TERMKEY_SET_BUFFER_SIZE 3
+.SH NAME
+termkey_set_buffer_size, termkey_get_buffer_size \- control the buffer size
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "int termkey_set_buffer_size(TermKey *" tk ", size_t " size );
+.BI "size_t termkey_get_buffer_size(TermKey *" tk );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_set_buffer_size\fP() changes the size of the buffer space in the \fBtermkey\fP(7) instance to that given by \fIsize\fP. Any bytes pending in the buffer will be preserved when resizing, though they will be truncated if the new size is smaller than the total number of bytes in the buffer.
+.PP
+\fBtermkey_get_buffer_size\fP() returns the size of the buffer set by the last call to \fBtermkey_set_buffer_size\fP(), or the default initial size of 256 bytes.
+.SH "RETURN VALUE"
+\fBtermkey_set_buffer_size\fP() returns a true value, or zero if an error occurs. \fBtermkey_get_buffer_size\fP() returns the current buffer size in bytes.
+.SH "SEE ALSO"
+.BR termkey_new (3),
+.BR termkey_get_buffer_remaining (3),
+.BR termkey (7)

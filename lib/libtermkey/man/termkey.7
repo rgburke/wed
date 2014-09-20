@@ -1,0 +1,145 @@
+.TH TERMKEY 7
+.SH NAME
+termkey \- terminal keypress reading library
+.SH DESCRIPTION
+\fBtermkey\fP is a library that allows programs to read and interpret keypress and other events from a terminal. It understands encoding schemes used by terminals to encode keypresses, and
+.SM UTF-8 ,
+allowing it to return events representing key events.
+.PP
+\fBtermkey\fP operates in a pseudo object-oriented fashion. It provides one function, \fBtermkey_new\fP(3), that returns a pointer to a newly-allocated structure. All other functions take this pointer as their first argument. A typical use of this library would consist of a call to \fBtermkey_new\fP() to construct a new instance to represent the \fIstdin\fP stream, then use the \fBtermkey_waitkey\fP(3) function to wait for and interpret key press events. The \fBtermkey_destroy\fP(3) function can be used to deallocate resources used by the instance if the program has finished using it.
+.SS Reading Events
+Each instance of a \fBtermkey\fP structure may be used in one of three ways by the program. It may be used synchronously, blocking to wait for keypresses from a filehandle. It may be used asynchronously, returning keypresses if they are available, while co-operating with a non-blocking program. Or it may be used abstractly, interpreting key press bytes fed to it directly by the containing program.
+.PP
+To obtain the next key event synchronously, a program may call \fBtermkey_waitkey\fP(3). This will either return an event from its internal buffer, or block until a key is available, returning it when it is ready. It behaves similarly to \fBgetc\fP(3), \fBfgetc\fP(3), or similar, except that it understands and returns entire key press events, rather than single bytes.
+.PP
+To work with an asynchronous program, two other functions are used. \fBtermkey_advisereadable\fP(3) informs a \fBtermkey\fP instance that more bytes of input may be available from its file handle, so it should call \fBread\fP(2) to obtain them. The program can then call \fBtermkey_getkey\fP(3) to extract key press events out of the internal buffer, in a way similar to \fBtermkey_waitkey\fP().
+.PP
+Finally, bytes of input can be fed into the \fBtermkey\fP instance directly, by calling \fBtermkey_push_bytes\fP(3). This may be useful if the bytes have already been read from the terminal by the application, or even in situations that don't directly involve a terminal filehandle. Because of these situations, it is possible to construct a \fBtermkey\fP instance not associated with a file handle, by passing -1 as the file descriptor.
+.PP
+A \fBtermkey\fP instance contains a buffer of pending bytes that have been read but not yet consumed by \fBtermkey_getkey\fP(3). \fBtermkey_get_buffer_remaining\fP(3) returns the number of bytes of buffer space currently free in the instance. \fBtermkey_set_buffer_size\fP(3) and \fBtermkey_get_buffer_size\fP(3) can be used to control and return the total size of this buffer.
+.SS Key Events
+Key events are stored in structures. Each structure holds details of one key event. This structure is defined as follows.
+.PP
+.in +4n
+.nf
+typedef struct {
+    TermKeyType type;
+    union {
+        long       codepoint; /* TERMKEY_TYPE_UNICODE  */
+        int        number;    /* TERMKEY_TYPE_FUNCTION */
+        TermKeySym sym;       /* TERMKEY_TYPE_KEYSYM   */
+    } code;
+    int modifiers;
+    char utf8[7];
+} TermKeyKey;
+.fi
+.in
+.PP
+The \fItype\fP field indicates the type of event, and determines which of the members of the \fIcode\fP union is valid. It will be one of the following constants:
+.TP
+.B TERMKEY_TYPE_UNICODE
+a Unicode codepoint. This value indicates that \fIcode.codepoint\fP is valid, and will contain the codepoint number of the keypress. In Unicode mode (if the \fBTERMKEY_FLAG_UTF8\fP bit is set) this will be its Unicode character number. In raw byte mode, this will contain a single 8-bit byte.
+.TP
+.B TERMKEY_TYPE_FUNCTION
+a numbered function key. This value indicates that \fIcode.number\fP is valid, and contains the number of the numbered function key.
+.TP
+.B TERMKEY_TYPE_KEYSYM
+a symbolic key. This value indicates that \fIcode.sym\fP is valid, and contains the symbolic key value.
+.TP
+.B TERMKEY_TYPE_MOUSE
+a mouse button press, release, or movement. The \fIcode\fP structure should be considered opaque; \fBtermkey_interpret_mouse\fP(3) may be used to interpret it.
+.TP
+.B TERMKEY_TYPE_POSITION
+a cursor position report. The \fIcode\fP structure should be considered opaque; \fBtermkey_interpret_position\fP(3) may be used to interpret it.
+.TP
+.B TERMKEY_TYPE_MODEREPORT
+an ANSI or DEC mode value report. The \fIcode\fP structure should be considered opaque; \fBtermkey_interpret_modereport\fP(3) may be used to interpret it.
+.TP
+.B TERMKEY_TYPE_UNKNOWN_CSI
+an unrecognised CSI sequence. The \fIcode\fP structure should be considered opaque; \fBtermkey_interpret_csi\fP(3) may be used to interpret it.
+.PP
+The \fImodifiers\fP bitmask is composed of a bitwise-or of the constants \fBTERMKEY_KEYMOD_SHIFT\fP, \fBTERMKEY_KEYMOD_CTRL\fP and \fBTERMKEY_KEYMOD_ALT\fP.
+.PP
+The \fIutf8\fP field is only set on events whose \fItype\fP is \fBTERMKEY_TYPE_UNICODE\fP. It should not be read for other events.
+.PP
+Key events that represent special keys (\fItype\fP is \fBTERMKEY_TYPE_KEYSYM\fP) have with them as symbolic value that identifies the special key, in \fIcode.sym\fP. \fBtermkey_get_keyname\fP(3) may be used to turn this symbolic value into a string, and \fBtermkey_lookup_keyname\fP(3) may be used to turn string names into symbolic values.
+.PP
+A pair of functions are also provided to convert between key events and strings. \fBtermkey_strfkey\fP(3) converts a key event into a string, and \fBtermkey_strpkey\fP(3) parses a string turning it into a key event.
+.PP
+Key events may be compared for equallity or ordering by using \fBtermkey_keycmp\fP(3).
+.SS Control Flags
+Details of the behaviour of a \fBtermkey\fP instance are controlled by two bitmasks of flags. \fBtermkey_set_flags\fP(3) and \fBtermkey_get_flags\fP(3) set or return the flags used to control the general behaviour, and \fBtermkey_set_canonflags\fP(3) and \fBtermkey_get_canonflags\fP(3) set or return the flags that control the key value canonicalisation behaviour performed by \fBtermkey_canonicalise\fP(3).
+.PP
+The following control flags are recognised.
+.TP
+.B TERMKEY_FLAG_NOINTERPRET
+Do not attempt to interpret \fIC0\fP codes into keysyms. Instead report them as plain \fICtrl-letter\fP events.
+.TP
+.B TERMKEY_FLAG_CONVERTKP
+Convert xterm's alternative keypad symbols into the plain
+.SM ASCII
+codes they would represent.
+.TP
+.B TERMKEY_FLAG_RAW
+Ignore locale settings; do not attempt to recombine
+.SM UTF-8
+sequences. Instead report only raw values.
+.TP
+.B TERMKEY_FLAG_UTF8
+Ignore locale settings; force 
+.SM UTF-8
+recombining on. This flag overrides \fBTERMKEY_FLAG_RAW\fP.
+.TP
+.B TERMKEY_FLAG_NOTERMIOS
+Even if the terminal file descriptor \fIfd\fP represents a
+.SM TTY
+device, do not call the \fBtcsetattr\fP(3) \fBtermios\fP function on it to set it to canonical input mode.
+.TP
+.B TERMKEY_FLAG_SPACESYMBOL
+Report space as being a symbolic key rather than a Unicode codepoint. Setting or clearing this flag in fact sets or clears the \fBTERMKEY_CANON_SPACESYMBOL\fP canonicalisation flag.
+.TP
+.B TERMKEY_FLAG_CTRLC
+Disable the \fBSIGINT\fP behaviour of \fICtrl-C\fP. If this flag is provided, then \fICtrl-C\fP will be available as a normal keypress, rather than sending the process group a \fBSIGINT\fP. This flag only takes effect without \fBTERMKEY_FLAG_NOTERMIOS\fP; with it, none of the signal keys are disabled anyway.
+.TP
+.B TERMKEY_FLAG_EINTR
+Without this flag, IO operations are retried when interrupted by a signal (\fBEINTR\fP). With this flag the \fBTERMKEY_RES_ERROR\fP result is returned instead.
+.PP
+The following canonicalisation flags are recognised.
+.TP
+.B TERMKEY_CANON_SPACESYMBOL
+If this flag is set then a Unicode space character is represented using the \fBTERMKEY_SYM_SPACE\fP symbol. If this flag is not set, it is represented by the \f(CWU+0020\fP Unicode codepoint.
+.TP
+.B TERMKEY_CANON_DELBS
+If this flag is set then an 
+.SM ASCII
+.SM DEL
+character is represented by the \fBTERMKEY_SYM_BACKSPACE\fP symbol. If not, it is represented by \fBTERMKEY_SYM_DEL\fP. An
+.SM ASCII
+.SM BS
+character is always represented by \fBTERMKEY_SYM_BACKSPACE\fP, regardless of this flag.
+.SS Multi-byte Events
+Special keys, mouse events, and
+.SM UTF-8
+encoded Unicode text, are all represented by more than one byte. If the start of a multi-byte sequence is seen by \fBtermkey_waitkey\fP() it will wait a short time to see if the remainder of the sequence arrives. If the sequence remains unfinished after this timeout, it will be returned in its incomplete state. Partial escape sequences are returned as an Escape key (\fBTERMKEY_SYM_ESCAPE\fP) followed by the text contained in the sequence. Partial
+.SM UTF-8
+sequences are returned as the Unicode replacement character, \f(CWU+FFFD\fP.
+.PP
+The amount of time that the \fBtermkey\fP instance will wait is set by \fBtermkey_set_waittime\fP(3), and is returned by \fBtermkey_get_waittime\fP(3). Initially it will be set to 50 miliseconds.
+.SS Mouse Events
+The \fBTERMKEY_TYPE_MOUSE\fP event type indicates a mouse event. The \fIcode\fP field of the event structure should be considered opaque, though \fImodifiers\fP will be valid. In order to obtain the details of the mouse event, call \fBtermkey_interpret_mouse\fP(3) passing the event structure and pointers to integers to store the result in. 
+.PP
+\fBtermkey\fP recognises three mouse protocols: the original
+.SM X10
+protocol (\f(CWCSI M\fP followed by three bytes),
+.SM SGR
+encoding (\f(CWCSI < ... M\fP, as requested by \f(CWCSI ? 1006 h\fP), and rxvt encoding (\f(CWCSI ... M\fP, as requested by \f(CWCSI ? 1015 h\fP). Which encoding is in use is inferred automatically by \fBtermkey\fP, and does not need to be specified explicitly.
+.SS Position Events
+The \fBTERMKEY_TYPE_POSITION\fP event type indicates a cursor position report. This is typically sent by a terminal in response to the Report Cursor Position command (\f(CWCSI ? 6 n\fP). The event bytes are opaque, but can be obtained by calling \fBtermkey_interpret_position\fP(3) passing the event structure and pointers to integers to store the result in. Note that only a DEC CPR sequence (\f(CWCSI ? R\fP) is recognised, and not the non-DEC prefixed \f(CWCSI R\fP because the latter could be interpreted as the \f(CWF3\fP function key instead.
+.SS Mode Reports
+The \fBTERMKEY_TYPE_MODEREPORT\fP event type indicates an ANSI or DEC mode report. This is typically sent by a terminal in response to the Request Mode command (\f(CWCSI $p\fP or \f(CWCSI ? $p\fP). The event bytes are opaque, but can be obtained by calling \fBtermkey_interpret_modereport\fP(3) passing the event structure and pointers to integers to store the result in.
+.SS Unrecognised CSIs
+The \fBTERMKEY_TYPE_UNKNOWN_CSI\fP event type indicates a CSI sequence that the \fBtermkey\fP does not recognise. It will have been extracted from the stream, but is available to the application to inspect by calling \fBtermkey_interpret_csi\fP(3). It is important that if the application wishes to inspect this sequence it is done immediately, before any other IO operations on the \fBtermkey\fP instance (specifically, before calling \fBtermkey_waitkey\fP() or \fBtermkey_getkey\fP() again), otherwise the buffer space consumed by the sequence will be overwritten. Other types of key event do not suffer this limitation as the \fBTermKeyKey\fP structure is sufficient to contain all the information required.
+.SH "SEE ALSO"
+.BR termkey_new (3),
+.BR termkey_waitkey (3),
+.BR termkey_getkey (3)

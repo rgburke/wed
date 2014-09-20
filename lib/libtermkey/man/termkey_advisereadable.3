@@ -1,0 +1,33 @@
+.TH TERMKEY_ADVISEREADABLE 3
+.SH NAME
+termkey_advisereadable \- read more bytes from the underlying terminal
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "TermKeyResult termkey_advisereadable(TermKey *" tk );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_advisereadable\fP() informs the \fBtermkey\fP(7) instance that new input may be available on the underlying file descriptor and so it should call \fBread\fP(2) to obtain it. If at least one more byte was read it will return \fBTERMKEY_RES_AGAIN\fP to indicate it may be useful to call \fBtermkey_getkey\fP(3) again. If no more input was read then \fBTERMKEY_RES_NONE\fP is returned. If there was no buffer space remaining, then \fBTERMKEY_RES_ERROR\fP is returned with \fIerrno\fP set to \fBENOMEM\fP. If no filehandle is associated with this instance, \fBTERMKEY_RES_ERROR\fP is returned with \fIerrno\fP set to \fBEBADF\fP.
+.PP
+This function, along with \fBtermkey_getkey\fP(3) make it possible to use the termkey instance in an asynchronous program. To provide bytes without using a readable file handle, use \fBtermkey_push_bytes\fP(3).
+.PP
+For synchronous usage, \fBtermkey_waitkey\fP(3) performs the input blocking task.
+.SH "RETURN VALUE"
+\fBtermkey_advisereadable\fP() returns one of the following constants:
+.TP
+.B TERMKEY_RES_AGAIN
+At least one byte was read.
+.TP
+.B TERMKEY_RES_NONE
+No nore bytes were read.
+.TP
+.B TERMKEY_RES_ERROR
+An IO error occured. \fIerrno\fP will be preserved. If the error is \fBEINTR\fP then this will only be returned if \fBTERMKEY_FLAG_EINTR\fP flag is not set; if it is then the IO operation will be retried instead.
+.SH "SEE ALSO"
+.BR termkey_getkey (3),
+.BR termkey_waitkey (3),
+.BR termkey_set_waittime (3),
+.BR termkey (7)

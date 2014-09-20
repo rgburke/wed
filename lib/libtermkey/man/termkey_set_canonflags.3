@@ -1,0 +1,21 @@
+.TH TERMKEY_SET_CANONFLAGS 3
+.SH NAME
+termkey_set_canonflags, termkey_get_canonflags \- control the canonicalisation flags
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "void termkey_set_canonflags(TermKey *" tk ", int " newflags );
+.BI "int termkey_get_canonflags(TermKey *" tk );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_set_canonflags\fP() changes the set of canonicalisation flags in the \fBtermkey\fP(7) instance to those given by \fInewflags\fP. For detail on the available flags and their meaning, see the \fBtermkey\fP manpage.
+.PP
+\fBtermkey_get_canonflags\fP() returns the value set by the last call to \fBtermkey_set_canonflags\fP().
+.SH "RETURN VALUE"
+\fBtermkey_set_canonflags\fP() returns no value. \fBtermkey_get_canonflags\fP() returns the current canonicalisation flags.
+.SH "SEE ALSO"
+.BR termkey_canonicalise (3),
+.BR termkey (7)

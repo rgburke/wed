@@ -1,0 +1,23 @@
+.TH TERMKEY_LOOKUP_KEYNAME 3
+.SH NAME
+termkey_lookup_keyname \- look up a symbolic key value for a string name
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "char *termkey_lookup_keyname(TermKey *" tk ", const char *" keyname ",
+.BI "           TermKeySym *" sym ");
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_lookup_keyname\fP() looks up the symbolic key value represented by the given string name. This is a case-sensitive comparison. The symbolic value is written to the variable addressed by \fIsym\fP. This function is a more general form of \fBtermkey_keyname2sym\fP(3) because it can recognise a symbolic key name within a longer string, returning a pointer to the remainder of the input after the key name.
+.PP
+Because the key names are stored in an array indexed by the symbol number, this function has to perform a linear search of the names. Use of this function should be restricted to converting key names into symbolic values during a program's initialisation, so that efficient comparisons can be done while it is running.
+.SH "RETURN VALUE"
+\fBtermkey_lookup_keyname\fP() returns a pointer to the first character after a recognised name, or \fBNULL\fP if the string does not begin with the name of a recognised symbolic key.
+.SH "SEE ALSO"
+.BR termkey_get_keyname (3),
+.BR termkey_keyname2sym (3),
+.BR termkey_strpkey (3),
+.BR termkey (7)

@@ -1,0 +1,23 @@
+.TH TERMKEY_PUSH_BYTES 3
+.SH NAME
+termkey_push_bytes \- supply more bytes to the input buffer
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "size_t termkey_push_bytes(TermKey *" tk ", const char *" bytes ", size_t " len ");
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_push_bytes\fP() allows more bytes of input to be supplied directly into the input buffer of the \fBtermkey\fP(7) instance. If there was no buffer space remaining then -1 is returned with \fIerrno\fP set to \fBENOMEM\fP.
+.PP
+This function, along with \fBtermkey_getkey\fP(3), makes it possible to use the \fBtermkey\fP instance with a source of bytes other than from reading a filehandle.
+.PP
+For synchronous usage, \fBtermkey_waitkey\fP(3) performs the input blocking task. For use against a regular stream filehandle that supports \fBread\fP(2), see \fBtermkey_advisereadable\fP(3).
+.SH "RETURN VALUE"
+\fBtermkey_push_bytes\fP() the number of bytes consumed from the input (which may be smaller than the length provided, if the buffer runs out of space) or -1 cast to \fBsize_t\fP if an error occurs, in which case \fIerrno\fP is set accordingly.
+.SH "SEE ALSO"
+.BR termkey_getkey (3),
+.BR termkey_advisereadable (3),
+.BR termkey (7)

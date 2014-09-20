@@ -1,0 +1,59 @@
+.TH TERMKEY_STRFKEY 3
+.SH NAME
+termkey_strfkey \- format a string representing a key event
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "size_t termkey_strfkey(TermKey *" tk ", char *" buffer ", size_t " len ",
+.BI "            TermKeyKey *" key ", TermKeyFormat " format );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_strfkey\fP() formats a string buffer to contain a human-readable representation of a key event. It fills the \fIbuffer\fP in a way analogous to the \fBsnprintf\fP(3) or \fBstrftime\fP(3) standard library functions. This function used to be called \fBtermkey_snprint_key\fP() but was renamed after version 0.6.
+.PP
+The \fIformat\fP argument specifies the format of the output, as a bitmask of the following constants:
+.TP
+.B TERMKEY_FORMAT_LONGMOD
+Print full modifier names e.g. "\f(CWShift-\fP" instead of abbreviating to "\f(CWS-\fP".
+.TP
+.B TERMKEY_FORMAT_CARETCTRL
+If the only modifier is \fBTERMKEY_MOD_CTRL\fP on a plain letter, render it as "\f(CW^X\fP" rather than "\f(CWCtrl-X\fP".
+.TP
+.B TERMKEY_FORMAT_ALTISMETA
+Use the name "\f(CWMeta\fP" or the letter "\f(CWM\fP" instead of "\f(CWAlt\fP" or "\f(CWA\fP".
+.TP
+.B TERMKEY_FORMAT_WRAPBRACKET
+If the key event is a special key instead of unmodified Unicode, wrap it in "\f(CW<brackets>\fP".
+.TP
+.B TERMKEY_FORMAT_SPACEMOD
+Use spaces instead of hyphens to separate the modifier name(s) from the base key name.
+.TP
+.B TERMKEY_FORMAT_LOWERMOD
+Use lowercase for the modifier name.
+.TP
+.B TERMKEY_FORMAT_LOWERSPACE
+Use lowercase with spaces in for the key name instead of camelCase (for example "\f(CWpage down\fP" instead of "\f(CWPageDown\fP").
+.TP
+.B TERMKEY_FORMAT_MOUSE_POS
+If the event is a mouse event, include the position rendered as "\f(CW@ (col,line)\fP".
+.PP
+The following shortcuts are provided for common combinations of format bits:
+.TP
+.B TERMKEY_FORMAT_VIM
+Shortcut to set \fBALTISMETA\fP and \fBWRAPBRACKET\fP, to give an output close to the format the \fIvim\fP editor uses.
+.TP
+.B TERMKEY_FORMAT_URWID
+Shortcut to set \fBALTISMETA\fP, \fBLONGMOD\fP, \fBLOWERMOD\fP, \fBSPACEMOD\fP and \fBLOWERSPACE\fP, to give an output close to the format the \fIurwid\fP python library uses.
+.PP
+When formatting a \fBTERMKEY_TYPE_UNICODE\fP key structure, this function uses the \fIutf8\fP member. If this member contains an empty string (i.e. its first character is 0) then this member will be prefilled by the function from the \fIcode.number\fP member. This can be convenient when the key structure is being constructed programatically by user code.
+.SH "RETURN VALUE"
+\fBtermkey_strfkey\fP() returns the number of characters written to \fIbuffer\fP.
+.SH "SEE ALSO"
+.BR termkey_new (3),
+.BR termkey_getkey (3),
+.BR termkey_waitkey (3),
+.BR termkey_get_keyname (3),
+.BR termkey_strpkey (3),
+.BR termkey (7)

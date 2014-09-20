@@ -1,0 +1,8 @@
+libdir=@LIBDIR@
+includedir=@INCDIR@
+
+Name: termkey
+Description: Abstract terminal key input library
+Version: 0.17
+Libs: -L${libdir} -ltermkey
+Cflags: -I${includedir}

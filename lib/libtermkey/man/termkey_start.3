@@ -1,0 +1,25 @@
+.TH TERMKEY_START 3
+.SH NAME
+termkey_start, termkey_stop, termkey_is_started \- enable or disable terminal operations
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "int termkey_start(TermKey *" tk );
+.BI "int termkey_stop(TermKey *" tk );
+.sp
+.BI "int termkey_is_started(TermKey *" tk );
+.fi
+.sp
+Link with \fI\-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_start\fP() enables the terminal IO operations of the given \fBtermkey\fP(7) instance, including sending a terminal control sequence and setting the \fBtermios\fP(3) modes required.
+.PP
+\fBtermkey_stop\fP() disables terminal IO operations, by reversing the steps taken by \fBtermkey_start\fP(). A newly-constructed \fBtermkey\fP instance will have terminal IO enabled already.
+.PP
+\fBtermkey_is_started\fP() enquires whether terminal IO is currently enabled.
+.SH "RETURN VALUE"
+If successful, \fBtermkey_start\fP() and \fBtermkey_stop\fP() return a true value. On failure, zero is returned with \fIerrno\fP set to indicate the failure.  \fBtermkey_is_started\fP() returns true or false to indicate whether terminal IO is currently enabled.
+.SH "SEE ALSO"
+.BR termkey_new (3),
+.BR termkey (7)

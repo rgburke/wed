@@ -1,0 +1,20 @@
+.TH TERMKEY_GET_KEYNAME 3
+.SH NAME
+termkey_get_keyname \- return a string name for a symbolic key
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "const char *termkey_get_keyname(TermKey *" tk ", TermKeySym " sym );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_get_keyname\fP() returns a human-readable string name for the symbolic key value given by \fIsym\fP. The returned string is owned by the \fBtermkey\fP(7) instance \fItk\fP so should not be modified or freed. The returned pointer is guaranteed to be valid until the instance is released using \fBtermkey_destroy\fP(3). This function is the inverse of \fBtermkey_keyname2sym\fP(3).
+.SH "RETURN VALUE"
+\fBtermkey_get_key\fP() returns a pointer to a string.
+.SH "SEE ALSO"
+.BR termkey_lookup_keyname (3),
+.BR termkey_keyname2sym (3),
+.BR termkey_strfkey (3),
+.BR termkey (7)

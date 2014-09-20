@@ -1,0 +1,45 @@
+.TH TERMKEY_STRPKEY 3
+.SH NAME
+termkey_strpkey \- parse a string representing a key event
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "char *termkey_strpkey(TermKey *" tk ", const char *" str ",
+.BI "            TermKeyKey *" key ", TermKeyFormat " format );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_strpkey\fP(3) parses a string buffer containing a human-readable representation of a key event. It fills the \fIkey\fP structure from the results of this parsing, similar to the \fBstrptime\fP(3) standard library function.
+.PP
+The \fIformat\fP argument specifies the format expected in the string, as a bitmask of the following constants:
+.TP
+.B TERMKEY_FORMAT_LONGMOD
+Expect full modifier names e.g. "\f(CWShift-\fP" instead of abbreviating to "\f(CWS-\fP".
+.TP
+.B TERMKEY_FORMAT_CARETCTRL
+If the only modifier is \fBTERMKEY_MOD_CTRL\fP on a plain letter, accept it as "\f(CW^X\fP" rather than "\f(CWCtrl-X\fP".
+.TP
+.B TERMKEY_FORMAT_ALTISMETA
+Expect the name "\f(CWMeta\fP" or the letter "\f(CWM\fP" instead of "\f(CWAlt\fP" or "\f(CWA\fP".
+.TP
+.B TERMKEY_FORMAT_SPACEMOD
+Expect spaces instead of hyphens to separate the modifer name(s) from the base key name.
+.TP
+.B TERMKEY_FORMAT_LOWERMOD
+Expect lowercase for the modifier name.
+.TP
+.B TERMKEY_FORMAT_LOWERSPACE
+Expect lowercase with spaces in for the key name instead of camelCase (for example "\f(CWpage down\fP" instead of "\f(CWPageDown\fP").
+.PP
+Before returning, this function canonicalises the \fIkey\fP structure according to the rules given for \fBtermkey_canonicalise\fP(3).
+.PP
+The \fBTERMKEY_FORMAT_WRAPBRACKET\fP and \fBTERMKEY_FORMAT_MOUSE_POS\fP options are currently not supported by \fBtermkey_strpkey\fP(). When returning a \fBTERMKEY_TYPE_UNICODE\fP key structure, this function will fill in the \fIutf8\fP member.
+.SH "RETURN VALUE"
+After a successful parse, \fBtermkey_strpkey\fP() returns a pointer to the first character of the input it did not consume. If the input string contains more characters then this will point at the first character beyond. If the entire input string was consumed, then this will point at a null byte. If \fBtermkey_strpkey\fP() fails to parse, it returns \fBNULL\fP. After a failed parse, the \fIkey\fP structure may contain partial or invalid results. The structure will only be valid if the function returns a non-\fBNULL\fP result.
+.SH "SEE ALSO"
+.BR termkey_new (3),
+.BR termkey_strfkey (3),
+.BR termkey_keycmp (3),
+.BR termkey (7)

@@ -1,0 +1,26 @@
+.TH TERMKEY_INTERPRET_POSITION 3
+.SH NAME
+termkey_interpret_position \- interpret opaque cursor position event data
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "TermKeyResult termkey_interpret_position(TermKey *" tk ", const TermKeyKey *" key ", "
+.BI "    int *" line ", int *" col );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_interpret_position\fP() fills in variables in the passed pointers according to the cursor position report event found in \fIkey\fP. It should be called if \fBtermkey_getkey\fP(3) or similar have returned a key event with the type of \fBTERMKEY_TYPE_POSITION\fP.
+.PP
+Any pointer may instead be given as \fBNULL\fP to not return that value.
+.PP
+The \fIline\fP and \fIcol\fP variables will be filled in with the cursor position, indexed from 1. Note that due to the limited number of bytes in the \fBTermKeyKey\fP structure, the line and column numbers are limited to 2047 and 4095 respectively.
+.SH "RETURN VALUE"
+If passed a \fIkey\fP event of the type \fBTERMKEY_TYPE_POSITION\fP, this function will return \fBTERMKEY_RES_KEY\fP and will affect the variables whose pointers were passed in, as described above.
+.PP
+For other event types it will return \fBTERMKEY_RES_NONE\fP, and its effects on any variables whose pointers were passed in, are undefined.
+.SH "SEE ALSO"
+.BR termkey_waitkey (3),
+.BR termkey_getkey (3),
+.BR termkey (7)

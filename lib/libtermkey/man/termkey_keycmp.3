@@ -1,0 +1,22 @@
+.TH TERMKEY_KEYCMP 3
+.SH NAME
+termkey_keycmp \- compare two key events
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "int termkey_keycmp(TermKey *" tk ", const TermKeyKey *" key1 ",
+.BI "             const TermKeyKey *" key2 );
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_keycmp\fP() compares two key structures and applies a total ordering, returning a value that is negative, zero, or positive, to indicate if the given structures are increasing, identical, or decreasing. Before comparison, copies of both referenced structures are taken, and canonicalised according to the rules for \fBtermkey_canonicalise\fP(3).
+.PP
+Two structures of differing type are ordered \fBTERMKEY_TYPE_UNICODE\fP, \fBTERMKEY_TYPE_KEYSYM\fP, \fBTERMKEY_TYPE_FUNCTION\fP, \fBTERMKEY_TYPE_MOUSE\fP. Unicode structures are ordered by codepoint, keysym structures are ordered by keysym number, function structures are ordered by function key number, and mouse structures are ordered opaquely by an unspecified but consistent ordering. Within these values, keys different in modifier bits are ordered by the modifiers.
+.SH "RETURN VALUE"
+\fBtermkey_keycmp\fP() returns an integer greater than, equal to, or less than zero to indicate the relation between the two given key structures.
+.SH "SEE ALSO"
+.BR termkey_strpkey (3),
+.BR termkey_canonicalise (3),
+.BR termkey (7)

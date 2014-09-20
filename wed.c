@@ -23,7 +23,7 @@
 #include "session.h"
 #include "buffer.h"
 #include "display.h"
-#include "edit.h"
+#include "input.h"
 #include "file.h"
 
 int parse_args(int argc, char *argv[], Session *sess)

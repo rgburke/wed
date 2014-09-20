@@ -17,12 +17,13 @@
  */
 
 #include <ncurses.h>
-#include "edit.h"
+#include "input.h"
 #include "session.h"
 #include "display.h"
 #include "buffer.h"
 #include "command.h"
 #include "status.h"
+#include "lib/libtermkey/termkey.h"
 
 void edit(Session *sess)
 {

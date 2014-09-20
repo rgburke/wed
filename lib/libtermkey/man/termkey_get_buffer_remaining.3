@@ -1,0 +1,23 @@
+.TH TERMKEY_GET_BUFFER_REMAINING 3
+.SH NAME
+termkey_get_buffer_remaining \- returns the free buffer space
+.SH SYNOPSIS
+.nf
+.B #include <termkey.h>
+.sp
+.BI "size_t termkey_get_buffer_remaining(TermKey *" tk ");
+.fi
+.sp
+Link with \fI-ltermkey\fP.
+.SH DESCRIPTION
+\fBtermkey_get_buffer_remaining\fP() returns the number of bytes of buffer space currently free in the \fBtermkey\fP(7) instance. These bytes are free to use by \fBtermkey_push_bytes\fP(3), or may be filled by \fBtermkey_advisereadable\fP(3).
+.PP
+.SH "RETURN VALUE"
+\fBtermkey_get_buffer_remaining\fP() returns a size in bytes.
+.SH "SEE ALSO"
+.BR termkey_push_bytes (3),
+.BR termkey_advisereadable (3),
+.BR termkey_set_buffer_size (3),
+.BR termkey_get_buffer_size (3),
+.BR termkey_getkey (3),
+.BR termkey (7)
