@@ -17,6 +17,7 @@
  */
 
 #include "session.h"
+#include "status.h"
 #include "util.h"
 
 Session *new_session(void)
@@ -42,6 +43,8 @@ void free_session(Session *sess)
         free_buffer(buffer);
         buffer = tmp;
     }
+
+    free_error_queue(&sess->error_queue);
 
     free(sess);
 }
@@ -109,3 +112,66 @@ int set_active_buffer(Session *sess, size_t buff_index)
 
     return 1;
 }
+
+int remove_buffer(Session *sess, Buffer *to_remove)
+{
+    if (sess == NULL || sess->buffers == NULL || to_remove == NULL) {
+        return 0;
+    }
+
+    Buffer *buffer = sess->buffers;
+    Buffer *prev = NULL;
+
+    while (buffer != NULL && to_remove != buffer) {
+        prev = buffer;    
+        buffer = buffer->next;
+    }
+
+    if (buffer == NULL) {
+        return 0;
+    }
+
+    if (prev != NULL) {
+        if (buffer->next != NULL) {
+            prev->next = buffer->next; 
+        } else {
+            prev->next = NULL;
+        }
+    }
+
+    if (sess->active_buffer == buffer) {
+        if (buffer->next != NULL) {
+            sess->active_buffer = buffer->next;
+        } else if (prev != NULL) {
+            sess->active_buffer = prev;
+        } else {
+            sess->buffers = new_empty_buffer();
+            sess->active_buffer = sess->buffers;
+        } 
+    }
+
+    free_buffer(buffer);
+
+    return 1;
+}
+
+int add_err(Session *sess, Error *error)
+{
+    if (sess == NULL || error == NULL) {
+        return 0;
+    }
+
+    return error_queue_add(&sess->error_queue, error);
+}
+
+int add_error(Session *sess, Status status)
+{
+    if (is_success(status)) {
+        return 0;
+    } 
+
+    add_err(sess, status.error);
+
+    return 1;
+}
+

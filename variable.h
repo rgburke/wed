@@ -33,8 +33,13 @@ typedef struct {
     } val;
 } Value;
 
-#define INT_VAL(ivalue) { .type = VAL_TYPE_INT, .val = { .ival = (ivalue) } }
-#define STR_VAL(svalue) { .type = VAL_TYPE_STR, .val = { .sval = (svalue) } }
+#define INT_VAL_STRUCT(ivalue) { .type = VAL_TYPE_INT, .val = { .ival = (ivalue) } }
+#define STR_VAL_STRUCT(svalue) { .type = VAL_TYPE_STR, .val = { .sval = (svalue) } }
+#define INT_VAL(ivalue) (Value) INT_VAL_STRUCT(ivalue)
+#define STR_VAL(svalue) (Value) STR_VAL_STRUCT(svalue)
+
+Value deep_copy_value(Value);
+void free_value(Value);
 
 #endif
 

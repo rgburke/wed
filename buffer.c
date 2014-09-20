@@ -121,15 +121,9 @@ void realloc_line_text(Line *line)
     line->text = ralloc(line->text, ++line->alloc_num * LINE_ALLOC);
 }
 
-/* Loads file into buffer structure
- * TODO Update the STATUS_FAIL macros to return
- * Status' with error relevant error information */
+/* Loads file into buffer structure */
 Status load_buffer(Buffer *buffer)
 {
-    if (buffer == NULL) {
-        return STATUS_FAIL;
-    }
-
     if (!buffer->file_info.exists) {
         /* If the file represented by this buffer doesn't exist
          * then the buffer content is empty */
@@ -140,7 +134,7 @@ Status load_buffer(Buffer *buffer)
     FILE *input_file = fopen(buffer->file_info.rel_path, "rb");
 
     if (input_file == NULL) {
-        return STATUS_FAIL;
+        return raise_param_error(ERR_UNABLE_TO_OPEN_FILE, STR_VAL(buffer->file_info.file_name));
     } 
 
     char buf[FILE_BUF_SIZE];
@@ -150,7 +144,7 @@ Status load_buffer(Buffer *buffer)
     while ((read = fread(buf, sizeof(char), FILE_BUF_SIZE, input_file)) > 0) {
         if (read != FILE_BUF_SIZE && ferror(input_file)) {
             fclose(input_file);
-            return STATUS_FAIL;
+            return raise_param_error(ERR_UNABLE_TO_READ_FILE, STR_VAL(buffer->file_info.file_name));
         } 
 
         line = add_to_buffer(buf, read, line);

@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "util.h"
 
 List *new_list()
@@ -178,7 +179,7 @@ int sign(int k) {
     return (k > 0) - (k < 0);
 }
 
-size_t utf8_char_num(char *str)
+size_t utf8_char_num(const char *str)
 {
     size_t char_num = 0;
 
@@ -193,3 +194,19 @@ size_t utf8_char_num(char *str)
     return char_num;
 }
 
+char *strdupe(const char *str)
+{
+    if (str == NULL) {
+        return NULL;
+    }
+
+    char *copy = alloc(strlen(str) + 1);
+
+    if (copy == NULL) {
+        return NULL;
+    }
+
+    strcpy(copy, str);
+
+    return copy;
+}

@@ -22,16 +22,15 @@
 #include "display.h"
 #include "buffer.h"
 #include "command.h"
+#include "status.h"
 
 void edit(Session *sess)
 {
     int c, quit = 0;
-    /*Status status;*/
 
     while (!quit) {
         c = getch();
-        /* TODO Handle error status' and display them on the screen */
-        /*status = */do_command(sess, c, &quit);    
+        add_error(sess, do_command(sess, c, &quit));    
         update_display(sess);
     }
 }

@@ -16,40 +16,26 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_UTIL_H
-#define WED_UTIL_H
+#include <stdlib.h>
+#include "variable.h"
+#include "util.h"
 
-#include <stddef.h>
+Value deep_copy_value(Value value)
+{
+    if (value.type != VAL_TYPE_STR || value.val.sval == NULL) {
+        return value;
+    }
 
-#define LIST_ALLOC 10
-#define LIST_EXPAND 1
-#define LIST_SHRINK -1
+    value.val.sval = strdupe(value.val.sval);
 
-typedef struct {
-    void **values;
-    size_t size;
-    size_t allocated;
-} List;
+    return value;
+}
 
-List *new_list();
-List *new_sized_list(size_t);
-size_t list_size(List *);
-void *list_get(List *, size_t);
-void list_set(List *, void *, size_t);
-void list_add(List *, void *);
-void list_add_at(List *, void *, size_t);
-void *list_pop(List *);
-void *list_rm_at(List *, size_t);
-void free_list(List *);
+void free_value(Value value)
+{
+    if (value.type != VAL_TYPE_STR || value.val.sval == NULL) {
+        return;
+    }
 
-void fatal(const char *);
-void *alloc(size_t size);
-void *ralloc(void *, size_t);
-
-int roundup_div(int, int);
-int sign(int);
-
-size_t utf8_char_num(const char *);
-char *strdupe(const char *);
-
-#endif
+    free(value.val.sval);
+}

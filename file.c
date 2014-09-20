@@ -25,6 +25,7 @@
 #include <string.h>
 #include <libgen.h>
 #include "file.h"
+#include "util.h"
 
 int init_fileinfo(FileInfo *file_info, char *path)
 {
@@ -32,7 +33,7 @@ int init_fileinfo(FileInfo *file_info, char *path)
         return 0;
     }
 
-    file_info->rel_path = strdup(path);
+    file_info->rel_path = strdupe(path);
     file_info->file_name = basename(file_info->rel_path);
     struct stat file_stat;
 

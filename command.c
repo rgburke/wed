@@ -29,11 +29,11 @@ static Status bufferpos_change_char(Session *, Value, int *);
 static Status quit_wed(Session *, Value, int *);
 
 static const Command commands[] = {
-    { KEY_UP   , bufferpos_change_line, INT_VAL(-1) },
-    { KEY_DOWN , bufferpos_change_line, INT_VAL(1)  },
-    { KEY_RIGHT, bufferpos_change_char, INT_VAL(1)  },
-    { KEY_LEFT , bufferpos_change_char, INT_VAL(-1) },
-    { KEY_F(2) , quit_wed             , INT_VAL(0)  }
+    { KEY_UP   , bufferpos_change_line, INT_VAL_STRUCT(-1) },
+    { KEY_DOWN , bufferpos_change_line, INT_VAL_STRUCT(1)  },
+    { KEY_RIGHT, bufferpos_change_char, INT_VAL_STRUCT(1)  },
+    { KEY_LEFT , bufferpos_change_char, INT_VAL_STRUCT(-1) },
+    { KEY_F(2) , quit_wed             , INT_VAL_STRUCT(0)  }
 };
 
 Status do_command(Session *sess, int command, int *quit)
@@ -46,8 +46,7 @@ Status do_command(Session *sess, int command, int *quit)
         }
     }
 
-    /* TODO Update this with an Status with an error */
-    return STATUS_FAIL;
+    return raise_param_error(ERR_INVALID_COMMAND, INT_VAL(command));
 }
 
 static Status bufferpos_change_line(Session *sess, Value param, int *quit)

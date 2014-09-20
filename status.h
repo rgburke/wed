@@ -28,6 +28,8 @@
 #define STATUS_SUCCESS STATUS(SUCCESS_CODE)
 #define STATUS_FAIL STATUS(FAIL_CODE)
 
+#define ERROR_QUEUE_MAX_SIZE 10
+
 typedef enum {
     ERR_SVR_MINIMAL,
     ERR_SVR_WARNING,
@@ -38,6 +40,9 @@ typedef enum {
     ERR_INVALID_ERROR_CODE,
     ERR_FILE_DOESNT_EXIST,
     ERR_FILE_IS_DIRECTORY,
+    ERR_UNABLE_TO_OPEN_FILE,
+    ERR_UNABLE_TO_READ_FILE,
+    ERR_INVALID_COMMAND,
     ERR_LAST_ENTRY
 } ErrorCode;
 
@@ -50,6 +55,13 @@ typedef struct {
     Value param; /* Error instance specific message part */
 } Error;
 
+/* Queue structure for storing multiple errors */
+typedef struct {
+    Error *errors[ERROR_QUEUE_MAX_SIZE];
+    int start;
+    int count;
+} ErrorQueue;
+
 /* Used to determine the success of an action.
  * error is NULL when successful. */
 typedef struct {
@@ -60,6 +72,13 @@ typedef struct {
 int is_success(Status);
 Status raise_error(ErrorCode);
 Status raise_param_error(ErrorCode, Value);
+void free_error(Error *);
+
+int error_queue_full(ErrorQueue *);
+int error_queue_empty(ErrorQueue *);
+int error_queue_add(ErrorQueue *, Error *);
+Error *error_queue_remove(ErrorQueue *);
+void free_error_queue(ErrorQueue *);
 
 #endif
 

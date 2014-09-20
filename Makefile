@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS=-c -std=c99 -Wall -Wextra -Werror -pedantic -g
 #CFLAGS=-c -std=c99 -O2 -Wall -Wextra -pedantic
 LDFLAGS=-lncursesw
-SOURCES=wed.c display.c buffer.c util.c edit.c session.c status.c command.c file.c
+SOURCES=wed.c display.c buffer.c util.c edit.c session.c status.c command.c file.c variable.c
 OBJECTS=$(SOURCES:.c=.o)
 BINARY=wed
 

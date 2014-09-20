@@ -51,12 +51,19 @@ void init_session(char *buffers[], int buffer_num, Session *sess)
         init_fileinfo(&file_info, buffers[k]);
 
         if (file_info.is_directory) {
-            /* return raise_info_error(ERR_FILE_IS_DIRECTORY, file_info->file_name); */
+            free_fileinfo(file_info);
+            add_error(sess, raise_param_error(ERR_FILE_IS_DIRECTORY, STR_VAL(file_info.file_name)));
             continue;
         }
 
         Buffer *buffer = new_buffer(file_info);
-        load_buffer(buffer);
+        Status load_status = load_buffer(buffer);
+
+        if (add_error(sess, load_status)) {
+            free_buffer(buffer);
+            continue;
+        }
+
         add_buffer(sess, buffer);
     }
 

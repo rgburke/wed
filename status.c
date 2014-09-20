@@ -22,9 +22,12 @@
 #include "util.h"
 
 static const Error errors[] = {
-    { ERR_INVALID_ERROR_CODE, ERR_SVR_CRITICAL, 1, "Invalid Error code %d" , INT_VAL(0)  },
-    { ERR_FILE_DOESNT_EXIST , ERR_SVR_CRITICAL, 1, "File %s doesn't exist" , STR_VAL("") },
-    { ERR_FILE_IS_DIRECTORY , ERR_SVR_CRITICAL, 1, "File %s is a directory", STR_VAL("") }
+    { ERR_INVALID_ERROR_CODE , ERR_SVR_CRITICAL, 1, "Invalid Error code %d"      , INT_VAL_STRUCT(0)  },
+    { ERR_FILE_DOESNT_EXIST  , ERR_SVR_CRITICAL, 1, "File %s doesn't exist"      , STR_VAL_STRUCT("") },
+    { ERR_FILE_IS_DIRECTORY  , ERR_SVR_CRITICAL, 1, "File %s is a directory"     , STR_VAL_STRUCT("") },
+    { ERR_UNABLE_TO_OPEN_FILE, ERR_SVR_CRITICAL, 1, "Unable to open file %s"     , STR_VAL_STRUCT("") },
+    { ERR_UNABLE_TO_READ_FILE, ERR_SVR_CRITICAL, 1, "Unable to read from file %s", STR_VAL_STRUCT("") },
+    { ERR_INVALID_COMMAND    , ERR_SVR_CRITICAL, 1, "Invalid command code %d"    , INT_VAL_STRUCT(0)  }
 };
 
 int is_success(Status status)
@@ -48,9 +51,61 @@ Status raise_param_error(ErrorCode error_code, Value param)
 
     Error *error = alloc(sizeof(Error));
     memcpy(error, &errors[error_code], sizeof(Error));
-    error->param = param;
+    error->param = deep_copy_value(param);
 
     Status status = { .success = 0, .error = error };
     return status;
+}
+
+void free_error(Error *error)
+{
+    if (error == NULL) {
+        return;
+    }
+
+    free_value(error->param);
+    free(error);
+}
+
+int error_queue_full(ErrorQueue *error_queue)
+{
+    return error_queue->count == ERROR_QUEUE_MAX_SIZE; 
+}
+
+int error_queue_empty(ErrorQueue *error_queue)
+{
+    return error_queue->count == 0;
+}
+
+int error_queue_add(ErrorQueue *error_queue, Error *error)
+{
+    if (error_queue_full(error_queue)) {
+        return 0;
+    } 
+
+    int index = (error_queue->start + error_queue->count++) % ERROR_QUEUE_MAX_SIZE;
+    error_queue->errors[index] = error;
+
+    return 1;
+}
+
+Error *error_queue_remove(ErrorQueue *error_queue)
+{
+    if (error_queue_empty(error_queue)) {
+        return NULL;
+    }
+
+    Error *error = error_queue->errors[error_queue->start++];
+    error_queue->start %= ERROR_QUEUE_MAX_SIZE; 
+    error_queue->count--;
+
+    return error;
+}
+
+void free_error_queue(ErrorQueue *error_queue)
+{
+    while (!error_queue_empty(error_queue)) {
+        free_error(error_queue_remove(error_queue));
+    }
 }
 
