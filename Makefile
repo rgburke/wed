@@ -11,7 +11,7 @@ BINARY=wed
 all: $(SOURCES) libtermkey $(BINARY)
 
 $(BINARY): $(OBJECTS)
-	$(CC) $(OBJECTS) $(LIBTERMKEYDIR)/.libs/$(LIBTERMKEYLIB) -o $@ $(LDFLAGS)
+	$(CC) $(OBJECTS) $(LIBTERMKEYDIR)/$(LIBTERMKEYLIB) -o $@ $(LDFLAGS)
 
 libtermkey:
 	make -C $(LIBTERMKEYDIR)
