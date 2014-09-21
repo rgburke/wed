@@ -17,6 +17,7 @@
  */
 
 #include <ncurses.h>
+#include <string.h>
 #include "status.h"
 #include "command.h"
 #include "session.h"
@@ -29,24 +30,25 @@ static Status bufferpos_change_char(Session *, Value, int *);
 static Status quit_wed(Session *, Value, int *);
 
 static const Command commands[] = {
-    { KEY_UP   , bufferpos_change_line, INT_VAL_STRUCT(-1) },
-    { KEY_DOWN , bufferpos_change_line, INT_VAL_STRUCT(1)  },
-    { KEY_RIGHT, bufferpos_change_char, INT_VAL_STRUCT(1)  },
-    { KEY_LEFT , bufferpos_change_char, INT_VAL_STRUCT(-1) },
-    { KEY_F(2) , quit_wed             , INT_VAL_STRUCT(0)  }
+    { "<Up>"   , bufferpos_change_line, INT_VAL_STRUCT(-1) },
+    { "<Down>" , bufferpos_change_line, INT_VAL_STRUCT(1)  },
+    { "<Right>", bufferpos_change_char, INT_VAL_STRUCT(1)  },
+    { "<Left>" , bufferpos_change_char, INT_VAL_STRUCT(-1) },
+    { "<F2>"   , quit_wed             , INT_VAL_STRUCT(0)  }
 };
 
-Status do_command(Session *sess, int command, int *quit)
+Status do_command(Session *sess, char *command, int *quit)
 {
     size_t command_num = sizeof(commands) / sizeof(Command);
 
+    /* TODO Use hashmap instead, especially as more commands will be added */
     for (size_t k = 0; k < command_num; k++) {
-        if (commands[k].code == command) {
+        if (strcmp(commands[k].keystr, command) == 0) {
             return commands[k].func(sess, commands[k].param, quit);
         }
     }
 
-    return raise_param_error(ERR_INVALID_COMMAND, INT_VAL(command));
+    return raise_param_error(ERR_INVALID_COMMAND, STR_VAL(command));
 }
 
 static Status bufferpos_change_line(Session *sess, Value param, int *quit)

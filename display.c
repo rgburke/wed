@@ -52,13 +52,10 @@ void init_display(void)
     }
 
     raw();
-    cbreak();
     noecho();
     nl();
-    curs_set(1);
-    idlok(stdscr, TRUE);
     keypad(stdscr, TRUE);
-    meta(stdscr, TRUE);
+    curs_set(1);
     set_tabsize(WED_TAB_SIZE);
 
     text_y = LINES - 2;

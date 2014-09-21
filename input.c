@@ -25,13 +25,36 @@
 #include "status.h"
 #include "lib/libtermkey/termkey.h"
 
+#define MAX_KEY_STR_SIZE 50
+
 void edit(Session *sess)
 {
-    int c, quit = 0;
+    int quit = 0;
+    char keystr[MAX_KEY_STR_SIZE];
+    TermKey *termkey = termkey_new(0, TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
+    TermKeyResult ret;
+    TermKeyKey key;
+
+    if (termkey == NULL) {
+        /* TODO Need to add out of memory type error.
+         * Also need to deal with fatal out of memory cases like this. */
+        return;
+    }
+
+    init_display();
+    refresh_display(sess);
 
     while (!quit) {
-        c = getch();
-        add_error(sess, do_command(sess, c, &quit));    
+        ret = termkey_waitkey(termkey, &key);
+
+        if (ret == TERMKEY_RES_KEY) {
+            termkey_strfkey(termkey, keystr, sizeof(keystr), &key, TERMKEY_FORMAT_VIM);
+            add_error(sess, do_command(sess, keystr, &quit));    
+        }
+
         update_display(sess);
     }
+
+    end_display();
+    termkey_destroy(termkey);
 }

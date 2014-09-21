@@ -85,15 +85,10 @@ int main(int argc, char *argv[])
     }
 
     setlocale(LC_ALL, "");
-    init_display();
-
     init_session(argv, argc, sess);
-
-    refresh_display(sess);
 
     edit(sess);
 
-    end_display();
     free_session(sess);
     
     return 0;

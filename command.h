@@ -25,11 +25,11 @@
 
 /* Represents a command. Move up, down etc... */
 typedef struct {
-    int code; /* Key code */
+    char *keystr; /* Key combo string representiation */
     Status (*func)(Session *, Value, int *); /* Pointer to command function */
     Value param; /* Argument passed to command function */
 } Command;
 
-Status do_command(Session *, int, int *);
+Status do_command(Session *, char *, int *);
 
 #endif
