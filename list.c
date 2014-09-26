@@ -17,25 +17,39 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include "list.h"
-#include "util.h"
 
 static int grow_required(List *);
 static int shrink_required(List *);
-static void resize_list(List *, int);
+static int resize_list(List *, int);
+
+/* Code in this file doesn't use alloc and ralloc from
+ * util.c in order to make it easier to reuse elsewhere */
 
 List *new_list()
 {
-    return new_sized_list(LIST_ALLOC);        
+    List* list = new_sized_list(LIST_ALLOC);        
+    list->size = 0;
+    return list;
 }
 
 List *new_sized_list(size_t size)
 {
-    List *list = alloc(sizeof(List));
+    List *list = calloc(1, sizeof(List));
 
-    list->size = 0;
+    if (list == NULL) {
+        return NULL;
+    }
+
+    list->size = size;
     list->allocated = size;
-    list->values = alloc(sizeof(void *) * list->allocated);
+    list->values = calloc(1, sizeof(void *) * list->allocated);
+
+    if (list->values == NULL) {
+        free(list);
+        return NULL;
+    }
 
     return list; 
 }
@@ -50,11 +64,27 @@ static int shrink_required(List *list)
     return list->size < (list->allocated / 2);
 }
 
-static void resize_list(List *list, int resize_type)
+static int resize_list(List *list, int resize_type)
 {
+    /* In case an empty list is created */
+    if (resize_type == LIST_EXPAND && list->size < 2) {
+        list->allocated++;
+    }
+
     size_t new_size = list->allocated + ((list->allocated / 2) * resize_type);
     list->allocated = new_size;
     list->values = realloc(list->values, sizeof(void *) * list->allocated);
+
+    if (list->values == NULL) {
+        return 0;
+    }
+
+    if (resize_type == LIST_EXPAND) {
+        /* Zero out the new part of the lists memory */
+        memset(list->values + list->size, 0, sizeof(void *) * (list->allocated - list->size));
+    }
+
+    return 1;
 }
 
 size_t list_size(List *list)
@@ -80,23 +110,25 @@ void list_set(List *list, void *value, size_t index)
     }
 }
 
-void list_add(List *list, void *value)
+int list_add(List *list, void *value)
 {
-    if (grow_required(list)) {
-        resize_list(list, LIST_EXPAND);
+    if (grow_required(list) && !resize_list(list, LIST_EXPAND)) {
+        return 0;
     }
 
     list->values[list->size++] = value;    
+
+    return 1;
 }
 
-void list_add_at(List *list, void *value, size_t index)
+int list_add_at(List *list, void *value, size_t index)
 {
     if (index >= list->size) {
-        return;
+        return 0;
     }
 
-    if (grow_required(list)) {
-        resize_list(list, LIST_EXPAND);
+    if (grow_required(list) && !resize_list(list, LIST_EXPAND)) {
+        return 0;
     }
 
     for (size_t k = list->size++; k > index; k--) {
@@ -104,6 +136,8 @@ void list_add_at(List *list, void *value, size_t index)
     }
 
     list->values[index] = value;
+
+    return 1;
 }
 
 void *list_pop(List *list)
@@ -113,8 +147,8 @@ void *list_pop(List *list)
     if (list->size > 0) {
         value = list->values[--list->size];
 
-        if (shrink_required(list)) {
-            resize_list(list, LIST_SHRINK);
+        if (shrink_required(list) && !resize_list(list, LIST_SHRINK)) {
+            return NULL;
         }
     }
 
@@ -134,12 +168,18 @@ void *list_remove_at(List *list, size_t index)
 
         list->size--;
 
-        if (shrink_required(list)) {
-            resize_list(list, LIST_SHRINK);
+        if (shrink_required(list) && !resize_list(list, LIST_SHRINK)) {
+            return NULL;
         }
     }
 
     return value;
+}
+
+void list_clear(List *list)
+{
+    memset(list->values, 0, sizeof(void *) * list->allocated);
+    list->size = 0;
 }
 
 void free_list(List *list)

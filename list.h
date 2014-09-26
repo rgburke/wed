@@ -25,6 +25,9 @@
 #define LIST_EXPAND 1
 #define LIST_SHRINK -1
 
+/* Simple list implementation */
+/* TODO Consider inlining some of these functions */
+
 typedef struct {
     void **values;
     size_t size;
@@ -36,10 +39,11 @@ List *new_sized_list(size_t);
 size_t list_size(List *);
 void *list_get(List *, size_t);
 void list_set(List *, void *, size_t);
-void list_add(List *, void *);
-void list_add_at(List *, void *, size_t);
+int list_add(List *, void *);
+int list_add_at(List *, void *, size_t);
 void *list_pop(List *);
 void *list_remove_at(List *, size_t);
+void list_clear(List *);
 void free_list(List *);
 
 #endif
