@@ -21,6 +21,7 @@
 
 #include "buffer.h"
 #include "status.h"
+#include "hashmap.h"
 
 /* Top level structure containing all state.
  * A new session is created when wed is invoked. */
@@ -28,9 +29,11 @@ typedef struct {
     Buffer *buffers;
     Buffer *active_buffer;
     ErrorQueue error_queue;
+    HashMap *keymap;
 } Session;
 
 Session *new_session(void);
+int init_session(Session *, char **, int);
 void free_session(Session *);
 int add_buffer(Session *, Buffer *);
 size_t get_buffer_num(Session *);

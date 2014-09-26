@@ -24,6 +24,7 @@
 #include "display.h"
 #include "buffer.h"
 #include "variable.h"
+#include "hashmap.h"
 
 static Status bufferpos_change_line(Session *, Value, int *);
 static Status bufferpos_change_char(Session *, Value, int *); 
@@ -37,18 +38,32 @@ static const Command commands[] = {
     { "<F2>"   , quit_wed             , INT_VAL_STRUCT(0)  }
 };
 
-Status do_command(Session *sess, char *command, int *quit)
+int init_keymap(Session *sess)
 {
     size_t command_num = sizeof(commands) / sizeof(Command);
 
-    /* TODO Use hashmap instead, especially as more commands will be added */
-    for (size_t k = 0; k < command_num; k++) {
-        if (strcmp(commands[k].keystr, command) == 0) {
-            return commands[k].func(sess, commands[k].param, quit);
-        }
+    sess->keymap = new_sized_hashmap(command_num * 2);
+
+    if (sess->keymap == NULL) {
+        return 0;
     }
 
-    return raise_param_error(ERR_INVALID_COMMAND, STR_VAL(command));
+    for (size_t k = 0; k < command_num; k++) {
+        hashmap_set(sess->keymap, commands[k].keystr, (Command *)&commands[k]);
+    }
+
+    return 1;
+}
+
+Status do_command(Session *sess, char *command_str, int *quit)
+{
+    Command *command = hashmap_get(sess->keymap, command_str);
+
+    if (command == NULL) {
+        return raise_param_error(ERR_INVALID_COMMAND, STR_VAL(command_str));
+    }
+
+    return command->func(sess, command->param, quit);
 }
 
 static Status bufferpos_change_line(Session *sess, Value param, int *quit)

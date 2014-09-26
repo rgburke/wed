@@ -19,14 +19,56 @@
 #include "session.h"
 #include "status.h"
 #include "util.h"
+#include "command.h"
 
 Session *new_session(void)
 {
     Session *sess = alloc(sizeof(Session));
     sess->buffers = NULL;
     sess->active_buffer = NULL;
+    sess->keymap = NULL;
 
     return sess;
+}
+
+int init_session(Session *sess, char *buffer_paths[], int buffer_num)
+{
+    FileInfo file_info;
+
+    /* Limited to one file for the moment */
+    buffer_num = 2;
+
+    for (int k = 1; k < buffer_num; k++) {
+        init_fileinfo(&file_info, buffer_paths[k]);
+
+        if (file_info.is_directory) {
+            free_fileinfo(file_info);
+            add_error(sess, raise_param_error(ERR_FILE_IS_DIRECTORY, STR_VAL(file_info.file_name)));
+            continue;
+        }
+
+        Buffer *buffer = new_buffer(file_info);
+        Status load_status = load_buffer(buffer);
+
+        if (add_error(sess, load_status)) {
+            free_buffer(buffer);
+            continue;
+        }
+
+        add_buffer(sess, buffer);
+    }
+
+    if (get_buffer_num(sess) == 0) {
+        add_buffer(sess, new_empty_buffer()); 
+    }
+
+    if (!set_active_buffer(sess, 0)) {
+        return 0;
+    }
+
+    init_keymap(sess);
+
+    return 1;
 }
 
 void free_session(Session *sess)

@@ -38,44 +38,8 @@ int parse_args(int argc, char *argv[], Session *sess)
     return 1;
 }
 
-/* TODO This function needs to generate errors or return a boolean.
- * Also maybe this should be moved to session.c */
-void init_session(char *buffers[], int buffer_num, Session *sess)
-{
-    FileInfo file_info;
-
-    /* Limited to one file for the moment */
-    buffer_num = 2;
-
-    for (int k = 1; k < buffer_num; k++) {
-        init_fileinfo(&file_info, buffers[k]);
-
-        if (file_info.is_directory) {
-            free_fileinfo(file_info);
-            add_error(sess, raise_param_error(ERR_FILE_IS_DIRECTORY, STR_VAL(file_info.file_name)));
-            continue;
-        }
-
-        Buffer *buffer = new_buffer(file_info);
-        Status load_status = load_buffer(buffer);
-
-        if (add_error(sess, load_status)) {
-            free_buffer(buffer);
-            continue;
-        }
-
-        add_buffer(sess, buffer);
-    }
-
-    if (get_buffer_num(sess) == 0) {
-        add_buffer(sess, new_empty_buffer()); 
-    }
-
-    if (!set_active_buffer(sess, 0)) {
-        return;
-    }
-}
-
+/* TODO If a fatal error occurs when initializing then
+ * print an error message to stderr. */
 int main(int argc, char *argv[])
 {
     Session *sess = new_session();
@@ -85,7 +49,10 @@ int main(int argc, char *argv[])
     }
 
     setlocale(LC_ALL, "");
-    init_session(argv, argc, sess);
+
+    if (!init_session(sess, argv, argc)) {
+        return 1;
+    }
 
     edit(sess);
 

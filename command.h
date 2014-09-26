@@ -30,6 +30,7 @@ typedef struct {
     Value param; /* Argument passed to command function */
 } Command;
 
+int init_keymap(Session *);
 Status do_command(Session *, char *, int *);
 
 #endif
