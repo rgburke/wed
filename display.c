@@ -100,10 +100,11 @@ void draw_status(Session *sess)
     size_t line_no = get_pos_line_number(buffer);
     size_t col_no = get_pos_col_number(buffer);
 
-    wclear(status);
+    wmove(status, 0, 0);
+    wclrtoeol(status);
     wbkgd(status, COLOR_PAIR(STATUS_COLOR_PAIR));
     wattron(status, COLOR_PAIR(STATUS_COLOR_PAIR));
-    mvwprintw(status, 0, 0, "Line %zu Column %zu", line_no, col_no); 
+    wprintw(status, "Line %zu Column %zu", line_no, col_no); 
     wattroff(status, COLOR_PAIR(STATUS_COLOR_PAIR));
     wrefresh(status); 
 }
@@ -112,8 +113,6 @@ void draw_status(Session *sess)
  * necessary buffer parts. */
 void draw_text(Session *sess, int refresh_all)
 {
-    wclear(status);
-
     if (refresh_all) {
         wclear(text);
     }
@@ -143,8 +142,6 @@ void draw_text(Session *sess, int refresh_all)
 
         line = line->next;
     }
-
-    wrefresh(text);
 }
 
 static size_t draw_line(Line *line, size_t char_index, int y)
