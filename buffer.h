@@ -54,6 +54,7 @@ struct Buffer {
     BufferPos pos; /* The cursor position */
     BufferPos screen_start; /* The first screen line (can start on wrapped line) to start drawing from */
     Buffer *next; /* Next buffer in this session */
+    size_t line_col_offset; /* Global cursor line offset */
 };
 
 Buffer *new_buffer(FileInfo);
@@ -69,9 +70,9 @@ size_t get_pos_col_number(Buffer *);
 Line *get_line_from_offset(Line *, int, size_t);
 Status pos_change_line(Buffer *, BufferPos *, int);
 Status pos_change_muti_line(Buffer *, BufferPos *, int, size_t);
-Status pos_change_char(Buffer *, BufferPos *, int);
-Status pos_change_multi_char(Buffer *, BufferPos *, int, size_t);
-Status pos_change_screen_line(Buffer *, BufferPos *, int);
-Status pos_change_multi_screen_line(Buffer *, BufferPos *, int, size_t);
+Status pos_change_char(Buffer *, BufferPos *, int, int);
+Status pos_change_multi_char(Buffer *, BufferPos *, int, size_t, int);
+Status pos_change_screen_line(Buffer *, BufferPos *, int, int);
+Status pos_change_multi_screen_line(Buffer *, BufferPos *, int, size_t, int);
 
 #endif

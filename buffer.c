@@ -27,6 +27,8 @@
 #include "file.h"
 
 static Line *add_to_buffer(const char *, size_t, Line *);
+static void update_line_col_offset(Buffer *, BufferPos *);
+static Status advance_pos_to_line_offset(Buffer *, BufferPos *);
 
 Buffer *new_buffer(FileInfo file_info)
 {
@@ -37,6 +39,7 @@ Buffer *new_buffer(FileInfo file_info)
     init_bufferpos(&buffer->screen_start);
     buffer->lines = NULL;
     buffer->next = NULL;
+    buffer->line_col_offset = 0;
 
     return buffer;
 }
@@ -281,7 +284,7 @@ Status pos_change_muti_line(Buffer *buffer, BufferPos *pos, int direction, size_
 }
 
 /* Move cursor a character to the left or right */
-Status pos_change_char(Buffer *buffer, BufferPos *pos, int direction)
+Status pos_change_char(Buffer *buffer, BufferPos *pos, int direction, int update_col_offset)
 {
     (void)buffer;
     direction = sign(direction); 
@@ -315,10 +318,14 @@ Status pos_change_char(Buffer *buffer, BufferPos *pos, int direction)
            pos->offset < line->length &&
            (pos->offset += direction) > 0) ;
 
+    if (update_col_offset) {
+        update_line_col_offset(buffer, pos);
+    }
+
     return STATUS_SUCCESS;
 }
 
-Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, int direction, size_t offset)
+Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, int direction, size_t offset, int update_col_offset)
 {
     direction = sign(direction);
 
@@ -330,7 +337,7 @@ Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, int direction, size
     Status status;
 
     for (size_t k = 0; k < offset; k++) {
-        status = pos_change_char(buffer, pos, direction);
+        status = pos_change_char(buffer, pos, direction, update_col_offset);
 
         if (!is_success(status)) {
             return status;
@@ -346,7 +353,7 @@ Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, int direction, size
  * down to a different part of the line displayed as a different line on the screen.
  * Therefore this function is dependent on the width of the screen. */
 
-Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, int direction)
+Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, int direction, int advance_pos)
 {
     (void)buffer;
     direction = sign(direction); 
@@ -365,7 +372,7 @@ Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, int direction)
 
     while (cols > 0 && cols <= col_num) {
         cols -= byte_screen_length(pos->line->text[pos->offset], pos->offset);
-        status = pos_change_char(buffer, pos, direction);
+        status = pos_change_char(buffer, pos, direction, 0);
 
         if (!is_success(status)) {
             return status;
@@ -387,10 +394,14 @@ Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, int direction)
         }
     }
 
+    if (advance_pos) {
+        return advance_pos_to_line_offset(buffer, pos);
+    }
+
     return STATUS_SUCCESS;
 }
 
-Status pos_change_multi_screen_line(Buffer *buffer, BufferPos *pos, int direction, size_t offset)
+Status pos_change_multi_screen_line(Buffer *buffer, BufferPos *pos, int direction, size_t offset, int is_cursor)
 {
     direction = sign(direction);
 
@@ -402,12 +413,40 @@ Status pos_change_multi_screen_line(Buffer *buffer, BufferPos *pos, int directio
     Status status;
 
     for (size_t k = 0; k < offset; k++) {
-        status = pos_change_screen_line(buffer, pos, direction);
+        status = pos_change_screen_line(buffer, pos, direction, is_cursor);
 
         if (!is_success(status)) {
             return status;
         }
     }
+
+    return STATUS_SUCCESS;
+}
+
+static void update_line_col_offset(Buffer *buffer, BufferPos *pos)
+{
+    buffer->line_col_offset = screen_col_no(*pos);
+}
+
+static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos)
+{
+    size_t global_col_offset = buffer->line_col_offset;
+    size_t current_col_offset = screen_col_no(*pos);
+    Status status;
+
+    while (current_col_offset < global_col_offset &&
+           pos->offset < pos->line->length) {
+        
+        status = pos_change_char(buffer, pos, 1, 1);
+
+        if (!is_success(status)) {
+            return status;
+        }
+
+        current_col_offset++;
+    }
+
+    buffer->line_col_offset = global_col_offset;
 
     return STATUS_SUCCESS;
 }

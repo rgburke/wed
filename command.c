@@ -69,13 +69,13 @@ Status do_command(Session *sess, char *command_str, int *quit)
 static Status bufferpos_change_line(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    return pos_change_screen_line(sess->active_buffer, &sess->active_buffer->pos, param.val.ival);
+    return pos_change_screen_line(sess->active_buffer, &sess->active_buffer->pos, param.val.ival, 1);
 }
 
 static Status bufferpos_change_char(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    return pos_change_char(sess->active_buffer, &sess->active_buffer->pos, param.val.ival);
+    return pos_change_char(sess->active_buffer, &sess->active_buffer->pos, param.val.ival, 1);
 }
 
 static Status quit_wed(Session *sess, Value param, int *quit)

@@ -34,8 +34,6 @@ static size_t text_x;
 
 static size_t draw_line(Line *, size_t, int);
 static void convert_pos_to_point(Point *, BufferPos);
-static size_t screen_line_no(BufferPos);
-static size_t screen_col_no(BufferPos);
 static void vertical_scroll(Buffer *, Point *, Point);
 
 /* ncurses setup */
@@ -205,7 +203,7 @@ static void convert_pos_to_point(Point *point, BufferPos pos)
 
 /* Calculate the line number pos represents counting 
  * wrapped lines as whole lines */
-static size_t screen_line_no(BufferPos pos)
+size_t screen_line_no(BufferPos pos)
 {
     size_t line_no = 0;
     Line *line = pos.line;
@@ -221,7 +219,7 @@ static size_t screen_line_no(BufferPos pos)
 
 /* TODO This isn't generic, it assumes line wrapping is enabled. This 
  * may not be the case in future when horizontal scrolling is added. */
-static size_t screen_col_no(BufferPos pos)
+size_t screen_col_no(BufferPos pos)
 {
     size_t screen_length = line_screen_length(pos.line, 0, pos.offset);
     return screen_length % text_x; 
@@ -365,7 +363,7 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
         }
     } 
 
-    pos_change_multi_screen_line(buffer, &buffer->screen_start, direction, diff);
+    pos_change_multi_screen_line(buffer, &buffer->screen_start, direction, diff, 0);
     convert_pos_to_point(screen_start, buffer->screen_start);
 
     scrollok(text, TRUE);
