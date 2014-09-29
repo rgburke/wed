@@ -36,7 +36,9 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
     FileInfo file_info;
 
     /* Limited to one file for the moment */
-    buffer_num = 2;
+    if (buffer_num > 2) {
+        buffer_num = 2;
+    }
 
     for (int k = 1; k < buffer_num; k++) {
         init_fileinfo(&file_info, buffer_paths[k]);
@@ -87,6 +89,7 @@ void free_session(Session *sess)
     }
 
     free_error_queue(&sess->error_queue);
+    free_hashmap(sess->keymap);
 
     free(sess);
 }

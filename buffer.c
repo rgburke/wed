@@ -26,7 +26,7 @@
 #include "display.h"
 #include "file.h"
 
-static Line *add_to_buffer(const char *, size_t, Line *);
+static Line *add_to_buffer(const char *, size_t, Line *, int);
 static void update_line_col_offset(Buffer *, BufferPos *);
 static Status advance_pos_to_line_offset(Buffer *, BufferPos *);
 
@@ -150,7 +150,7 @@ Status load_buffer(Buffer *buffer)
             return raise_param_error(ERR_UNABLE_TO_READ_FILE, STR_VAL(buffer->file_info.file_name));
         } 
 
-        line = add_to_buffer(buf, read, line);
+        line = add_to_buffer(buf, read, line, read < FILE_BUF_SIZE);
     }
 
     fclose(input_file);
@@ -163,7 +163,7 @@ Status load_buffer(Buffer *buffer)
 }
 
 /* Used when loading a file into a buffer */
-static Line *add_to_buffer(const char buffer[], size_t bsize, Line *line)
+static Line *add_to_buffer(const char buffer[], size_t bsize, Line *line, int eof)
 {
     size_t idx = 0;
 
@@ -174,9 +174,12 @@ static Line *add_to_buffer(const char buffer[], size_t bsize, Line *line)
 
         if (buffer[idx] == '\n') {
             line->text[line->length] = '\0';
-            line->next = new_line();
-            line->next->prev = line;
-            line = line->next;
+
+            if (!(eof && idx == (bsize - 1))) {
+                line->next = new_line();
+                line->next->prev = line;
+                line = line->next;
+            }
         } else {
             line->screen_length += byte_screen_length(buffer[idx], line->length);
             line->text[line->length++] = buffer[idx];
