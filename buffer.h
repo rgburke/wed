@@ -76,6 +76,8 @@ Status pos_change_char(Buffer *, BufferPos *, int, int);
 Status pos_change_multi_char(Buffer *, BufferPos *, int, size_t, int);
 Status pos_change_screen_line(Buffer *, BufferPos *, int, int);
 Status pos_change_multi_screen_line(Buffer *, BufferPos *, int, size_t, int);
+Status pos_to_screen_line_start(Buffer *);
+Status pos_to_screen_line_end(Buffer *);
 Status insert_character(Buffer *buffer, char *);
 Status insert_string(Buffer *, char *, size_t, int);
 Status delete_character(Buffer *);

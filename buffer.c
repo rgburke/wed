@@ -475,6 +475,56 @@ static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos)
     return STATUS_SUCCESS;
 }
 
+Status pos_to_screen_line_start(Buffer *buffer)
+{
+    BufferPos *pos = &buffer->pos;
+
+    if (pos->offset == 0) {
+        return STATUS_SUCCESS;
+    }
+
+    size_t screen_width = editor_screen_width();
+    size_t col_index;
+    Status status;
+
+    do {
+        status = pos_change_char(buffer, pos, -1, 1);
+
+        if (!is_success(status)) {
+            return status;
+        }
+
+        col_index = screen_col_no(*pos);
+    } while (pos->offset > 0 && (col_index % screen_width) != 0) ;
+
+    return STATUS_SUCCESS;
+}
+
+Status pos_to_screen_line_end(Buffer *buffer)
+{
+    BufferPos *pos = &buffer->pos;
+
+    if (pos->offset == pos->line->length) {
+        return STATUS_SUCCESS;
+    }
+
+    size_t screen_width = editor_screen_width();
+    size_t col_index;
+    Status status;
+
+    do {
+        status = pos_change_char(buffer, pos, 1, 1);
+
+        if (!is_success(status)) {
+            return status;
+        }
+
+        col_index = screen_col_no(*pos);
+    } while (pos->offset != pos->line->length && (col_index % screen_width) != (screen_width - 1)) ;
+
+    return STATUS_SUCCESS;
+}
+
 Status insert_character(Buffer *buffer, char *character)
 {
     size_t char_len = 0;
