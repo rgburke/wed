@@ -84,12 +84,12 @@ void refresh_display(Session *sess)
 void draw_menu(Session *sess)
 {
     Buffer *buffer = sess->active_buffer;
-    wclear(menu);
+    wclrtoeol(menu);
     wbkgd(menu, COLOR_PAIR(MENU_COLOR_PAIR));
     wattron(menu, COLOR_PAIR(MENU_COLOR_PAIR));
     mvwprintw(menu, 0, 0, " %s", buffer->file_info.file_name); 
     wattroff(menu, COLOR_PAIR(MENU_COLOR_PAIR));
-    wrefresh(menu); 
+    wnoutrefresh(menu); 
 }
 
 /* TODO There's a lot more this function could show.
@@ -101,12 +101,12 @@ void draw_status(Session *sess)
     size_t col_no = get_pos_col_number(buffer);
 
     wmove(status, 0, 0);
-    wclrtoeol(status);
     wbkgd(status, COLOR_PAIR(STATUS_COLOR_PAIR));
     wattron(status, COLOR_PAIR(STATUS_COLOR_PAIR));
     wprintw(status, "Line %zu Column %zu", line_no, col_no); 
+    wclrtoeol(status);
     wattroff(status, COLOR_PAIR(STATUS_COLOR_PAIR));
-    wrefresh(status); 
+    wnoutrefresh(status); 
 }
 
 /* Refresh the active buffer on the screen. Only draw
@@ -170,7 +170,7 @@ static size_t draw_line(Line *line, size_t char_index, int y, int *refresh_all)
     size_t start_index = char_index;
     size_t char_byte_len;
 
-    while (char_index < line->length) {
+    while (char_index < line->length && scr_line_num < text_y) {
         wmove(text, y++, 0);
         scr_line_num++;
 
@@ -220,7 +220,9 @@ void update_display(Session *sess)
     draw_text(sess, 0);
 
     wmove(text, cursor.line_no - screen_start.line_no, cursor.col_no);
-    wrefresh(text);
+    wnoutrefresh(text);
+
+    doupdate();
 }
 
 static void convert_pos_to_point(Point *point, BufferPos pos)
@@ -257,6 +259,10 @@ size_t screen_col_no(BufferPos pos)
 size_t line_screen_length(Line *line, size_t start_offset, size_t limit_offset)
 {
     size_t screen_length = 0;
+
+    if (line == NULL || (limit_offset <= start_offset)) {
+        return screen_length;
+    }
 
     for (size_t k = start_offset; k < line->length && k < limit_offset; k++) {
         screen_length += byte_screen_length(line->text[k], line, k);
