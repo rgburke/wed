@@ -27,7 +27,9 @@ static const Error errors[] = {
     { ERR_FILE_IS_DIRECTORY  , ERR_SVR_CRITICAL, 1, "File %s is a directory"     , STR_VAL_STRUCT("") },
     { ERR_UNABLE_TO_OPEN_FILE, ERR_SVR_CRITICAL, 1, "Unable to open file %s"     , STR_VAL_STRUCT("") },
     { ERR_UNABLE_TO_READ_FILE, ERR_SVR_CRITICAL, 1, "Unable to read from file %s", STR_VAL_STRUCT("") },
-    { ERR_INVALID_COMMAND    , ERR_SVR_CRITICAL, 1, "Invalid command %s"         , STR_VAL_STRUCT("") }
+    { ERR_INVALID_COMMAND    , ERR_SVR_CRITICAL, 1, "Invalid command %s"         , STR_VAL_STRUCT("") },
+    { ERR_INVALID_CHARACTER  , ERR_SVR_CRITICAL, 1, "Invalid character %s"       , STR_VAL_STRUCT("") },
+    { ERR_INVALID_STRING     , ERR_SVR_CRITICAL, 1, "Invalid string %s"          , STR_VAL_STRUCT("") }
 };
 
 int is_success(Status status)

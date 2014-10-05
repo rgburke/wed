@@ -33,6 +33,13 @@ typedef enum {
     WIN_STATUS 
 } Window;
 
+typedef enum {
+    DRAW_LINE_NO_CHANGE,
+    DRAW_LINE_SHRUNK,
+    DRAW_LINE_EXTENDED,
+    DRAW_LINE_REFRESH_DOWN
+} LineDrawStatus;
+
 /* A screen representation of a BufferPos in terms of a line and column number.
  * This includes counting wrapped lines as lines in their own right. */
 typedef struct {
@@ -50,7 +57,7 @@ void move_cursor(Window, int, int);
 void update_display(Session *);
 size_t screen_line_no(BufferPos);
 size_t screen_col_no(BufferPos);
-size_t byte_screen_length(char, size_t);
+size_t byte_screen_length(char, Line *, size_t);
 size_t char_byte_length(char);
 size_t editor_screen_width(void);
 size_t editor_screen_height(void);

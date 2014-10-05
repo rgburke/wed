@@ -32,7 +32,7 @@ static WINDOW *windows[WINDOW_NUM];
 static size_t text_y;
 static size_t text_x;
 
-static size_t draw_line(Line *, size_t, int);
+static size_t draw_line(Line *, size_t, int, int *);
 static void convert_pos_to_point(Point *, BufferPos);
 static void vertical_scroll(Buffer *, Point *, Point);
 
@@ -124,8 +124,8 @@ void draw_text(Session *sess, int refresh_all)
     Line *line = screen_start.line;
 
     if (refresh_all || line->is_dirty) {
-        line_count += draw_line(line, screen_start.offset, line_count);
-        line->is_dirty = 0;
+        line_count += draw_line(line, screen_start.offset, line_count, &refresh_all);
+        line->is_dirty = DRAW_LINE_NO_CHANGE;
     } else {
         line_count += line_offset_screen_height(line, screen_start.offset, line->length);
     }
@@ -134,23 +134,40 @@ void draw_text(Session *sess, int refresh_all)
 
     while (line_count < line_num && line != NULL) {
         if (refresh_all || line->is_dirty) {
-            line_count += draw_line(line, 0, line_count);
-            line->is_dirty = 0;
+            line_count += draw_line(line, 0, line_count, &refresh_all);
+            line->is_dirty = DRAW_LINE_NO_CHANGE;
         } else {
             line_count += line_screen_height(line);
         }
 
         line = line->next;
     }
+
+    if (refresh_all) {
+        while (line_count < text_y) {
+            mvwaddch(text, line_count++, 0, '~');
+            wclrtoeol(text);
+        }
+    }
 }
 
-static size_t draw_line(Line *line, size_t char_index, int y)
+static size_t draw_line(Line *line, size_t char_index, int y, int *refresh_all)
 {
     if (line->length == 0) {
+        if (*refresh_all || line->is_dirty == DRAW_LINE_SHRUNK || line->is_dirty == DRAW_LINE_REFRESH_DOWN) {
+            wmove(text, y, 0);
+            wclrtoeol(text);
+
+            if (line->is_dirty == DRAW_LINE_REFRESH_DOWN) {
+                *refresh_all = 1;
+            }
+        }
+
         return 1;
     }
 
     size_t scr_line_num = 0;
+    size_t start_index = char_index;
     size_t char_byte_len;
 
     while (char_index < line->length) {
@@ -161,6 +178,20 @@ static size_t draw_line(Line *line, size_t char_index, int y)
             char_byte_len = char_byte_length(line->text[char_index]);
             waddnstr(text, line->text + char_index, char_byte_len);
         }
+    }
+
+    if (*refresh_all || line->is_dirty == DRAW_LINE_SHRUNK || line->is_dirty == DRAW_LINE_REFRESH_DOWN) {
+        wclrtoeol(text);  
+
+        if (line->is_dirty == DRAW_LINE_REFRESH_DOWN) {
+            *refresh_all = 1;
+        }
+    }
+
+    if (scr_line_num < line_offset_screen_height(line, start_index, line->length)) {
+        wmove(text, y, 0);
+        wclrtoeol(text);
+        scr_line_num++;
     }
 
     return scr_line_num;
@@ -228,7 +259,7 @@ size_t line_screen_length(Line *line, size_t start_offset, size_t limit_offset)
     size_t screen_length = 0;
 
     for (size_t k = start_offset; k < line->length && k < limit_offset; k++) {
-        screen_length += byte_screen_length(line->text[k], k);
+        screen_length += byte_screen_length(line->text[k], line, k);
     }
 
     return screen_length;
@@ -266,10 +297,15 @@ size_t screen_height_from_screen_length(size_t screen_length)
 
 /* The number of columns a byte takes up on the screen.
  * Continuation bytes take up no screen space for example. */
-size_t byte_screen_length(char c, size_t offset)
+size_t byte_screen_length(char c, Line *line, size_t offset)
 {
     if (c == '\t') {
-        return WED_TAB_SIZE - (offset % WED_TAB_SIZE);
+        if (offset == 0) {
+            return WED_TAB_SIZE;
+        }
+
+        size_t col_index = line_screen_length(line, 0, offset);
+        return WED_TAB_SIZE - (col_index % WED_TAB_SIZE);
     }
 
     return ((c & 0xc0) != 0x80);
@@ -321,7 +357,7 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
 {
     size_t diff;
     int direction;
-   
+
     if (cursor.line_no > screen_start->line_no) {
         diff = cursor.line_no - screen_start->line_no;
         direction = 1;
@@ -338,26 +374,12 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
         if (diff < text_y) {
             return;
         }
-        
+
         diff -= (text_y - 1);
 
-        size_t screen_lines = 1;
-        Line *line = buffer->pos.line;
-        line->is_dirty = 1;
-
-        while (screen_lines < diff && (line = line->prev) != NULL) {
-            screen_lines += line_screen_height(line);
-            line->is_dirty = 1;
-        }
+        buffer->pos.line->is_dirty = DRAW_LINE_REFRESH_DOWN;
     } else {
-        size_t screen_lines = 1;
-        Line *line = buffer->pos.line;
-        line->is_dirty = 1;
-
-        while (screen_lines < diff && (line = line->next) != NULL) {
-            screen_lines += line_screen_height(line);
-            line->is_dirty = 1;
-        }
+        buffer->pos.line->is_dirty = DRAW_LINE_REFRESH_DOWN;
     } 
 
     pos_change_multi_screen_line(buffer, &buffer->screen_start, direction, diff, 0);

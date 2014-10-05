@@ -60,10 +60,12 @@ struct Buffer {
 Buffer *new_buffer(FileInfo);
 void free_buffer(Buffer *);
 Line *new_line(void);
+Line *new_sized_line(size_t);
 void free_line(Line *);
 int init_bufferpos(BufferPos *);
 Buffer *new_empty_buffer(void);
-void realloc_line_text(Line *);
+void resize_line_text(Line *, size_t);
+void resize_line_text_if_req(Line *, size_t);
 Status load_buffer(Buffer *);
 size_t get_pos_line_number(Buffer *);
 size_t get_pos_col_number(Buffer *);
@@ -74,5 +76,10 @@ Status pos_change_char(Buffer *, BufferPos *, int, int);
 Status pos_change_multi_char(Buffer *, BufferPos *, int, size_t, int);
 Status pos_change_screen_line(Buffer *, BufferPos *, int, int);
 Status pos_change_multi_screen_line(Buffer *, BufferPos *, int, size_t, int);
+Status insert_character(Buffer *buffer, char *);
+Status insert_string(Buffer *, char *, size_t, int);
+Status delete_character(Buffer *);
+Status delete_line(Buffer *, Line *);
+Status insert_line(Buffer *);
 
 #endif

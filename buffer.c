@@ -16,6 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include "wed.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -75,9 +76,16 @@ void free_buffer(Buffer *buffer)
 
 Line *new_line(void)
 {
+    return new_sized_line(0);
+}
+
+Line *new_sized_line(size_t length)
+{
+    size_t alloc_num = (length / LINE_ALLOC) + 1;
+
     Line *line = alloc(sizeof(Line));
-    line->text = alloc(LINE_ALLOC);
-    line->alloc_num = 1;
+    line->text = alloc(alloc_num * LINE_ALLOC);
+    line->alloc_num = alloc_num;
     line->length = 0; 
     line->screen_length = 0;
     line->is_dirty = 0;
@@ -115,13 +123,30 @@ int init_bufferpos(BufferPos *pos)
  * Also need to consider adding a function to determine
  * how much to expand or shrink by.
  * Also pick better function name. */
-void realloc_line_text(Line *line)
+void resize_line_text_if_req(Line *line, size_t new_size)
 {
     if (line == NULL) {
         return;
     }
 
-    line->text = ralloc(line->text, ++line->alloc_num * LINE_ALLOC);
+    size_t allocated = line->alloc_num * LINE_ALLOC;
+
+    if (new_size > allocated) {
+        resize_line_text(line, new_size);  
+    } else if (new_size < (allocated - LINE_ALLOC)) {
+        resize_line_text(line, new_size);
+    }
+}
+
+void resize_line_text(Line *line, size_t new_size)
+{
+    if (line == NULL) {
+        return;
+    }
+
+    line->alloc_num = (new_size / LINE_ALLOC) + 1;
+
+    line->text = ralloc(line->text, line->alloc_num * LINE_ALLOC);
 }
 
 /* Loads file into buffer structure */
@@ -169,19 +194,15 @@ static Line *add_to_buffer(const char buffer[], size_t bsize, Line *line, int eo
 
     while (idx < bsize) {
         if (line->length > 0 && ((line->length % LINE_ALLOC) == 0)) {
-            realloc_line_text(line);
+            resize_line_text(line, line->length + LINE_ALLOC);
         }
 
-        if (buffer[idx] == '\n') {
-            line->text[line->length] = '\0';
-
-            if (!(eof && idx == (bsize - 1))) {
+        if (buffer[idx] == '\n' && !(eof && idx == (bsize - 1))) {
                 line->next = new_line();
                 line->next->prev = line;
                 line = line->next;
-            }
         } else {
-            line->screen_length += byte_screen_length(buffer[idx], line->length);
+            line->screen_length += byte_screen_length(buffer[idx], line, line->length);
             line->text[line->length++] = buffer[idx];
         }
 
@@ -258,7 +279,7 @@ Status pos_change_line(Buffer *buffer, BufferPos *pos, int direction)
     pos->offset = -1;
 
     while (++pos->offset < line->length && new_screen_offset < current_screen_offset) {
-        new_screen_offset += byte_screen_length(line->text[pos->offset], pos->offset); 
+        new_screen_offset += byte_screen_length(line->text[pos->offset], line, pos->offset); 
     }
 
     return STATUS_SUCCESS;
@@ -317,7 +338,7 @@ Status pos_change_char(Buffer *buffer, BufferPos *pos, int direction, int update
     }
 
     /* Ensure we're not on a continuation byte */
-    while (!byte_screen_length(line->text[pos->offset], pos->offset) &&
+    while (!byte_screen_length(line->text[pos->offset], line, pos->offset) &&
            pos->offset < line->length &&
            (pos->offset += direction) > 0) ;
 
@@ -374,7 +395,7 @@ Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, int direction, int
     Status status;
 
     while (cols > 0 && cols <= col_num) {
-        cols -= byte_screen_length(pos->line->text[pos->offset], pos->offset);
+        cols -= byte_screen_length(pos->line->text[pos->offset], pos->line, pos->offset);
         status = pos_change_char(buffer, pos, direction, 0);
 
         if (!is_success(status)) {
@@ -450,6 +471,193 @@ static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos)
     }
 
     buffer->line_col_offset = global_col_offset;
+
+    return STATUS_SUCCESS;
+}
+
+Status insert_character(Buffer *buffer, char *character)
+{
+    size_t char_len = 0;
+    
+    if (character != NULL) {
+        char_len = strnlen(character, 7);
+    }
+
+    if (char_len == 0 || char_len > 6) {
+        return raise_param_error(ERR_INVALID_CHARACTER, STR_VAL(character));     
+    }
+
+    BufferPos *pos = &buffer->pos;
+
+    resize_line_text_if_req(pos->line, pos->line->length + char_len);
+
+    if (pos->line->length > 0 && pos->offset < pos->line->length) {
+        memmove(pos->line->text + pos->offset + char_len, pos->line->text + pos->offset, pos->line->length - pos->offset);
+    }
+
+    size_t start_screen_height = line_screen_height(pos->line);
+
+    while (*character && char_len--) {
+        pos->line->screen_length += byte_screen_length(*character, pos->line, pos->offset);
+        pos->line->text[pos->offset++] = *character++;
+        pos->line->length++;
+    }
+
+    size_t end_screen_height = line_screen_height(pos->line);
+
+    if (end_screen_height > start_screen_height) {
+        pos->line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+    } else {
+        pos->line->is_dirty = DRAW_LINE_EXTENDED;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+Status insert_string(Buffer *buffer, char *string, size_t string_length, int advance_cursor)
+{
+    if (string == NULL) {
+        return raise_param_error(ERR_INVALID_CHARACTER, STR_VAL(string));     
+    } else if (string_length == 0) {
+        return STATUS_SUCCESS;
+    }
+
+    BufferPos *pos = &buffer->pos;
+
+    resize_line_text_if_req(pos->line, pos->line->length + string_length);
+
+    if (pos->line->length > 0 && pos->offset < pos->line->length) {
+        memmove(pos->line->text + pos->offset + string_length, pos->line->text + pos->offset, pos->line->length - pos->offset);
+    }
+
+    size_t start_offset = pos->offset;
+    size_t start_screen_height = line_screen_height(pos->line);
+
+    while (string_length--) {
+        pos->line->screen_length += byte_screen_length(*string, pos->line, pos->offset);
+        pos->line->text[pos->offset++] = *string++;
+        pos->line->length++;
+    }
+
+    size_t end_screen_height = line_screen_height(pos->line);
+
+    if (!advance_cursor) {
+        pos->offset = start_offset;
+    }
+
+    if (end_screen_height > start_screen_height) {
+        pos->line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+    } else {
+        pos->line->is_dirty = DRAW_LINE_EXTENDED;
+    }
+
+    return STATUS_SUCCESS;
+} 
+
+Status delete_character(Buffer *buffer)
+{
+    BufferPos *pos = &buffer->pos;
+    Line *line = pos->line;
+
+    if (pos->offset == line->length) {
+        if (line->next == NULL) {
+            return STATUS_SUCCESS;
+        }
+
+        Status status = insert_string(buffer, line->next->text, line->next->length, 0);
+
+        if (!is_success(status)) {
+            return status;
+        }
+
+        status = delete_line(buffer, line->next);
+
+        if (!is_success(status)) {
+            return status;
+        }
+
+        line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+
+        return STATUS_SUCCESS;
+    }
+
+    size_t char_byte_len = char_byte_length(line->text[pos->offset]);
+    size_t screen_length = byte_screen_length(line->text[pos->offset], line, pos->offset);
+
+    if (pos->offset != (line->length - 1)) {
+        memmove(line->text + pos->offset, line->text + pos->offset + char_byte_len, line->length - pos->offset);
+    }
+
+    line->length -= char_byte_len;
+    line->screen_length -= screen_length; 
+    pos->line->is_dirty = DRAW_LINE_SHRUNK;
+
+    resize_line_text_if_req(pos->line, pos->line->length);
+
+    return STATUS_SUCCESS;
+}
+
+Status delete_line(Buffer *buffer, Line *line)
+{
+    if (buffer == NULL || line == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    if (line->prev != NULL) {
+        line->prev->next = line->next;
+    } 
+
+    if (line->next != NULL) {
+        line->next->prev = line->prev;
+    }
+
+    if (buffer->pos.line == line) {
+        if (line->next != NULL) {
+            buffer->pos.line = line->next;
+        } else {
+            buffer->pos.line = line->prev;
+        }    
+    }
+
+    if (buffer->screen_start.line == NULL) {
+        if (line->next != NULL) {
+            buffer->screen_start.line = line->next;
+        } else {
+            buffer->screen_start.line = line->prev;
+        }    
+    }
+
+    free_line(line);
+
+    return STATUS_SUCCESS;
+}
+
+Status insert_line(Buffer *buffer)
+{
+    BufferPos *pos = &buffer->pos;
+    size_t line_length = pos->line->length - pos->offset;
+
+    Line *line = new_sized_line(line_length);
+
+    if (line_length > 0) {
+        memcpy(line->text, pos->line->text + pos->offset, line_length); 
+        line->length = line_length;
+        line->screen_length = line_screen_length(pos->line, pos->offset, pos->line->length);
+        pos->line->screen_length -= line->screen_length;
+        pos->line->length = pos->offset;
+    }
+
+    line->next = pos->line->next;
+    line->prev = pos->line;
+    pos->line->next = line;
+
+    if (line->next != NULL) {
+        line->next->prev = line;
+    }
+
+    pos->line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+    pos->line = line;
+    pos->offset = 0;
 
     return STATUS_SUCCESS;
 }
