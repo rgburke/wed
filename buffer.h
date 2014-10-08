@@ -27,6 +27,12 @@
 #define FILE_BUF_SIZE 512
 #define LINE_ALLOC 32
 
+typedef enum {
+    CCLASS_WHITESPACE,
+    CCLASS_PUNCTUATION,
+    CCLASS_WORD
+} CharacterClass;
+
 typedef struct Line Line;
 typedef struct Buffer Buffer;
 
@@ -50,7 +56,7 @@ typedef struct {
 /* The in memory representation of a file */
 struct Buffer {
     FileInfo file_info; /* stat like info */
-    Line *lines; /* The firs line in a doubly linked list of lines */
+    Line *lines; /* The first line in a doubly linked list of lines */
     BufferPos pos; /* The cursor position */
     BufferPos screen_start; /* The first screen line (can start on wrapped line) to start drawing from */
     Buffer *next; /* Next buffer in this session */
@@ -70,6 +76,14 @@ Status load_buffer(Buffer *);
 size_t get_pos_line_number(Buffer *);
 size_t get_pos_col_number(Buffer *);
 Line *get_line_from_offset(Line *, int, size_t);
+CharacterClass character_class(const char *);
+const char *pos_character(Buffer *);
+const char *pos_offset_character(Buffer *, int, size_t);
+int pos_at_line_start(Buffer *);
+int pos_at_line_end(Buffer *);
+int pos_at_buffer_start(Buffer *);
+int pos_at_buffer_end(Buffer *);
+int pos_at_buffer_extreme(Buffer *);
 Status pos_change_line(Buffer *, BufferPos *, int);
 Status pos_change_muti_line(Buffer *, BufferPos *, int, size_t);
 Status pos_change_char(Buffer *, BufferPos *, int, int);
@@ -78,7 +92,9 @@ Status pos_change_screen_line(Buffer *, BufferPos *, int, int);
 Status pos_change_multi_screen_line(Buffer *, BufferPos *, int, size_t, int);
 Status pos_to_screen_line_start(Buffer *);
 Status pos_to_screen_line_end(Buffer *);
-Status insert_character(Buffer *buffer, char *);
+Status pos_to_next_word(Buffer *);
+Status pos_to_prev_word(Buffer *);
+Status insert_character(Buffer *, char *);
 Status insert_string(Buffer *, char *, size_t, int);
 Status delete_character(Buffer *);
 Status delete_line(Buffer *, Line *);

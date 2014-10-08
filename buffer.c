@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include "session.h"
 #include "buffer.h"
 #include "util.h"
@@ -253,6 +254,65 @@ Line *get_line_from_offset(Line *line, int direction, size_t offset)
     return line;
 }
 
+/* TODO Consider UTF-8 punctuation and whitespace */
+CharacterClass character_class(const char *character)
+{
+    if (char_byte_length(*character) == 1) {
+        if (isspace(*character)) {
+            return CCLASS_WHITESPACE;
+        } else if (ispunct(*character)) {
+            return CCLASS_PUNCTUATION;
+        }
+    }
+
+    return CCLASS_WORD;
+}
+
+const char *pos_character(Buffer *buffer)
+{
+    return pos_offset_character(buffer, 0, 0);
+}
+
+const char *pos_offset_character(Buffer *buffer, int direction, size_t offset)
+{
+    BufferPos pos = buffer->pos;
+
+    if (!is_success(pos_change_multi_char(buffer, &pos, direction, offset, 0))) {
+        return "";
+    }
+
+    if (pos.offset == pos.line->length) {
+        return " ";
+    }
+
+    return pos.line->text + pos.offset;
+}
+
+int pos_at_line_start(Buffer *buffer)
+{
+    return buffer->pos.offset == 0;
+}
+
+int pos_at_line_end(Buffer *buffer)
+{
+    return buffer->pos.line->length == buffer->pos.offset;
+}
+
+int pos_at_buffer_start(Buffer *buffer)
+{
+    return buffer->lines == buffer->pos.line && pos_at_line_start(buffer);
+}
+
+int pos_at_buffer_end(Buffer *buffer)
+{
+    return buffer->pos.line->next == NULL && pos_at_line_end(buffer);
+}
+
+int pos_at_buffer_extreme(Buffer *buffer)
+{
+    return pos_at_buffer_start(buffer) || pos_at_buffer_end(buffer);
+}
+
 /* TODO All cursor functions bellow need to be updated to consider a global cursor offset.
  * This would mean after moving from an (empty|shorter) line to a longer line the cursor 
  * would return to the global offset it was previously on instead of staying in the first column. */
@@ -310,7 +370,6 @@ Status pos_change_muti_line(Buffer *buffer, BufferPos *pos, int direction, size_
 /* Move cursor a character to the left or right */
 Status pos_change_char(Buffer *buffer, BufferPos *pos, int direction, int update_col_offset)
 {
-    (void)buffer;
     direction = sign(direction); 
 
     if (direction == 0) {
@@ -521,6 +580,68 @@ Status pos_to_screen_line_end(Buffer *buffer)
 
         col_index = screen_col_no(*pos);
     } while (pos->offset != pos->line->length && (col_index % screen_width) != (screen_width - 1)) ;
+
+    return STATUS_SUCCESS;
+}
+
+Status pos_to_next_word(Buffer *buffer)
+{
+    BufferPos *pos = &buffer->pos;
+    Status status;
+
+    CharacterClass start_class = character_class(pos_character(buffer));
+
+    do {
+        status = pos_change_char(buffer, pos, 1, 1);
+
+        if (!is_success(status)) {
+            return status;
+        }
+    } while (!pos_at_buffer_end(buffer) &&
+             start_class == character_class(pos_character(buffer)));
+
+    while (!pos_at_buffer_extreme(buffer) &&
+           character_class(pos_character(buffer)) == CCLASS_WHITESPACE) {
+
+        if (pos_at_line_end(buffer)) {
+            break;
+        }
+
+        status = pos_change_char(buffer, pos, 1, 1);
+
+        if (!is_success(status)) {
+            return status;
+        }
+    }
+
+    return STATUS_SUCCESS;
+}
+
+Status pos_to_prev_word(Buffer *buffer)
+{
+    BufferPos *pos = &buffer->pos;
+    Status status;
+
+    do {
+        status = pos_change_char(buffer, pos, -1, 1);
+
+        if (!is_success(status)) {
+            return status;
+        }
+    } while (!pos_at_buffer_start(buffer) &&
+             character_class(pos_character(buffer)) == CCLASS_WHITESPACE);
+
+    CharacterClass start_class = character_class(pos_character(buffer));
+
+    while (!pos_at_buffer_start(buffer) &&
+           start_class == character_class(pos_offset_character(buffer, -1, 1))) {
+
+        status = pos_change_char(buffer, pos, -1, 1);
+
+        if (!is_success(status)) {
+            return status;
+        }
+    }
 
     return STATUS_SUCCESS;
 }

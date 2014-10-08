@@ -30,6 +30,8 @@ static Status bufferpos_change_line(Session *, Value, int *);
 static Status bufferpos_change_char(Session *, Value, int *); 
 static Status bufferpos_to_line_start(Session *, Value, int *);
 static Status bufferpos_to_line_end(Session *, Value, int *);
+static Status bufferpos_to_next_word(Session *, Value, int *);
+static Status bufferpos_to_prev_word(Session *, Value, int *);
 static Status buffer_insert_char(Session *, Value, int *);
 static Status buffer_delete_char(Session *, Value, int *);
 static Status buffer_backspace(Session *, Value, int *);
@@ -43,6 +45,8 @@ static const Command commands[] = {
     { "<Left>"     , bufferpos_change_char  , INT_VAL_STRUCT(-1)   },
     { "<Home>"     , bufferpos_to_line_start, INT_VAL_STRUCT(0)    },
     { "<End>"      , bufferpos_to_line_end  , INT_VAL_STRUCT(0)    },
+    { "<C-Right>"  , bufferpos_to_next_word , INT_VAL_STRUCT(0)    },
+    { "<C-Left>"   , bufferpos_to_prev_word , INT_VAL_STRUCT(0)    },
     { "<Space>"    , buffer_insert_char     , STR_VAL_STRUCT(" ")  },
     { "<Tab>"      , buffer_insert_char     , STR_VAL_STRUCT("\t") },
     { "<Delete>"   , buffer_delete_char     , INT_VAL_STRUCT(0)    },
@@ -107,6 +111,20 @@ static Status bufferpos_to_line_end(Session *sess, Value param, int *quit)
     (void)quit;
     (void)param;
     return pos_to_screen_line_end(sess->active_buffer);
+}
+
+static Status bufferpos_to_next_word(Session *sess, Value param, int *quit)
+{
+    (void)quit;
+    (void)param;
+    return pos_to_next_word(sess->active_buffer);
+}
+
+static Status bufferpos_to_prev_word(Session *sess, Value param, int *quit)
+{
+    (void)quit;
+    (void)param;
+    return pos_to_prev_word(sess->active_buffer);
 }
 
 static Status buffer_insert_char(Session *sess, Value param, int *quit)
