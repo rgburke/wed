@@ -235,19 +235,20 @@ size_t get_pos_col_number(Buffer *buffer)
 
 Line *get_line_from_offset(Line *line, int direction, size_t offset)
 {
-    direction = sign(direction);
-
     if (offset == 0 || direction == 0 || line == NULL) {
         return line;
     }
 
+    direction = sign(direction);
+    Line *next;
+
     if (direction == 1) {
-        while (line != NULL && offset-- > 0) {
-            line = line->next;
+        while ((next = line->next) != NULL && offset-- > 0) {
+            line = next;
         }
     } else {
-        while (line != NULL && offset++ > 0) {
-            line = line->prev;
+        while ((next = line->prev) != NULL && offset-- > 0) {
+            line = next;
         }
     }
 
@@ -642,6 +643,29 @@ Status pos_to_prev_word(Buffer *buffer)
             return status;
         }
     }
+
+    return STATUS_SUCCESS;
+}
+
+Status pos_to_buffer_start(Buffer *buffer)
+{
+    BufferPos *pos = &buffer->pos;
+    pos->line = buffer->lines;
+    pos->offset = 0;
+
+    return STATUS_SUCCESS;
+}
+
+Status pos_to_buffer_end(Buffer *buffer)
+{
+    BufferPos *pos = &buffer->pos;
+    Line *next;
+
+    while ((next = pos->line->next) != NULL) {
+        pos->line = next;
+    }
+
+    pos->offset = pos->line->length;
 
     return STATUS_SUCCESS;
 }

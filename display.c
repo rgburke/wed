@@ -133,6 +133,11 @@ void draw_text(Session *sess, int refresh_all)
     line = line->next;
 
     while (line_count < line_num && line != NULL) {
+        if (line->is_dirty == DRAW_LINE_END_REFRESH_DOWN) {
+            line->is_dirty = DRAW_LINE_NO_CHANGE;
+            refresh_all = 0;
+        }
+
         if (refresh_all || line->is_dirty) {
             line_count += draw_line(line, 0, line_count, &refresh_all);
             line->is_dirty = DRAW_LINE_NO_CHANGE;
@@ -383,13 +388,18 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
 
         diff -= (text_y - 1);
 
-        buffer->pos.line->is_dirty = DRAW_LINE_REFRESH_DOWN;
-    } else {
-        buffer->pos.line->is_dirty = DRAW_LINE_REFRESH_DOWN;
-    } 
+        Line *line = get_line_from_offset(buffer->pos.line, -1, diff - 1);
+        line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+    }
 
     pos_change_multi_screen_line(buffer, &buffer->screen_start, direction, diff, 0);
     convert_pos_to_point(screen_start, buffer->screen_start);
+
+    if (direction == -1) {
+        buffer->screen_start.line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+        Line *line = get_line_from_offset(buffer->screen_start.line, 1, diff);
+        line->is_dirty = DRAW_LINE_END_REFRESH_DOWN;
+    }
 
     scrollok(text, TRUE);
     wscrl(text, diff * direction);

@@ -94,6 +94,8 @@ Status pos_to_screen_line_start(Buffer *);
 Status pos_to_screen_line_end(Buffer *);
 Status pos_to_next_word(Buffer *);
 Status pos_to_prev_word(Buffer *);
+Status pos_to_buffer_start(Buffer *);
+Status pos_to_buffer_end(Buffer *);
 Status insert_character(Buffer *, char *);
 Status insert_string(Buffer *, char *, size_t, int);
 Status delete_character(Buffer *);

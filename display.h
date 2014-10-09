@@ -37,7 +37,8 @@ typedef enum {
     DRAW_LINE_NO_CHANGE,
     DRAW_LINE_SHRUNK,
     DRAW_LINE_EXTENDED,
-    DRAW_LINE_REFRESH_DOWN
+    DRAW_LINE_REFRESH_DOWN,
+    DRAW_LINE_END_REFRESH_DOWN
 } LineDrawStatus;
 
 /* A screen representation of a BufferPos in terms of a line and column number.
