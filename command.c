@@ -34,6 +34,7 @@ static Status bufferpos_to_next_word(Session *, Value, int *);
 static Status bufferpos_to_prev_word(Session *, Value, int *);
 static Status bufferpos_to_buffer_start(Session *, Value, int *);
 static Status bufferpos_to_buffer_end(Session *, Value, int *);
+static Status bufferpos_change_page(Session *, Value, int *);
 static Status buffer_insert_char(Session *, Value, int *);
 static Status buffer_delete_char(Session *, Value, int *);
 static Status buffer_backspace(Session *, Value, int *);
@@ -53,6 +54,8 @@ static const Command commands[] = {
     { "<C-PageUp>"  , bufferpos_to_buffer_start, INT_VAL_STRUCT(0)    },
     { "<C-End>"     , bufferpos_to_buffer_end  , INT_VAL_STRUCT(0)    },
     { "<C-PageDown>", bufferpos_to_buffer_end  , INT_VAL_STRUCT(0)    },
+    { "<PageUp>"    , bufferpos_change_page    , INT_VAL_STRUCT(-1)   },
+    { "<PageDown>"  , bufferpos_change_page    , INT_VAL_STRUCT(1)    },
     { "<Space>"     , buffer_insert_char       , STR_VAL_STRUCT(" ")  },
     { "<Tab>"       , buffer_insert_char       , STR_VAL_STRUCT("\t") },
     { "<Delete>"    , buffer_delete_char       , INT_VAL_STRUCT(0)    },
@@ -145,6 +148,12 @@ static Status bufferpos_to_buffer_end(Session *sess, Value param, int *quit)
     (void)quit;
     (void)param;
     return pos_to_buffer_end(sess->active_buffer);
+}
+
+static Status bufferpos_change_page(Session *sess, Value param, int *quit)
+{
+    (void)quit;
+    return pos_change_page(sess->active_buffer, param.val.ival);
 }
 
 static Status buffer_insert_char(Session *sess, Value param, int *quit)

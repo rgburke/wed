@@ -299,14 +299,24 @@ int pos_at_line_end(Buffer *buffer)
     return buffer->pos.line->length == buffer->pos.offset;
 }
 
+int pos_at_first_line(Buffer *buffer)
+{
+    return buffer->lines == buffer->pos.line;
+}
+
+int pos_at_last_line(Buffer *buffer)
+{
+    return buffer->pos.line->next == NULL;
+}
+
 int pos_at_buffer_start(Buffer *buffer)
 {
-    return buffer->lines == buffer->pos.line && pos_at_line_start(buffer);
+    return pos_at_first_line(buffer) && pos_at_line_start(buffer);
 }
 
 int pos_at_buffer_end(Buffer *buffer)
 {
-    return buffer->pos.line->next == NULL && pos_at_line_end(buffer);
+    return pos_at_last_line(buffer) && pos_at_line_end(buffer);
 }
 
 int pos_at_buffer_extreme(Buffer *buffer)
@@ -439,13 +449,11 @@ Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, int direction, size
 
 Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, int direction, int advance_pos)
 {
-    (void)buffer;
-    direction = sign(direction); 
-
     if (direction == 0) {
         return STATUS_SUCCESS;
     }
 
+    direction = sign(direction);
     Line *start_line = pos->line;
     size_t screen_line = line_pos_screen_height(*pos);
     size_t screen_lines = line_screen_height(pos->line);
@@ -487,12 +495,11 @@ Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, int direction, int
 
 Status pos_change_multi_screen_line(Buffer *buffer, BufferPos *pos, int direction, size_t offset, int is_cursor)
 {
-    direction = sign(direction);
-
     if (offset == 0 || direction == 0) {
         return STATUS_SUCCESS;
     }
 
+    direction = sign(direction);
     offset = abs(offset);
     Status status;
 
@@ -666,6 +673,27 @@ Status pos_to_buffer_end(Buffer *buffer)
     }
 
     pos->offset = pos->line->length;
+
+    return STATUS_SUCCESS;
+}
+
+Status pos_change_page(Buffer *buffer, int direction)
+{
+    if (pos_at_first_line(buffer) && direction == -1) {
+        return STATUS_SUCCESS;
+    }
+
+    BufferPos *pos = &buffer->pos;
+    Status status = pos_change_multi_screen_line(buffer, pos, direction, editor_screen_height() - 1, 1);
+
+    if (!is_success(status)) {
+        return status;
+    }
+
+    if (buffer->screen_start.line != buffer->pos.line) {
+        buffer->screen_start.line = buffer->pos.line;
+        buffer->screen_start.line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+    }
 
     return STATUS_SUCCESS;
 }
