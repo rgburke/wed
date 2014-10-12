@@ -33,6 +33,15 @@ typedef enum {
     CCLASS_WORD
 } CharacterClass;
 
+typedef enum {
+    DIRECTION_NONE = 0,
+    DIRECTION_LEFT = -1,
+    DIRECTION_UP = -1,
+    DIRECTION_DOWN = 1,
+    DIRECTION_RIGHT = 1,
+    DIRECTION_WITH_SELECT = 1 << 1
+} Direction;
+
 typedef struct Line Line;
 typedef struct Buffer Buffer;
 
@@ -75,10 +84,10 @@ void resize_line_text_if_req(Line *, size_t);
 Status load_buffer(Buffer *);
 size_t get_pos_line_number(Buffer *);
 size_t get_pos_col_number(Buffer *);
-Line *get_line_from_offset(Line *, int, size_t);
+Line *get_line_from_offset(Line *, Direction, size_t);
 CharacterClass character_class(const char *);
 const char *pos_character(Buffer *);
-const char *pos_offset_character(Buffer *, int, size_t);
+const char *pos_offset_character(Buffer *, Direction, size_t);
 int pos_at_line_start(Buffer *);
 int pos_at_line_end(Buffer *);
 int pos_at_first_line(Buffer *);
@@ -87,18 +96,18 @@ int pos_at_buffer_start(Buffer *);
 int pos_at_buffer_end(Buffer *);
 int pos_at_buffer_extreme(Buffer *);
 Status pos_change_line(Buffer *, BufferPos *, int);
-Status pos_change_muti_line(Buffer *, BufferPos *, int, size_t);
-Status pos_change_char(Buffer *, BufferPos *, int, int);
-Status pos_change_multi_char(Buffer *, BufferPos *, int, size_t, int);
-Status pos_change_screen_line(Buffer *, BufferPos *, int, int);
-Status pos_change_multi_screen_line(Buffer *, BufferPos *, int, size_t, int);
+Status pos_change_muti_line(Buffer *, BufferPos *, Direction, size_t);
+Status pos_change_char(Buffer *, BufferPos *, Direction, int);
+Status pos_change_multi_char(Buffer *, BufferPos *, Direction, size_t, int);
+Status pos_change_screen_line(Buffer *, BufferPos *, Direction, int);
+Status pos_change_multi_screen_line(Buffer *, BufferPos *, Direction, size_t, int);
 Status pos_to_screen_line_start(Buffer *);
 Status pos_to_screen_line_end(Buffer *);
 Status pos_to_next_word(Buffer *);
 Status pos_to_prev_word(Buffer *);
 Status pos_to_buffer_start(Buffer *);
 Status pos_to_buffer_end(Buffer *);
-Status pos_change_page(Buffer *, int);
+Status pos_change_page(Buffer *, Direction);
 Status insert_character(Buffer *, char *);
 Status insert_string(Buffer *, char *, size_t, int);
 Status delete_character(Buffer *);

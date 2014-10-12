@@ -371,33 +371,33 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
 
     if (cursor.line_no > screen_start->line_no) {
         diff = cursor.line_no - screen_start->line_no;
-        direction = 1;
+        direction = DIRECTION_DOWN;
     } else {
         diff = screen_start->line_no - cursor.line_no;
-        direction = -1;
+        direction = DIRECTION_UP;
     }
 
     if (diff == 0) {
         return;
     }
 
-    if (direction == 1) {
+    if (direction == DIRECTION_DOWN) {
         if (diff < text_y) {
             return;
         }
 
         diff -= (text_y - 1);
 
-        Line *line = get_line_from_offset(buffer->pos.line, -1, diff - 1);
+        Line *line = get_line_from_offset(buffer->pos.line, DIRECTION_UP, diff - 1);
         line->is_dirty = DRAW_LINE_REFRESH_DOWN;
     }
 
     pos_change_multi_screen_line(buffer, &buffer->screen_start, direction, diff, 0);
     convert_pos_to_point(screen_start, buffer->screen_start);
 
-    if (direction == -1) {
+    if (direction == DIRECTION_UP) {
         buffer->screen_start.line->is_dirty = DRAW_LINE_REFRESH_DOWN;
-        Line *line = get_line_from_offset(buffer->screen_start.line, 1, diff);
+        Line *line = get_line_from_offset(buffer->screen_start.line, DIRECTION_DOWN, diff);
         line->is_dirty = DRAW_LINE_END_REFRESH_DOWN;
     }
 
