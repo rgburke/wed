@@ -42,26 +42,36 @@ static Status buffer_insert_line(Session *, Value, int *);
 static Status quit_wed(Session *, Value, int *);
 
 static const Command commands[] = {
-    { "<Up>"        , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP)    },
-    { "<Down>"      , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN)  },
-    { "<Right>"     , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT) },
-    { "<Left>"      , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT)  },
-    { "<Home>"      , bufferpos_to_line_start  , INT_VAL_STRUCT(0)               },
-    { "<End>"       , bufferpos_to_line_end    , INT_VAL_STRUCT(0)               },
-    { "<C-Right>"   , bufferpos_to_next_word   , INT_VAL_STRUCT(0)               },
-    { "<C-Left>"    , bufferpos_to_prev_word   , INT_VAL_STRUCT(0)               },
-    { "<C-Home>"    , bufferpos_to_buffer_start, INT_VAL_STRUCT(0)               },
-    { "<C-PageUp>"  , bufferpos_to_buffer_start, INT_VAL_STRUCT(0)               },
-    { "<C-End>"     , bufferpos_to_buffer_end  , INT_VAL_STRUCT(0)               },
-    { "<C-PageDown>", bufferpos_to_buffer_end  , INT_VAL_STRUCT(0)               },
-    { "<PageUp>"    , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP)    },
-    { "<PageDown>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN)  },
-    { "<Space>"     , buffer_insert_char       , STR_VAL_STRUCT(" ")             },
-    { "<Tab>"       , buffer_insert_char       , STR_VAL_STRUCT("\t")            },
-    { "<Delete>"    , buffer_delete_char       , INT_VAL_STRUCT(0)               },
-    { "<Backspace>" , buffer_backspace         , INT_VAL_STRUCT(0)               },
-    { "<Enter>"     , buffer_insert_line       , INT_VAL_STRUCT(0)               },
-    { "<F2>"        , quit_wed                 , INT_VAL_STRUCT(0)               }
+    { "<Up>"        , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP)                            },
+    { "<Down>"      , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN)                          },
+    { "<Right>"     , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT)                         },
+    { "<Left>"      , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT)                          },
+    { "<Home>"      , bufferpos_to_line_start  , INT_VAL_STRUCT(0)                                       },
+    { "<End>"       , bufferpos_to_line_end    , INT_VAL_STRUCT(0)                                       },
+    { "<C-Right>"   , bufferpos_to_next_word   , INT_VAL_STRUCT(0)                                       },
+    { "<C-Left>"    , bufferpos_to_prev_word   , INT_VAL_STRUCT(0)                                       },
+    { "<C-Home>"    , bufferpos_to_buffer_start, INT_VAL_STRUCT(0)                                       },
+    { "<C-End>"     , bufferpos_to_buffer_end  , INT_VAL_STRUCT(0)                                       },
+    { "<PageUp>"    , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP)                            },
+    { "<PageDown>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN)                          },
+    { "<S-Up>"      , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP    | DIRECTION_WITH_SELECT) },
+    { "<S-Down>"    , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN  | DIRECTION_WITH_SELECT) },
+    { "<S-Right>"   , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT) },
+    { "<S-Left>"    , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT  | DIRECTION_WITH_SELECT) },
+    { "<S-Home>"    , bufferpos_to_line_start  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
+    { "<S-End>"     , bufferpos_to_line_end    , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
+    { "<C-S-Right>" , bufferpos_to_next_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
+    { "<C-S-Left>"  , bufferpos_to_prev_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
+    { "<C-S-Home>"  , bufferpos_to_buffer_start, INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
+    { "<C-S-End>"   , bufferpos_to_buffer_end  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
+    { "<S-PageUp>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP)                            },
+    { "<S-PageDown>", bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN)                          },
+    { "<Space>"     , buffer_insert_char       , STR_VAL_STRUCT(" ")                                     },
+    { "<Tab>"       , buffer_insert_char       , STR_VAL_STRUCT("\t")                                    },
+    { "<Delete>"    , buffer_delete_char       , INT_VAL_STRUCT(0)                                       },
+    { "<Backspace>" , buffer_backspace         , INT_VAL_STRUCT(0)                                       },
+    { "<Enter>"     , buffer_insert_line       , INT_VAL_STRUCT(0)                                       },
+    { "<F2>"        , quit_wed                 , INT_VAL_STRUCT(0)                                       }
 };
 
 int init_keymap(Session *sess)
@@ -111,43 +121,37 @@ static Status bufferpos_change_char(Session *sess, Value param, int *quit)
 static Status bufferpos_to_line_start(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    (void)param;
-    return pos_to_screen_line_start(sess->active_buffer);
+    return pos_to_screen_line_start(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
 static Status bufferpos_to_line_end(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    (void)param;
-    return pos_to_screen_line_end(sess->active_buffer);
+    return pos_to_screen_line_end(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
 static Status bufferpos_to_next_word(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    (void)param;
-    return pos_to_next_word(sess->active_buffer);
+    return pos_to_next_word(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
 static Status bufferpos_to_prev_word(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    (void)param;
-    return pos_to_prev_word(sess->active_buffer);
+    return pos_to_prev_word(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
 static Status bufferpos_to_buffer_start(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    (void)param;
-    return pos_to_buffer_start(sess->active_buffer);
+    return pos_to_buffer_start(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
 static Status bufferpos_to_buffer_end(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    (void)param;
-    return pos_to_buffer_end(sess->active_buffer);
+    return pos_to_buffer_end(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
 static Status bufferpos_change_page(Session *sess, Value param, int *quit)

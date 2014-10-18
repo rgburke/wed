@@ -367,7 +367,7 @@ size_t editor_screen_height(void)
 static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
 {
     size_t diff;
-    int direction;
+    Direction direction;
 
     if (cursor.line_no > screen_start->line_no) {
         diff = cursor.line_no - screen_start->line_no;
@@ -388,7 +388,13 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
 
         diff -= (text_y - 1);
 
-        Line *line = get_line_from_offset(buffer->pos.line, DIRECTION_UP, diff - 1);
+        size_t draw_start = diff % text_y;
+
+        if (draw_start == 0) {
+            draw_start = text_y;
+        }
+
+        Line *line = get_line_from_offset(buffer->pos.line, DIRECTION_UP, draw_start - 1);
         line->is_dirty = DRAW_LINE_REFRESH_DOWN;
     }
 
@@ -402,7 +408,7 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
     }
 
     scrollok(text, TRUE);
-    wscrl(text, diff * direction);
+    wscrl(text, diff * DIRECTION_OFFSET(direction));
     scrollok(text, FALSE);
 }
 

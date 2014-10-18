@@ -27,6 +27,8 @@
 #define FILE_BUF_SIZE 512
 #define LINE_ALLOC 32
 
+#define DIRECTION_OFFSET(d) (((d) & 1) ? -1 : 1)
+
 typedef enum {
     CCLASS_WHITESPACE,
     CCLASS_PUNCTUATION,
@@ -34,12 +36,12 @@ typedef enum {
 } CharacterClass;
 
 typedef enum {
-    DIRECTION_NONE = 0,
-    DIRECTION_LEFT = -1,
-    DIRECTION_UP = -1,
-    DIRECTION_DOWN = 1,
-    DIRECTION_RIGHT = 1,
-    DIRECTION_WITH_SELECT = 1 << 1
+    DIRECTION_NONE,
+    DIRECTION_UP,
+    DIRECTION_DOWN,
+    DIRECTION_LEFT,
+    DIRECTION_RIGHT,
+    DIRECTION_WITH_SELECT = 1 << 3,
 } Direction;
 
 typedef struct Line Line;
@@ -68,6 +70,7 @@ struct Buffer {
     Line *lines; /* The first line in a doubly linked list of lines */
     BufferPos pos; /* The cursor position */
     BufferPos screen_start; /* The first screen line (can start on wrapped line) to start drawing from */
+    BufferPos select_start; /* Starting position of selected text */
     Buffer *next; /* Next buffer in this session */
     size_t line_col_offset; /* Global cursor line offset */
 };
@@ -83,35 +86,45 @@ void resize_line_text(Line *, size_t);
 void resize_line_text_if_req(Line *, size_t);
 Status load_buffer(Buffer *);
 size_t get_pos_line_number(Buffer *);
+size_t get_bufferpos_line_number(BufferPos);
 size_t get_pos_col_number(Buffer *);
 Line *get_line_from_offset(Line *, Direction, size_t);
+int offset_compare(size_t, size_t);
+int bufferpos_compare(BufferPos, BufferPos);
+BufferPos bufferpos_min(BufferPos, BufferPos);
+BufferPos bufferpos_max(BufferPos, BufferPos);
 CharacterClass character_class(const char *);
 const char *pos_character(Buffer *);
 const char *pos_offset_character(Buffer *, Direction, size_t);
-int pos_at_line_start(Buffer *);
-int pos_at_line_end(Buffer *);
-int pos_at_first_line(Buffer *);
-int pos_at_last_line(Buffer *);
-int pos_at_buffer_start(Buffer *);
-int pos_at_buffer_end(Buffer *);
-int pos_at_buffer_extreme(Buffer *);
-Status pos_change_line(Buffer *, BufferPos *, int);
+int bufferpos_at_line_start(BufferPos);
+int bufferpos_at_line_end(BufferPos);
+int bufferpos_at_first_line(BufferPos);
+int bufferpos_at_last_line(BufferPos);
+int bufferpos_at_buffer_start(BufferPos);
+int bufferpos_at_buffer_end(BufferPos);
+int bufferpos_at_buffer_extreme(BufferPos);
+int move_past_buffer_extremes(BufferPos, Direction);
+int selection_started(Buffer *);
+Status pos_change_line(Buffer *, BufferPos *, Direction);
 Status pos_change_muti_line(Buffer *, BufferPos *, Direction, size_t);
 Status pos_change_char(Buffer *, BufferPos *, Direction, int);
 Status pos_change_multi_char(Buffer *, BufferPos *, Direction, size_t, int);
 Status pos_change_screen_line(Buffer *, BufferPos *, Direction, int);
 Status pos_change_multi_screen_line(Buffer *, BufferPos *, Direction, size_t, int);
-Status pos_to_screen_line_start(Buffer *);
-Status pos_to_screen_line_end(Buffer *);
-Status pos_to_next_word(Buffer *);
-Status pos_to_prev_word(Buffer *);
-Status pos_to_buffer_start(Buffer *);
-Status pos_to_buffer_end(Buffer *);
+Status pos_to_screen_line_start(Buffer *, int);
+Status pos_to_screen_line_end(Buffer *, int);
+Status pos_to_next_word(Buffer *, int);
+Status pos_to_prev_word(Buffer *, int);
+Status pos_to_buffer_start(Buffer *, int);
+Status pos_to_buffer_end(Buffer *, int);
+Status pos_to_bufferpos(Buffer *, BufferPos);
 Status pos_change_page(Buffer *, Direction);
 Status insert_character(Buffer *, char *);
 Status insert_string(Buffer *, char *, size_t, int);
 Status delete_character(Buffer *);
 Status delete_line(Buffer *, Line *);
 Status insert_line(Buffer *);
+Status select_continue(Buffer *);
+Status select_reset(Buffer *);
 
 #endif

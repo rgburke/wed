@@ -29,8 +29,10 @@
 #include "file.h"
 
 static Line *add_to_buffer(const char *, size_t, Line *, int);
+static int is_selection(Direction *);
+static void default_movement_selection_handler(Buffer *, int, Direction *);
 static void update_line_col_offset(Buffer *, BufferPos *);
-static Status advance_pos_to_line_offset(Buffer *, BufferPos *);
+static Status advance_pos_to_line_offset(Buffer *, BufferPos *, int);
 
 Buffer *new_buffer(FileInfo file_info)
 {
@@ -39,6 +41,7 @@ Buffer *new_buffer(FileInfo file_info)
     buffer->file_info = file_info;
     init_bufferpos(&buffer->pos);
     init_bufferpos(&buffer->screen_start);
+    init_bufferpos(&buffer->select_start);
     buffer->lines = NULL;
     buffer->next = NULL;
     buffer->line_col_offset = 0;
@@ -215,11 +218,15 @@ static Line *add_to_buffer(const char buffer[], size_t bsize, Line *line, int eo
 
 size_t get_pos_line_number(Buffer *buffer)
 {
-    size_t line_num = 1;
-    Line *line = buffer->lines;
-    Line *target = buffer->pos.line;
+    return get_bufferpos_line_number(buffer->pos);
+}
 
-    while (line != target && (line = line->next) != NULL) {
+size_t get_bufferpos_line_number(BufferPos pos)
+{
+    size_t line_num = 1;
+    Line *line = pos.line;
+
+    while ((line = line->prev) != NULL) {
         line_num++;
     }
 
@@ -235,24 +242,58 @@ size_t get_pos_col_number(Buffer *buffer)
 
 Line *get_line_from_offset(Line *line, Direction direction, size_t offset)
 {
-    if (offset == 0 || direction == DIRECTION_NONE || line == NULL) {
+    if (offset == 0 || line == NULL) {
         return line;
     }
 
-    direction = sign(direction);
     Line *next;
 
     if (direction == DIRECTION_DOWN) {
         while ((next = line->next) != NULL && offset-- > 0) {
             line = next;
         }
-    } else {
+    } else if (direction == DIRECTION_UP) {
         while ((next = line->prev) != NULL && offset-- > 0) {
             line = next;
         }
     }
 
     return line;
+}
+
+int offset_compare(size_t offset1, size_t offset2)
+{
+    return (offset1 < offset2 ? -1 : offset1 > offset2);
+}
+
+int bufferpos_compare(BufferPos pos1, BufferPos pos2)
+{
+    if (pos1.line == pos2.line) {
+        return offset_compare(pos1.offset, pos2.offset);
+    }
+
+    size_t pos1_line_no = get_bufferpos_line_number(pos1);
+    size_t pos2_line_no = get_bufferpos_line_number(pos2);
+
+    return (pos1_line_no < pos2_line_no ? -1 : 1);
+}
+
+BufferPos bufferpos_min(BufferPos pos1, BufferPos pos2)
+{
+    if (bufferpos_compare(pos1, pos2) == -1) {
+        return pos1;
+    }
+
+    return pos2;
+}
+
+BufferPos bufferpos_max(BufferPos pos1, BufferPos pos2)
+{
+    if (bufferpos_compare(pos1, pos2) == 1) {
+        return pos1;
+    }
+
+    return pos2;
 }
 
 /* TODO Consider UTF-8 punctuation and whitespace */
@@ -289,39 +330,75 @@ const char *pos_offset_character(Buffer *buffer, Direction direction, size_t off
     return pos.line->text + pos.offset;
 }
 
-int pos_at_line_start(Buffer *buffer)
+int bufferpos_at_line_start(BufferPos pos)
 {
-    return buffer->pos.offset == 0;
+    return pos.offset == 0;
 }
 
-int pos_at_line_end(Buffer *buffer)
+int bufferpos_at_line_end(BufferPos pos)
 {
-    return buffer->pos.line->length == buffer->pos.offset;
+    return pos.line->length == pos.offset;
 }
 
-int pos_at_first_line(Buffer *buffer)
+int bufferpos_at_first_line(BufferPos pos)
 {
-    return buffer->lines == buffer->pos.line;
+    return pos.line->prev == NULL;
 }
 
-int pos_at_last_line(Buffer *buffer)
+int bufferpos_at_last_line(BufferPos pos)
 {
-    return buffer->pos.line->next == NULL;
+    return pos.line->next == NULL;
 }
 
-int pos_at_buffer_start(Buffer *buffer)
+int bufferpos_at_buffer_start(BufferPos pos)
 {
-    return pos_at_first_line(buffer) && pos_at_line_start(buffer);
+    return bufferpos_at_first_line(pos) && bufferpos_at_line_start(pos);
 }
 
-int pos_at_buffer_end(Buffer *buffer)
+int bufferpos_at_buffer_end(BufferPos pos)
 {
-    return pos_at_last_line(buffer) && pos_at_line_end(buffer);
+    return bufferpos_at_last_line(pos) && bufferpos_at_line_end(pos);
 }
 
-int pos_at_buffer_extreme(Buffer *buffer)
+int bufferpos_at_buffer_extreme(BufferPos pos)
 {
-    return pos_at_buffer_start(buffer) || pos_at_buffer_end(buffer);
+    return bufferpos_at_buffer_start(pos) || bufferpos_at_buffer_end(pos);
+}
+
+int move_past_buffer_extremes(BufferPos pos, Direction direction)
+{
+    return ((direction == DIRECTION_LEFT && bufferpos_at_buffer_start(pos)) ||
+            (direction == DIRECTION_RIGHT && bufferpos_at_buffer_end(pos)));
+}
+
+static int is_selection(Direction *direction)
+{
+    if (direction == NULL) {
+        return 0;
+    }
+
+    int is_select = *direction & DIRECTION_WITH_SELECT;
+    *direction &= ~DIRECTION_WITH_SELECT;
+
+    return is_select;
+}
+
+int selection_started(Buffer *buffer)
+{
+    return buffer->select_start.line != NULL;
+}
+
+static void default_movement_selection_handler(Buffer *buffer, int is_select, Direction *direction)
+{
+    if (is_select) {
+        if (direction != NULL) {
+            *direction |= DIRECTION_WITH_SELECT;
+        }
+
+        select_continue(buffer);
+    } else if (selection_started(buffer)) {
+        select_reset(buffer);
+    }
 }
 
 /* TODO All cursor functions bellow need to be updated to consider a global cursor offset.
@@ -334,7 +411,6 @@ Status pos_change_line(Buffer *buffer, BufferPos *pos, Direction direction)
 {
     (void)buffer;
     Line *line = pos->line;
-    direction = sign(direction); 
 
     if (direction == DIRECTION_NONE ||
         (direction == DIRECTION_DOWN && line->next == NULL) ||
@@ -362,8 +438,6 @@ Status pos_change_muti_line(Buffer *buffer, BufferPos *pos, Direction direction,
         return STATUS_SUCCESS;
     }
 
-    direction = sign(direction);
-    offset = abs(offset);
     Status status;
 
     for (size_t k = 0; k < offset; k++) {
@@ -378,57 +452,74 @@ Status pos_change_muti_line(Buffer *buffer, BufferPos *pos, Direction direction,
 }
 
 /* Move cursor a character to the left or right */
-Status pos_change_char(Buffer *buffer, BufferPos *pos, Direction direction, int update_col_offset)
+Status pos_change_char(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
 {
-    if (direction == DIRECTION_NONE) {
+    int is_select = is_selection(&direction);
+
+    if ((direction == DIRECTION_NONE) ||
+        (!(direction == DIRECTION_LEFT || direction == DIRECTION_RIGHT))) {
+    
         return STATUS_SUCCESS;
     }
 
-    direction = sign(direction); 
+    if (is_cursor) {
+        if (is_select) {
+            if (!move_past_buffer_extremes(*pos, direction)) {
+                select_continue(buffer);
+            }
+        } else if (selection_started(buffer)) {
+            BufferPos new_pos;
+
+            if (direction == DIRECTION_LEFT) {
+                new_pos = bufferpos_min(buffer->select_start, buffer->pos);
+            } else {
+                new_pos = bufferpos_max(buffer->select_start, buffer->pos);
+            }
+
+            select_reset(buffer);
+
+            return pos_to_bufferpos(buffer, new_pos);
+        }
+    }
+
+    if (move_past_buffer_extremes(*pos, direction)) {
+        return STATUS_SUCCESS;
+    }
+
     Line *line = pos->line;
 
     if (pos->offset == 0 && direction == DIRECTION_LEFT) {
-        if (line->prev == NULL) {
-            return STATUS_SUCCESS;
-        }
-
         pos->line = line = line->prev; 
         pos->offset = line->length == 0 ? 0 : line->length;
     } else if ((pos->offset == line->length || line->length == 0) && direction == DIRECTION_RIGHT) {
-        if (line->next == NULL) {
-            return STATUS_SUCCESS;
-        }
-
         pos->line = line = line->next; 
         pos->offset = 0;
     } else {
-        pos->offset += direction;
+        pos->offset += DIRECTION_OFFSET(direction);
     }
 
     /* Ensure we're not on a continuation byte */
     while (!byte_screen_length(line->text[pos->offset], line, pos->offset) &&
            pos->offset < line->length &&
-           (pos->offset += direction) > 0) ;
+           (pos->offset += DIRECTION_OFFSET(direction)) > 0) ;
 
-    if (update_col_offset) {
+    if (is_cursor) {
         update_line_col_offset(buffer, pos);
     }
 
     return STATUS_SUCCESS;
 }
 
-Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction, size_t offset, int update_col_offset)
+Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction, size_t offset, int is_cursor)
 {
     if (offset == 0 || direction == DIRECTION_NONE) {
         return STATUS_SUCCESS;
     }
 
-    direction = sign(direction);
-    offset = abs(offset);
     Status status;
 
     for (size_t k = 0; k < offset; k++) {
-        status = pos_change_char(buffer, pos, direction, update_col_offset);
+        status = pos_change_char(buffer, pos, direction, is_cursor);
 
         if (!is_success(status)) {
             return status;
@@ -444,24 +535,33 @@ Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction
  * down to a different part of the line displayed as a different line on the screen.
  * Therefore this function is dependent on the width of the screen. */
 
-Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction direction, int advance_pos)
+Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
 {
-    if (direction == DIRECTION_NONE) {
+    int is_select = is_selection(&direction);
+
+    if ((direction == DIRECTION_NONE) ||
+        (!(direction == DIRECTION_UP || direction == DIRECTION_DOWN))) {
+
         return STATUS_SUCCESS;
     }
 
-    direction = sign(direction);
+    Direction pos_direction = (direction == DIRECTION_DOWN ? DIRECTION_RIGHT : DIRECTION_LEFT);
+
+    if (is_cursor) {
+        default_movement_selection_handler(buffer, is_select, &pos_direction);
+    }
+
     Line *start_line = pos->line;
     size_t screen_line = line_pos_screen_height(*pos);
     size_t screen_lines = line_screen_height(pos->line);
-    int break_on_hardline = screen_lines > 1 && (screen_line + direction) > 0 && screen_line < screen_lines;
+    int break_on_hardline = screen_lines > 1 && (screen_line + DIRECTION_OFFSET(direction)) > 0 && screen_line < screen_lines;
     size_t cols, col_num;
     cols = col_num = editor_screen_width();
     Status status;
 
     while (cols > 0 && cols <= col_num) {
         cols -= byte_screen_length(pos->line->text[pos->offset], pos->line, pos->offset);
-        status = pos_change_char(buffer, pos, direction, 0);
+        status = pos_change_char(buffer, pos, pos_direction, 0);
 
         if (!is_success(status)) {
             return status;
@@ -483,8 +583,8 @@ Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction directio
         }
     }
 
-    if (advance_pos) {
-        return advance_pos_to_line_offset(buffer, pos);
+    if (is_cursor) {
+        return advance_pos_to_line_offset(buffer, pos, is_select);
     }
 
     return STATUS_SUCCESS;
@@ -496,8 +596,6 @@ Status pos_change_multi_screen_line(Buffer *buffer, BufferPos *pos, Direction di
         return STATUS_SUCCESS;
     }
 
-    direction = sign(direction);
-    offset = abs(offset);
     Status status;
 
     for (size_t k = 0; k < offset; k++) {
@@ -516,16 +614,21 @@ static void update_line_col_offset(Buffer *buffer, BufferPos *pos)
     buffer->line_col_offset = screen_col_no(*pos);
 }
 
-static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos)
+static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos, int is_select)
 {
     size_t global_col_offset = buffer->line_col_offset;
     size_t current_col_offset = screen_col_no(*pos);
+    Direction direction = DIRECTION_RIGHT;
     Status status;
+
+    if (is_select) {
+        direction |= DIRECTION_WITH_SELECT;
+    }
 
     while (current_col_offset < global_col_offset &&
            pos->offset < pos->line->length) {
         
-        status = pos_change_char(buffer, pos, DIRECTION_RIGHT, 1);
+        status = pos_change_char(buffer, pos, direction, 1);
 
         if (!is_success(status)) {
             return status;
@@ -539,8 +642,11 @@ static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos)
     return STATUS_SUCCESS;
 }
 
-Status pos_to_screen_line_start(Buffer *buffer)
+Status pos_to_screen_line_start(Buffer *buffer, int is_select)
 {
+    Direction direction = DIRECTION_LEFT;
+    default_movement_selection_handler(buffer, is_select, &direction);
+
     BufferPos *pos = &buffer->pos;
 
     if (pos->offset == 0) {
@@ -552,7 +658,7 @@ Status pos_to_screen_line_start(Buffer *buffer)
     Status status;
 
     do {
-        status = pos_change_char(buffer, pos, DIRECTION_LEFT, 1);
+        status = pos_change_char(buffer, pos, direction, 1);
 
         if (!is_success(status)) {
             return status;
@@ -564,8 +670,11 @@ Status pos_to_screen_line_start(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
-Status pos_to_screen_line_end(Buffer *buffer)
+Status pos_to_screen_line_end(Buffer *buffer, int is_select)
 {
+    Direction direction = DIRECTION_RIGHT;
+    default_movement_selection_handler(buffer, is_select, &direction);
+
     BufferPos *pos = &buffer->pos;
 
     if (pos->offset == pos->line->length) {
@@ -577,7 +686,7 @@ Status pos_to_screen_line_end(Buffer *buffer)
     Status status;
 
     do {
-        status = pos_change_char(buffer, pos, DIRECTION_RIGHT, 1);
+        status = pos_change_char(buffer, pos, direction, 1);
 
         if (!is_success(status)) {
             return status;
@@ -589,30 +698,33 @@ Status pos_to_screen_line_end(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
-Status pos_to_next_word(Buffer *buffer)
+Status pos_to_next_word(Buffer *buffer, int is_select)
 {
+    Direction direction = DIRECTION_RIGHT;
+    default_movement_selection_handler(buffer, is_select, &direction);
+
     BufferPos *pos = &buffer->pos;
     Status status;
 
     CharacterClass start_class = character_class(pos_character(buffer));
 
     do {
-        status = pos_change_char(buffer, pos, DIRECTION_RIGHT, 1);
+        status = pos_change_char(buffer, pos, direction, 1);
 
         if (!is_success(status)) {
             return status;
         }
-    } while (!pos_at_buffer_end(buffer) &&
+    } while (!bufferpos_at_buffer_end(buffer->pos) &&
              start_class == character_class(pos_character(buffer)));
 
-    while (!pos_at_buffer_extreme(buffer) &&
+    while (!bufferpos_at_buffer_extreme(buffer->pos) &&
            character_class(pos_character(buffer)) == CCLASS_WHITESPACE) {
 
-        if (pos_at_line_end(buffer)) {
+        if (bufferpos_at_line_end(buffer->pos)) {
             break;
         }
 
-        status = pos_change_char(buffer, pos, DIRECTION_RIGHT, 1);
+        status = pos_change_char(buffer, pos, direction, 1);
 
         if (!is_success(status)) {
             return status;
@@ -622,26 +734,29 @@ Status pos_to_next_word(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
-Status pos_to_prev_word(Buffer *buffer)
+Status pos_to_prev_word(Buffer *buffer, int is_select)
 {
+    Direction direction = DIRECTION_LEFT;
+    default_movement_selection_handler(buffer, is_select, &direction);
+
     BufferPos *pos = &buffer->pos;
     Status status;
 
     do {
-        status = pos_change_char(buffer, pos, DIRECTION_LEFT, 1);
+        status = pos_change_char(buffer, pos, direction, 1);
 
         if (!is_success(status)) {
             return status;
         }
-    } while (!pos_at_buffer_start(buffer) &&
+    } while (!bufferpos_at_buffer_start(buffer->pos) &&
              character_class(pos_character(buffer)) == CCLASS_WHITESPACE);
 
     CharacterClass start_class = character_class(pos_character(buffer));
 
-    while (!pos_at_buffer_start(buffer) &&
+    while (!bufferpos_at_buffer_start(buffer->pos) &&
            start_class == character_class(pos_offset_character(buffer, DIRECTION_LEFT, 1))) {
 
-        status = pos_change_char(buffer, pos, DIRECTION_LEFT, 1);
+        status = pos_change_char(buffer, pos, direction, 1);
 
         if (!is_success(status)) {
             return status;
@@ -651,8 +766,10 @@ Status pos_to_prev_word(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
-Status pos_to_buffer_start(Buffer *buffer)
+Status pos_to_buffer_start(Buffer *buffer, int is_select)
 {
+    default_movement_selection_handler(buffer, is_select, NULL);
+
     BufferPos *pos = &buffer->pos;
     pos->line = buffer->lines;
     pos->offset = 0;
@@ -660,8 +777,10 @@ Status pos_to_buffer_start(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
-Status pos_to_buffer_end(Buffer *buffer)
+Status pos_to_buffer_end(Buffer *buffer, int is_select)
 {
+    default_movement_selection_handler(buffer, is_select, NULL);
+
     BufferPos *pos = &buffer->pos;
     Line *next;
 
@@ -674,11 +793,21 @@ Status pos_to_buffer_end(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
+Status pos_to_bufferpos(Buffer *buffer, BufferPos pos)
+{
+    buffer->pos = pos; 
+    return STATUS_SUCCESS;
+}
+
 Status pos_change_page(Buffer *buffer, Direction direction)
 {
-    if (pos_at_first_line(buffer) && direction == DIRECTION_UP) {
+    int is_select = is_selection(&direction);
+
+    if (bufferpos_at_first_line(buffer->pos) && direction == DIRECTION_UP) {
         return STATUS_SUCCESS;
     }
+
+    default_movement_selection_handler(buffer, is_select, &direction);
 
     BufferPos *pos = &buffer->pos;
     Status status = pos_change_multi_screen_line(buffer, pos, direction, editor_screen_height() - 1, 1);
@@ -878,6 +1007,23 @@ Status insert_line(Buffer *buffer)
     pos->line->is_dirty = DRAW_LINE_REFRESH_DOWN;
     pos->line = line;
     pos->offset = 0;
+
+    return STATUS_SUCCESS;
+}
+
+Status select_continue(Buffer *buffer)
+{
+    if (buffer->select_start.line == NULL) {
+        buffer->select_start = buffer->pos;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+Status select_reset(Buffer *buffer)
+{
+    buffer->select_start.line = NULL;
+    buffer->select_start.offset = 0;
 
     return STATUS_SUCCESS;
 }
