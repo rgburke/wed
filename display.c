@@ -133,7 +133,7 @@ void draw_text(Session *sess, int refresh_all)
     line = line->next;
 
     while (line_count < line_num && line != NULL) {
-        if (line->is_dirty == DRAW_LINE_END_REFRESH_DOWN) {
+        if (line->is_dirty & DRAW_LINE_END_REFRESH_DOWN) {
             line->is_dirty = DRAW_LINE_NO_CHANGE;
             refresh_all = 0;
         }
@@ -159,11 +159,11 @@ void draw_text(Session *sess, int refresh_all)
 static size_t draw_line(Line *line, size_t char_index, int y, int *refresh_all)
 {
     if (line->length == 0) {
-        if (*refresh_all || line->is_dirty == DRAW_LINE_SHRUNK || line->is_dirty == DRAW_LINE_REFRESH_DOWN) {
+        if (*refresh_all || (line->is_dirty & (DRAW_LINE_SHRUNK | DRAW_LINE_REFRESH_DOWN))) {
             wmove(text, y, 0);
             wclrtoeol(text);
 
-            if (line->is_dirty == DRAW_LINE_REFRESH_DOWN) {
+            if (line->is_dirty & DRAW_LINE_REFRESH_DOWN) {
                 *refresh_all = 1;
             }
         }
@@ -185,7 +185,7 @@ static size_t draw_line(Line *line, size_t char_index, int y, int *refresh_all)
         }
     }
 
-    if (*refresh_all || line->is_dirty == DRAW_LINE_SHRUNK || line->is_dirty == DRAW_LINE_REFRESH_DOWN) {
+    if (*refresh_all || (line->is_dirty & (DRAW_LINE_SHRUNK | DRAW_LINE_REFRESH_DOWN))) {
         wclrtoeol(text);  
 
         if (line->is_dirty == DRAW_LINE_REFRESH_DOWN) {
@@ -310,7 +310,9 @@ size_t screen_height_from_screen_length(size_t screen_length)
  * Continuation bytes take up no screen space for example. */
 size_t byte_screen_length(char c, Line *line, size_t offset)
 {
-    if (c == '\t') {
+    if (line->length == offset) {
+        return 1;
+    } else if (c == '\t') {
         if (offset == 0) {
             return WED_TAB_SIZE;
         }
