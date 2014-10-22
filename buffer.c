@@ -266,6 +266,7 @@ int offset_compare(size_t offset1, size_t offset2)
     return (offset1 < offset2 ? -1 : offset1 > offset2);
 }
 
+/* TODO This could be optimized. It's pretty heavy going as it is. */
 int bufferpos_compare(BufferPos pos1, BufferPos pos2)
 {
     if (pos1.line == pos2.line) {
@@ -294,6 +295,30 @@ BufferPos bufferpos_max(BufferPos pos1, BufferPos pos2)
     }
 
     return pos2;
+}
+
+int get_selection_range(Buffer *buffer, Range *range)
+{
+    if (range == NULL) {
+        return 0;
+    } else if (!selection_started(buffer)) {
+        return 0;
+    }
+
+    range->start = bufferpos_min(buffer->pos, buffer->select_start);
+    range->end = bufferpos_max(buffer->pos, buffer->select_start);
+
+    return 1;
+}
+
+/* TODO This could also be optimized */
+int bufferpos_in_range(Range range, BufferPos pos)
+{
+    if (bufferpos_compare(pos, range.start) < 0 || bufferpos_compare(pos, range.end) > 0) {
+        return 0;
+    }
+
+    return 1;
 }
 
 /* TODO Consider UTF-8 punctuation and whitespace */
@@ -396,7 +421,15 @@ static void default_movement_selection_handler(Buffer *buffer, int is_select, Di
         }
 
         select_continue(buffer);
+        buffer->pos.line->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
     } else if (selection_started(buffer)) {
+        Range select_range;
+
+        get_selection_range(buffer, &select_range);
+
+        select_range.start.line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
+        select_range.end.line->is_dirty |= DRAW_LINE_END_REFRESH_DOWN;
+
         select_reset(buffer);
     }
 }
@@ -466,15 +499,22 @@ Status pos_change_char(Buffer *buffer, BufferPos *pos, Direction direction, int 
         if (is_select) {
             if (!move_past_buffer_extremes(*pos, direction)) {
                 select_continue(buffer);
+                pos->line->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
             }
         } else if (selection_started(buffer)) {
+            Range select_range;
             BufferPos new_pos;
 
+            get_selection_range(buffer, &select_range);
+
             if (direction == DIRECTION_LEFT) {
-                new_pos = bufferpos_min(buffer->select_start, buffer->pos);
+                new_pos = select_range.start;
             } else {
-                new_pos = bufferpos_max(buffer->select_start, buffer->pos);
+                new_pos = select_range.end;
             }
+
+            select_range.start.line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
+            select_range.end.line->is_dirty |= DRAW_LINE_END_REFRESH_DOWN;
 
             select_reset(buffer);
 
@@ -549,6 +589,12 @@ Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction directio
 
     if (is_cursor) {
         default_movement_selection_handler(buffer, is_select, &pos_direction);
+        
+        if (direction == DIRECTION_UP && pos->line->prev != NULL) {
+            pos->line->prev->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
+        } else if (direction == DIRECTION_DOWN && pos->line->next != NULL) {
+            pos->line->next->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
+        }
     }
 
     Line *start_line = pos->line;
@@ -774,14 +820,20 @@ Status pos_to_buffer_start(Buffer *buffer, int is_select)
     pos->line = buffer->lines;
     pos->offset = 0;
 
+    if (is_select) {
+        pos->line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
+    }
+
     return STATUS_SUCCESS;
 }
 
 Status pos_to_buffer_end(Buffer *buffer, int is_select)
 {
-    default_movement_selection_handler(buffer, is_select, NULL);
-
     BufferPos *pos = &buffer->pos;
+
+    default_movement_selection_handler(buffer, is_select, NULL);
+    pos->line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
+
     Line *next;
 
     while ((next = pos->line->next) != NULL) {
@@ -818,7 +870,7 @@ Status pos_change_page(Buffer *buffer, Direction direction)
 
     if (buffer->screen_start.line != buffer->pos.line) {
         buffer->screen_start.line = buffer->pos.line;
-        buffer->screen_start.line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+        buffer->screen_start.line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
     }
 
     return STATUS_SUCCESS;
@@ -855,9 +907,9 @@ Status insert_character(Buffer *buffer, char *character)
     size_t end_screen_height = line_screen_height(pos->line);
 
     if (end_screen_height > start_screen_height) {
-        pos->line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+        pos->line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
     } else {
-        pos->line->is_dirty = DRAW_LINE_EXTENDED;
+        pos->line->is_dirty |= DRAW_LINE_EXTENDED;
     }
 
     return STATUS_SUCCESS;
@@ -895,9 +947,9 @@ Status insert_string(Buffer *buffer, char *string, size_t string_length, int adv
     }
 
     if (end_screen_height > start_screen_height) {
-        pos->line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+        pos->line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
     } else {
-        pos->line->is_dirty = DRAW_LINE_EXTENDED;
+        pos->line->is_dirty |= DRAW_LINE_EXTENDED;
     }
 
     return STATUS_SUCCESS;
@@ -925,7 +977,7 @@ Status delete_character(Buffer *buffer)
             return status;
         }
 
-        line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+        line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
 
         return STATUS_SUCCESS;
     }
@@ -939,7 +991,7 @@ Status delete_character(Buffer *buffer)
 
     line->length -= char_byte_len;
     line->screen_length -= screen_length; 
-    pos->line->is_dirty = DRAW_LINE_SHRUNK;
+    pos->line->is_dirty |= DRAW_LINE_SHRUNK;
 
     resize_line_text_if_req(pos->line, pos->line->length);
 
@@ -1004,7 +1056,7 @@ Status insert_line(Buffer *buffer)
         line->next->prev = line;
     }
 
-    pos->line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+    pos->line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
     pos->line = line;
     pos->offset = 0;
 

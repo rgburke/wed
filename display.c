@@ -32,7 +32,8 @@ static WINDOW *windows[WINDOW_NUM];
 static size_t text_y;
 static size_t text_x;
 
-static size_t draw_line(Line *, size_t, int, int *);
+static void handle_draw_status(Line *, LineDrawStatus *);
+static size_t draw_line(Line *, size_t, int, LineDrawStatus *, int, Range);
 static void convert_pos_to_point(Point *, BufferPos);
 static void vertical_scroll(Buffer *, Point *, Point);
 
@@ -75,7 +76,7 @@ void refresh_display(Session *sess)
 {
     draw_menu(sess);
     draw_status(sess);
-    draw_text(sess, 1);
+    draw_text(sess, DRAW_LINE_FULL_REFRESH);
     update_display(sess);
 }
 
@@ -109,88 +110,114 @@ void draw_status(Session *sess)
     wnoutrefresh(status); 
 }
 
+static void handle_draw_status(Line *line, LineDrawStatus *draw_status)
+{
+    if (line->is_dirty) {
+        if (line->is_dirty & DRAW_LINE_REFRESH_DOWN) {
+            *draw_status |= DRAW_LINE_REFRESH_DOWN;
+        } else if (line->is_dirty & DRAW_LINE_END_REFRESH_DOWN) {
+            *draw_status &= ~DRAW_LINE_REFRESH_DOWN;
+        } else if (line->is_dirty & DRAW_LINE_SCROLL_REFRESH_DOWN) {
+            *draw_status |= DRAW_LINE_SCROLL_REFRESH_DOWN;
+        } else if (line->is_dirty & DRAW_LINE_SCROLL_END_REFRESH_DOWN) {
+            *draw_status &= ~DRAW_LINE_SCROLL_REFRESH_DOWN;
+        }    
+
+        line->is_dirty = DRAW_LINE_NO_CHANGE;
+    }
+}
+
 /* Refresh the active buffer on the screen. Only draw
  * necessary buffer parts. */
-void draw_text(Session *sess, int refresh_all)
+void draw_text(Session *sess, LineDrawStatus draw_status)
 {
-    if (refresh_all) {
+    if (draw_status & DRAW_LINE_FULL_REFRESH) {
         wclear(text);
     }
 
+    Buffer *buffer = sess->active_buffer;
+    Range select_range;
+    int is_selection = get_selection_range(buffer, &select_range);
     size_t line_num = text_y;
     size_t line_count = 0;
-    Buffer *buffer = sess->active_buffer;
     BufferPos screen_start = buffer->screen_start;
-    Line *line = screen_start.line;
+    Line *line = buffer->lines;
 
-    if (refresh_all || line->is_dirty) {
-        line_count += draw_line(line, screen_start.offset, line_count, &refresh_all);
-        line->is_dirty = DRAW_LINE_NO_CHANGE;
-    } else {
-        line_count += line_offset_screen_height(line, screen_start.offset, line->length);
-    }
-
-    line = line->next;
-
-    while (line_count < line_num && line != NULL) {
-        if (line->is_dirty & DRAW_LINE_END_REFRESH_DOWN) {
-            line->is_dirty = DRAW_LINE_NO_CHANGE;
-            refresh_all = 0;
-        }
-
-        if (refresh_all || line->is_dirty) {
-            line_count += draw_line(line, 0, line_count, &refresh_all);
-            line->is_dirty = DRAW_LINE_NO_CHANGE;
-        } else {
-            line_count += line_screen_height(line);
-        }
-
+    while (line != screen_start.line) {
+        handle_draw_status(line, &draw_status);
         line = line->next;
     }
 
-    if (refresh_all) {
+    line_count += draw_line(line, screen_start.offset, line_count, &draw_status, is_selection, select_range);
+    handle_draw_status(line, &draw_status);
+    line = line->next;
+
+    while (line_count < line_num && line != NULL) {
+        line_count += draw_line(line, 0, line_count, &draw_status, is_selection, select_range);
+        handle_draw_status(line, &draw_status);
+        line = line->next;
+    }
+
+    if (draw_status) {
+        wstandend(text);
+
         while (line_count < text_y) {
             mvwaddch(text, line_count++, 0, '~');
             wclrtoeol(text);
         }
     }
+
+    while (line != NULL) {
+        if (line->is_dirty) {
+            line->is_dirty = DRAW_LINE_NO_CHANGE;
+        }
+
+        line = line->next;
+    }
 }
 
-static size_t draw_line(Line *line, size_t char_index, int y, int *refresh_all)
+static size_t draw_line(Line *line, size_t char_index, int y, LineDrawStatus *draw_status, int is_selection, Range select_range)
 {
+    if (!(*draw_status || line->is_dirty)) {
+        if (char_index > 0) {
+            return line_offset_screen_height(line, char_index, line->length);
+        } 
+
+        return line_screen_height(line);
+    }
+
     if (line->length == 0) {
-        if (*refresh_all || (line->is_dirty & (DRAW_LINE_SHRUNK | DRAW_LINE_REFRESH_DOWN))) {
+        if (*draw_status || (line->is_dirty & (DRAW_LINE_SHRUNK | DRAW_LINE_REFRESH_DOWN))) {
             wmove(text, y, 0);
             wclrtoeol(text);
-
-            if (line->is_dirty & DRAW_LINE_REFRESH_DOWN) {
-                *refresh_all = 1;
-            }
         }
 
         return 1;
     }
 
+    BufferPos draw_pos = { .line = line, .offset = char_index };
     size_t scr_line_num = 0;
     size_t start_index = char_index;
     size_t char_byte_len;
 
-    while (char_index < line->length && scr_line_num < text_y) {
+    while (draw_pos.offset < line->length && scr_line_num < text_y) {
         wmove(text, y++, 0);
         scr_line_num++;
 
-        for (size_t k = 0; k < text_x && char_index < line->length; char_index += char_byte_len, k++) {
-            char_byte_len = char_byte_length(line->text[char_index]);
-            waddnstr(text, line->text + char_index, char_byte_len);
+        for (size_t k = 0; k < text_x && draw_pos.offset < line->length; draw_pos.offset += char_byte_len, k++) {
+            if (is_selection && bufferpos_in_range(select_range, draw_pos)) {
+                wattron(text, A_REVERSE);
+            } else {
+                wattroff(text, A_REVERSE);
+            }
+
+            char_byte_len = char_byte_length(line->text[draw_pos.offset]);
+            waddnstr(text, line->text + draw_pos.offset, char_byte_len);
         }
     }
 
-    if (*refresh_all || (line->is_dirty & (DRAW_LINE_SHRUNK | DRAW_LINE_REFRESH_DOWN))) {
+    if (*draw_status || (line->is_dirty & (DRAW_LINE_SHRUNK | DRAW_LINE_REFRESH_DOWN))) {
         wclrtoeol(text);  
-
-        if (line->is_dirty == DRAW_LINE_REFRESH_DOWN) {
-            *refresh_all = 1;
-        }
     }
 
     if (scr_line_num < line_offset_screen_height(line, start_index, line->length)) {
@@ -200,12 +227,6 @@ static size_t draw_line(Line *line, size_t char_index, int y, int *refresh_all)
     }
 
     return scr_line_num;
-}
-
-void move_cursor(Window win, int y, int x)
-{
-    wmove(windows[win], y, x);
-    wrefresh(windows[win]);
 }
 
 /* Update the menu, status and active buffer views.
@@ -397,16 +418,16 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
         }
 
         Line *line = get_line_from_offset(buffer->pos.line, DIRECTION_UP, draw_start - 1);
-        line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+        line->is_dirty |= DRAW_LINE_SCROLL_REFRESH_DOWN;
     }
 
     pos_change_multi_screen_line(buffer, &buffer->screen_start, direction, diff, 0);
     convert_pos_to_point(screen_start, buffer->screen_start);
 
     if (direction == DIRECTION_UP) {
-        buffer->screen_start.line->is_dirty = DRAW_LINE_REFRESH_DOWN;
+        buffer->screen_start.line->is_dirty |= DRAW_LINE_SCROLL_REFRESH_DOWN;
         Line *line = get_line_from_offset(buffer->screen_start.line, DIRECTION_DOWN, diff);
-        line->is_dirty = DRAW_LINE_END_REFRESH_DOWN;
+        line->is_dirty |= DRAW_LINE_SCROLL_END_REFRESH_DOWN;
     }
 
     scrollok(text, TRUE);

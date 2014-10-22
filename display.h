@@ -26,19 +26,16 @@
 #define TAB_COLOR_PAIR 2
 #define STATUS_COLOR_PAIR 3
 
-/* TODO Is this needed anymore? */
-typedef enum {
-    WIN_MENU,
-    WIN_TEXT,
-    WIN_STATUS 
-} Window;
-
 typedef enum {
     DRAW_LINE_NO_CHANGE,
-    DRAW_LINE_SHRUNK,
-    DRAW_LINE_EXTENDED = 1 << 1,
-    DRAW_LINE_REFRESH_DOWN = 1 << 2,
-    DRAW_LINE_END_REFRESH_DOWN = 1 << 3
+    DRAW_LINE_FULL_REFRESH,
+    DRAW_LINE_SHRUNK = 1 << 1,
+    DRAW_LINE_EXTENDED = 1 << 2,
+    DRAW_LINE_SELECTION_CHANGE = 1 << 3, 
+    DRAW_LINE_REFRESH_DOWN = 1 << 4,
+    DRAW_LINE_END_REFRESH_DOWN = 1 << 5,
+    DRAW_LINE_SCROLL_REFRESH_DOWN = 1 << 6,
+    DRAW_LINE_SCROLL_END_REFRESH_DOWN = 1 << 7
 } LineDrawStatus;
 
 /* A screen representation of a BufferPos in terms of a line and column number.
@@ -53,8 +50,7 @@ void end_display(void);
 void refresh_display(Session *);
 void draw_menu(Session *sess);
 void draw_status(Session *);
-void draw_text(Session *, int);
-void move_cursor(Window, int, int);
+void draw_text(Session *, LineDrawStatus);
 void update_display(Session *);
 size_t screen_line_no(BufferPos);
 size_t screen_col_no(BufferPos);

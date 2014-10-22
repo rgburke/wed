@@ -64,6 +64,11 @@ typedef struct {
     size_t offset;
 } BufferPos;
 
+typedef struct {
+    BufferPos start;
+    BufferPos end;
+} Range;
+
 /* The in memory representation of a file */
 struct Buffer {
     FileInfo file_info; /* stat like info */
@@ -93,6 +98,8 @@ int offset_compare(size_t, size_t);
 int bufferpos_compare(BufferPos, BufferPos);
 BufferPos bufferpos_min(BufferPos, BufferPos);
 BufferPos bufferpos_max(BufferPos, BufferPos);
+int get_selection_range(Buffer *, Range *);
+int bufferpos_in_range(Range, BufferPos);
 CharacterClass character_class(const char *);
 const char *pos_character(Buffer *);
 const char *pos_offset_character(Buffer *, Direction, size_t);
