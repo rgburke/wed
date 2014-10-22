@@ -184,6 +184,8 @@ Status load_buffer(Buffer *buffer)
 
     fclose(input_file);
 
+    line->screen_length = line_screen_length(line, 0, line->length);
+
     if (buffer->lines) {
         buffer->pos.line = buffer->screen_start.line = buffer->lines;
     }
@@ -202,11 +204,11 @@ static Line *add_to_buffer(const char buffer[], size_t bsize, Line *line, int eo
         }
 
         if (buffer[idx] == '\n' && !(eof && idx == (bsize - 1))) {
-                line->next = new_line();
-                line->next->prev = line;
-                line = line->next;
+            line->screen_length = line_screen_length(line, 0, line->length);
+            line->next = new_line();
+            line->next->prev = line;
+            line = line->next;
         } else {
-            line->screen_length += byte_screen_length(buffer[idx], line, line->length);
             line->text[line->length++] = buffer[idx];
         }
 
@@ -590,10 +592,12 @@ Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction directio
     if (is_cursor) {
         default_movement_selection_handler(buffer, is_select, &pos_direction);
         
-        if (direction == DIRECTION_UP && pos->line->prev != NULL) {
-            pos->line->prev->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
-        } else if (direction == DIRECTION_DOWN && pos->line->next != NULL) {
-            pos->line->next->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
+        if (is_select) {
+            if (direction == DIRECTION_UP && pos->line->prev != NULL) {
+                pos->line->prev->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
+            } else if (direction == DIRECTION_DOWN && pos->line->next != NULL) {
+                pos->line->next->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
+            }
         }
     }
 
