@@ -100,6 +100,7 @@ BufferPos bufferpos_min(BufferPos, BufferPos);
 BufferPos bufferpos_max(BufferPos, BufferPos);
 int get_selection_range(Buffer *, Range *);
 int bufferpos_in_range(Range, BufferPos);
+size_t range_length(Buffer *, Range);
 CharacterClass character_class(const char *);
 const char *pos_character(Buffer *);
 const char *pos_offset_character(Buffer *, Direction, size_t);
@@ -133,5 +134,6 @@ Status delete_line(Buffer *, Line *);
 Status insert_line(Buffer *);
 Status select_continue(Buffer *);
 Status select_reset(Buffer *);
+Status delete_range(Buffer *, Range);
 
 #endif

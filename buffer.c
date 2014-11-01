@@ -33,6 +33,7 @@ static int is_selection(Direction *);
 static void default_movement_selection_handler(Buffer *, int, Direction *);
 static void update_line_col_offset(Buffer *, BufferPos *);
 static Status advance_pos_to_line_offset(Buffer *, BufferPos *, int);
+static Status delete_line_segment(Line *, size_t, size_t);
 
 Buffer *new_buffer(FileInfo file_info)
 {
@@ -323,6 +324,18 @@ int bufferpos_in_range(Range range, BufferPos pos)
     return 1;
 }
 
+size_t range_length(Buffer *buffer, Range range)
+{
+    size_t length = 1;
+
+    while (bufferpos_compare(range.start, range.end) != 0) {
+        pos_change_char(buffer, &range.start, DIRECTION_RIGHT, 0);
+        length++;
+    }
+
+    return length;
+}
+
 /* TODO Consider UTF-8 punctuation and whitespace */
 CharacterClass character_class(const char *character)
 {
@@ -477,10 +490,7 @@ Status pos_change_muti_line(Buffer *buffer, BufferPos *pos, Direction direction,
 
     for (size_t k = 0; k < offset; k++) {
         status = pos_change_line(buffer, pos, direction);
-
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
     }
 
     return STATUS_SUCCESS;
@@ -562,10 +572,7 @@ Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction
 
     for (size_t k = 0; k < offset; k++) {
         status = pos_change_char(buffer, pos, direction, is_cursor);
-
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
     }
 
     return STATUS_SUCCESS;
@@ -650,10 +657,7 @@ Status pos_change_multi_screen_line(Buffer *buffer, BufferPos *pos, Direction di
 
     for (size_t k = 0; k < offset; k++) {
         status = pos_change_screen_line(buffer, pos, direction, is_cursor);
-
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
     }
 
     return STATUS_SUCCESS;
@@ -680,9 +684,7 @@ static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos, int is_
         
         status = pos_change_char(buffer, pos, direction, 1);
 
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
 
         current_col_offset++;
     }
@@ -710,9 +712,7 @@ Status pos_to_screen_line_start(Buffer *buffer, int is_select)
     do {
         status = pos_change_char(buffer, pos, direction, 1);
 
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
 
         col_index = screen_col_no(*pos);
     } while (pos->offset > 0 && (col_index % screen_width) != 0) ;
@@ -738,9 +738,7 @@ Status pos_to_screen_line_end(Buffer *buffer, int is_select)
     do {
         status = pos_change_char(buffer, pos, direction, 1);
 
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
 
         col_index = screen_col_no(*pos);
     } while (pos->offset != pos->line->length && (col_index % screen_width) != (screen_width - 1)) ;
@@ -760,10 +758,7 @@ Status pos_to_next_word(Buffer *buffer, int is_select)
 
     do {
         status = pos_change_char(buffer, pos, direction, 1);
-
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
     } while (!bufferpos_at_buffer_end(buffer->pos) &&
              start_class == character_class(pos_character(buffer)));
 
@@ -775,10 +770,7 @@ Status pos_to_next_word(Buffer *buffer, int is_select)
         }
 
         status = pos_change_char(buffer, pos, direction, 1);
-
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
     }
 
     return STATUS_SUCCESS;
@@ -794,10 +786,7 @@ Status pos_to_prev_word(Buffer *buffer, int is_select)
 
     do {
         status = pos_change_char(buffer, pos, direction, 1);
-
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
     } while (!bufferpos_at_buffer_start(buffer->pos) &&
              character_class(pos_character(buffer)) == CCLASS_WHITESPACE);
 
@@ -807,10 +796,7 @@ Status pos_to_prev_word(Buffer *buffer, int is_select)
            start_class == character_class(pos_offset_character(buffer, DIRECTION_LEFT, 1))) {
 
         status = pos_change_char(buffer, pos, direction, 1);
-
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
     }
 
     return STATUS_SUCCESS;
@@ -868,9 +854,7 @@ Status pos_change_page(Buffer *buffer, Direction direction)
     BufferPos *pos = &buffer->pos;
     Status status = pos_change_multi_screen_line(buffer, pos, direction, editor_screen_height() - 1, 1);
 
-    if (!is_success(status)) {
-        return status;
-    }
+    RETURN_IF_FAIL(status);
 
     if (buffer->screen_start.line != buffer->pos.line) {
         buffer->screen_start.line = buffer->pos.line;
@@ -890,6 +874,13 @@ Status insert_character(Buffer *buffer, char *character)
 
     if (char_len == 0 || char_len > 6) {
         return raise_param_error(ERR_INVALID_CHARACTER, STR_VAL(character));     
+    }
+
+    Range range;
+
+    if (get_selection_range(buffer, &range)) {
+        Status status = delete_range(buffer, range);
+        RETURN_IF_FAIL(status);
     }
 
     BufferPos *pos = &buffer->pos;
@@ -927,6 +918,13 @@ Status insert_string(Buffer *buffer, char *string, size_t string_length, int adv
         return STATUS_SUCCESS;
     }
 
+    Range range;
+
+    if (get_selection_range(buffer, &range)) {
+        Status status = delete_range(buffer, range);
+        RETURN_IF_FAIL(status);
+    }
+
     BufferPos *pos = &buffer->pos;
 
     resize_line_text_if_req(pos->line, pos->line->length + string_length);
@@ -961,6 +959,12 @@ Status insert_string(Buffer *buffer, char *string, size_t string_length, int adv
 
 Status delete_character(Buffer *buffer)
 {
+    Range range;
+
+    if (get_selection_range(buffer, &range)) {
+        return delete_range(buffer, range);
+    }
+
     BufferPos *pos = &buffer->pos;
     Line *line = pos->line;
 
@@ -971,15 +975,11 @@ Status delete_character(Buffer *buffer)
 
         Status status = insert_string(buffer, line->next->text, line->next->length, 0);
 
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
 
         status = delete_line(buffer, line->next);
 
-        if (!is_success(status)) {
-            return status;
-        }
+        RETURN_IF_FAIL(status);
 
         line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
 
@@ -1024,11 +1024,20 @@ Status delete_line(Buffer *buffer, Line *line)
         }    
     }
 
-    if (buffer->screen_start.line == NULL) {
+    if (buffer->screen_start.line == line) {
         if (line->next != NULL) {
             buffer->screen_start.line = line->next;
         } else {
             buffer->screen_start.line = line->prev;
+        }    
+    }
+
+    if (buffer->lines == line) {
+        if (line->next != NULL) {
+            buffer->lines = line->next;
+        } else {
+            buffer->lines = new_line();
+            buffer->screen_start.line = buffer->lines;
         }    
     }
 
@@ -1039,6 +1048,13 @@ Status delete_line(Buffer *buffer, Line *line)
 
 Status insert_line(Buffer *buffer)
 {
+    Range range;
+
+    if (get_selection_range(buffer, &range)) {
+        Status status = delete_range(buffer, range);
+        RETURN_IF_FAIL(status);
+    }
+
     BufferPos *pos = &buffer->pos;
     size_t line_length = pos->line->length - pos->offset;
 
@@ -1082,5 +1098,73 @@ Status select_reset(Buffer *buffer)
     buffer->select_start.offset = 0;
 
     return STATUS_SUCCESS;
+}
+
+/* start_offset is inclusive, end_offset is exclusive */
+static Status delete_line_segment(Line *line, size_t start_offset, size_t end_offset)
+{
+    if (line->length == 0 || start_offset >= line->length || end_offset <= start_offset) {
+        return STATUS_SUCCESS; 
+    }
+
+    end_offset = (end_offset > line->length ? line->length : end_offset);
+    size_t bytes_to_move = line->length - end_offset;
+    size_t screen_length = line_screen_length(line, start_offset, end_offset);
+
+    if (bytes_to_move > 0) {
+        memmove(line->text + start_offset, line->text + end_offset, bytes_to_move);
+    }
+
+    line->length -= (end_offset - start_offset);
+    line->screen_length -= screen_length; 
+    line->is_dirty |= DRAW_LINE_SHRUNK;
+
+    resize_line_text_if_req(line, line->length);
+
+    return STATUS_SUCCESS;
+}
+
+Status delete_range(Buffer *buffer, Range range)
+{
+    select_reset(buffer);
+
+    if (bufferpos_compare(buffer->pos, range.start) == 0) {
+        RETURN_IF_FAIL(pos_change_char(buffer, &range.start, DIRECTION_RIGHT, 0));
+        RETURN_IF_FAIL(pos_change_char(buffer, &range.end, DIRECTION_RIGHT, 0));
+    }
+
+    buffer->pos = range.start;
+
+    int is_single_line = (range.start.line == range.end.line);
+    Status status = delete_line_segment(range.start.line, range.start.offset, 
+                                        is_single_line ? range.end.offset : range.start.line->length); 
+
+    if (is_single_line || !is_success(status)) {
+        return status;
+    }
+
+    Line *line = range.start.line->next;
+
+    if (range.start.line->length == 0) {
+        status = delete_line(buffer, range.start.line);
+        RETURN_IF_FAIL(status);
+    }
+
+    Line *next;
+
+    while (line != NULL && line != range.end.line) {
+        next = line->next;
+        status = delete_line(buffer, line);
+
+        RETURN_IF_FAIL(status);
+
+        line = next;
+    }
+
+    status = delete_line_segment(range.end.line, 0, range.end.offset);
+
+    buffer->pos.line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
+
+    return status;
 }
 

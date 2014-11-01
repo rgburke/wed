@@ -64,7 +64,7 @@ static const Command commands[] = {
     { "<C-S-Left>"  , bufferpos_to_prev_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
     { "<C-S-Home>"  , bufferpos_to_buffer_start, INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
     { "<C-S-End>"   , bufferpos_to_buffer_end  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
-    { "<S-PageUp>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP | DIRECTION_WITH_SELECT)    },
+    { "<S-PageUp>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP   | DIRECTION_WITH_SELECT)  },
     { "<S-PageDown>", bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT)  },
     { "<Space>"     , buffer_insert_char       , STR_VAL_STRUCT(" ")                                     },
     { "<Tab>"       , buffer_insert_char       , STR_VAL_STRUCT("\t")                                    },
@@ -85,7 +85,9 @@ int init_keymap(Session *sess)
     }
 
     for (size_t k = 0; k < command_num; k++) {
-        hashmap_set(sess->keymap, commands[k].keystr, (Command *)&commands[k]);
+        if (!hashmap_set(sess->keymap, commands[k].keystr, (Command *)&commands[k])) {
+            return 0;
+        }
     }
 
     return 1;
@@ -178,10 +180,13 @@ static Status buffer_backspace(Session *sess, Value param, int *quit)
     (void)quit;
     (void)param;
 
-    Status status = pos_change_char(sess->active_buffer, &sess->active_buffer->pos, DIRECTION_LEFT, 1);
+    if (!selection_started(sess->active_buffer)) {
+        if (bufferpos_at_buffer_start(sess->active_buffer->pos)) {
+            return STATUS_SUCCESS;
+        }
 
-    if (!is_success(status)) {
-        return status;
+        Status status = pos_change_char(sess->active_buffer, &sess->active_buffer->pos, DIRECTION_LEFT, 1);
+        RETURN_IF_FAIL(status);
     }
 
     return delete_character(sess->active_buffer);
