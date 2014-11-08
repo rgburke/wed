@@ -44,6 +44,11 @@ typedef enum {
     DIRECTION_WITH_SELECT = 1 << 3,
 } Direction;
 
+typedef enum {
+    TST_STRING,
+    TST_LINE
+} TextSelectionType;
+
 typedef struct Line Line;
 typedef struct Buffer Buffer;
 
@@ -58,12 +63,14 @@ struct Line {
     Line *next; /* NULL if this is the last line in the buffer */
 };
 
-/* Used to represent a position in a buffer */
+/* Represent a position in a buffer */
 typedef struct {
     Line *line;
     size_t offset;
 } BufferPos;
 
+/* Represent selected text in a buffer,
+ * start is inclusive, end is exclusive */
 typedef struct {
     BufferPos start;
     BufferPos end;
@@ -80,13 +87,24 @@ struct Buffer {
     size_t line_col_offset; /* Global cursor line offset */
 };
 
+typedef struct {
+    TextSelectionType type;
+    union {
+        char *string;
+        Line *lines;
+    } text;
+} TextSelection;
+
 Buffer *new_buffer(FileInfo);
+Buffer *new_empty_buffer(void);
 void free_buffer(Buffer *);
 Line *new_line(void);
 Line *new_sized_line(size_t);
 void free_line(Line *);
 int init_bufferpos(BufferPos *);
-Buffer *new_empty_buffer(void);
+TextSelection *new_textselection(Range);
+void free_textselection(TextSelection *);
+Line *clone_line(Line *line);
 void resize_line_text(Line *, size_t);
 void resize_line_text_if_req(Line *, size_t);
 Status load_buffer(Buffer *);
@@ -104,6 +122,8 @@ size_t range_length(Buffer *, Range);
 CharacterClass character_class(const char *);
 const char *pos_character(Buffer *);
 const char *pos_offset_character(Buffer *, Direction, size_t);
+char *get_line_segment(Line *, size_t, size_t);
+Line *clone_line_segment(Line *, size_t, size_t);
 int bufferpos_at_line_start(BufferPos);
 int bufferpos_at_line_end(BufferPos);
 int bufferpos_at_first_line(BufferPos);
@@ -135,5 +155,9 @@ Status insert_line(Buffer *);
 Status select_continue(Buffer *);
 Status select_reset(Buffer *);
 Status delete_range(Buffer *, Range);
+Status select_all_text(Buffer *);
+Status copy_selected_text(Buffer *, TextSelection **);
+Status cut_selected_text(Buffer *, TextSelection **);
+Status insert_textselection(Buffer *, TextSelection *);
 
 #endif

@@ -39,6 +39,10 @@ static Status buffer_insert_char(Session *, Value, int *);
 static Status buffer_delete_char(Session *, Value, int *);
 static Status buffer_backspace(Session *, Value, int *);
 static Status buffer_insert_line(Session *, Value, int *);
+static Status buffer_select_all_text(Session *, Value, int *);
+static Status buffer_copy_selected_text(Session *, Value, int *);
+static Status buffer_cut_selected_text(Session *, Value, int *);
+static Status buffer_paste_text(Session *, Value, int *);
 static Status quit_wed(Session *, Value, int *);
 
 static const Command commands[] = {
@@ -75,6 +79,10 @@ static const Command commands[] = {
     { "<Delete>"    , buffer_delete_char       , INT_VAL_STRUCT(0)                                       },
     { "<Backspace>" , buffer_backspace         , INT_VAL_STRUCT(0)                                       },
     { "<Enter>"     , buffer_insert_line       , INT_VAL_STRUCT(0)                                       },
+    { "<C-a>"       , buffer_select_all_text   , INT_VAL_STRUCT(0)                                       },
+    { "<C-c>"       , buffer_copy_selected_text, INT_VAL_STRUCT(0)                                       },
+    { "<C-x>"       , buffer_cut_selected_text , INT_VAL_STRUCT(0)                                       },
+    { "<C-v>"       , buffer_paste_text        , INT_VAL_STRUCT(0)                                       },
     { "<F2>"        , quit_wed                 , INT_VAL_STRUCT(0)                                       }
 };
 
@@ -201,6 +209,61 @@ static Status buffer_insert_line(Session *sess, Value param, int *quit)
     (void)quit;
     (void)param;
     return insert_line(sess->active_buffer);
+}
+
+static Status buffer_select_all_text(Session *sess, Value param, int *quit)
+{
+    (void)quit;
+    (void)param;
+    return select_all_text(sess->active_buffer);
+}
+
+static Status buffer_copy_selected_text(Session *sess, Value param, int *quit)
+{
+    (void)quit;
+    (void)param;
+
+    TextSelection *text_selection;
+
+    Status status = copy_selected_text(sess->active_buffer, &text_selection);
+
+    if (!is_success(status) || text_selection == NULL) {
+        return status;
+    }
+
+    set_clipboard(sess, text_selection);
+
+    return status;
+}
+
+static Status buffer_cut_selected_text(Session *sess, Value param, int *quit)
+{
+    (void)quit;
+    (void)param;
+
+    TextSelection *text_selection;
+
+    Status status = cut_selected_text(sess->active_buffer, &text_selection);
+
+    if (!is_success(status) || text_selection == NULL) {
+        return status;
+    }
+
+    set_clipboard(sess, text_selection);
+
+    return status;
+}
+
+static Status buffer_paste_text(Session *sess, Value param, int *quit)
+{
+    (void)quit;
+    (void)param;
+
+    if (sess->clipboard == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    return insert_textselection(sess->active_buffer, sess->clipboard);
 }
 
 static Status quit_wed(Session *sess, Value param, int *quit)

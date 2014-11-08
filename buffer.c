@@ -123,6 +123,68 @@ int init_bufferpos(BufferPos *pos)
     return 1;
 }
 
+TextSelection *new_textselection(Range range)
+{
+    TextSelection *text_selection = alloc(sizeof(TextSelection));
+
+    if (range.start.line == range.end.line) {
+        text_selection->type = TST_STRING;
+        text_selection->text.string = get_line_segment(range.start.line, range.start.offset, range.end.offset);
+    } else {
+        text_selection->type = TST_LINE;
+        Line *line = text_selection->text.lines = clone_line_segment(range.start.line, range.start.offset, range.start.line->length);
+        line->prev = NULL;
+        Line *prev = line;
+
+        while ((line = line->next) != range.end.line) {
+            line = clone_line(line);    
+            prev->next = line;
+            line->prev = prev;
+            prev = line;
+        }
+
+        line = clone_line_segment(range.end.line, 0, range.end.offset); 
+        prev->next = line;
+        line->prev = prev;
+        line->next = NULL;
+    }
+
+    return text_selection;
+}
+
+void free_textselection(TextSelection *text_selection)
+{
+    if (text_selection == NULL) {
+        return;
+    }
+
+    if (text_selection->type == TST_STRING) {
+        free(text_selection->text.string); 
+    } else {
+        Line *line = text_selection->text.lines;
+        Line *next;
+
+        while (line != NULL) {
+            next = line->next;
+            free_line(line);
+            line = next;
+        }
+    }
+
+    free(text_selection);
+}
+
+/* Returns deep copy of a line */
+Line *clone_line(Line *line)
+{
+    Line *clone = alloc(sizeof(Line));
+    *clone = *line;
+    clone->text = alloc(line->alloc_num * LINE_ALLOC);
+    memcpy(clone->text, line->text, line->length);
+
+    return clone;
+}
+
 /* TODO When editing functionality is added this function
  * will need to expand and shrink a line.
  * Also need to consider adding a function to determine
@@ -317,7 +379,7 @@ int get_selection_range(Buffer *buffer, Range *range)
 /* TODO This could also be optimized */
 int bufferpos_in_range(Range range, BufferPos pos)
 {
-    if (bufferpos_compare(pos, range.start) < 0 || bufferpos_compare(pos, range.end) > 0) {
+    if (bufferpos_compare(pos, range.start) < 0 || bufferpos_compare(pos, range.end) >= 0) {
         return 0;
     }
 
@@ -368,6 +430,55 @@ const char *pos_offset_character(Buffer *buffer, Direction direction, size_t off
     }
 
     return pos.line->text + pos.offset;
+}
+
+/* start_offset is inclusive, end_offset is exclusive */
+char *get_line_segment(Line *line, size_t start_offset, size_t end_offset)
+{
+    if ((start_offset >= line->length || end_offset <= start_offset) &&
+        /* Allow empty lines */
+        end_offset - start_offset != 0) {
+        return NULL;
+    }
+
+    end_offset = (end_offset > line->length ? line->length : end_offset);
+    size_t bytes_to_copy = end_offset - start_offset;
+
+    char *text = alloc(bytes_to_copy + 1);
+
+    if (bytes_to_copy > 0) {
+        memcpy(text, line->text + start_offset, bytes_to_copy);
+    }
+
+    *(text + bytes_to_copy) = '\0';
+
+    return text;
+}
+
+/* start_offset is inclusive, end_offset is exclusive */
+Line *clone_line_segment(Line *line, size_t start_offset, size_t end_offset)
+{
+    if ((start_offset >= line->length || end_offset <= start_offset) &&
+        /* Allow empty lines */
+        end_offset - start_offset != 0) {
+        return NULL;
+    }
+
+    end_offset = (end_offset > line->length ? line->length : end_offset);
+    size_t bytes_to_copy = end_offset - start_offset;
+
+    Line *clone = alloc(sizeof(Line));
+    *clone = *line;
+    clone->alloc_num = (bytes_to_copy / LINE_ALLOC) + 1;
+    clone->text = alloc(clone->alloc_num * LINE_ALLOC);
+    clone->length = bytes_to_copy;
+    clone->screen_length = line_screen_length(line, start_offset, end_offset);
+
+    if (bytes_to_copy > 0) {
+        memcpy(clone->text, line->text + start_offset, bytes_to_copy);
+    }
+
+    return clone;
 }
 
 int bufferpos_at_line_start(BufferPos pos)
@@ -1127,12 +1238,6 @@ static Status delete_line_segment(Line *line, size_t start_offset, size_t end_of
 Status delete_range(Buffer *buffer, Range range)
 {
     select_reset(buffer);
-
-    if (bufferpos_compare(buffer->pos, range.start) == 0) {
-        RETURN_IF_FAIL(pos_change_char(buffer, &range.start, DIRECTION_RIGHT, 0));
-        RETURN_IF_FAIL(pos_change_char(buffer, &range.end, DIRECTION_RIGHT, 0));
-    }
-
     buffer->pos = range.start;
 
     int is_single_line = (range.start.line == range.end.line);
@@ -1144,15 +1249,9 @@ Status delete_range(Buffer *buffer, Range range)
     }
 
     Line *line = range.start.line->next;
-
-    if (range.start.line->length == 0) {
-        status = delete_line(buffer, range.start.line);
-        RETURN_IF_FAIL(status);
-    }
-
     Line *next;
 
-    while (line != NULL && line != range.end.line) {
+    while (line != range.end.line) {
         next = line->next;
         status = delete_line(buffer, line);
 
@@ -1161,10 +1260,105 @@ Status delete_range(Buffer *buffer, Range range)
         line = next;
     }
 
-    status = delete_line_segment(range.end.line, 0, range.end.offset);
+    status = insert_string(buffer, range.end.line->text + range.end.offset, range.end.line->length - range.end.offset, 0);
+    RETURN_IF_FAIL(status);
+
+    status = delete_line(buffer, range.end.line);
 
     buffer->pos.line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
 
     return status;
 }
 
+Status select_all_text(Buffer *buffer)
+{
+    Line *line = buffer->pos.line;
+
+    while (line->next != NULL) {
+        line = line->next;
+    }
+
+    buffer->select_start = (BufferPos) { .line = line, .offset = line->length };
+    buffer->pos = (BufferPos) { .line = buffer->lines, .offset = 0 };
+
+    buffer->pos.line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
+
+    return STATUS_SUCCESS;
+}
+
+Status copy_selected_text(Buffer *buffer, TextSelection **text_selection)
+{
+    if (buffer == NULL || text_selection == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    Range range;
+
+    if (!get_selection_range(buffer, &range)) {
+        *text_selection = NULL;
+        return STATUS_SUCCESS;
+    }
+
+    *text_selection = new_textselection(range); 
+
+    return STATUS_SUCCESS;
+}
+
+Status cut_selected_text(Buffer *buffer, TextSelection **text_selection)
+{
+    if (buffer == NULL || text_selection == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    Range range;
+
+    if (!get_selection_range(buffer, &range)) {
+        return STATUS_SUCCESS;
+    }
+    
+    Status status = copy_selected_text(buffer, text_selection);
+
+    if (!is_success(status) || text_selection == NULL) {
+        return status;
+    }
+
+    return delete_range(buffer, range);
+}
+
+Status insert_textselection(Buffer *buffer, TextSelection *text_selection)
+{
+    if (buffer == NULL || text_selection == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    Range range;
+
+    if (get_selection_range(buffer, &range)) {
+        RETURN_IF_FAIL(delete_range(buffer, range));
+    }
+
+    if (text_selection->type == TST_STRING) {
+        return insert_string(buffer, text_selection->text.string, strlen(text_selection->text.string), 1);
+    }
+
+    Line *line = text_selection->text.lines;
+    Line *buf_line = buffer->pos.line;
+
+    RETURN_IF_FAIL(insert_string(buffer, line->text, line->length, 1));
+    RETURN_IF_FAIL(insert_line(buffer));
+
+    Line *end_line = buffer->pos.line;
+    line = line->next;
+
+    while (line->next != NULL) {
+        buf_line->next = clone_line(line); 
+        buf_line->next->prev = buf_line;
+        buf_line = buf_line->next;
+        line = line->next;
+    }
+
+    buf_line->next = end_line; 
+    end_line->prev = buf_line;
+
+    return insert_string(buffer, line->text, line->length, 1);
+}

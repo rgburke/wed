@@ -30,6 +30,7 @@ typedef struct {
     Buffer *active_buffer;
     ErrorQueue error_queue;
     HashMap *keymap;
+    TextSelection *clipboard;
 } Session;
 
 Session *new_session(void);
@@ -40,5 +41,6 @@ size_t get_buffer_num(Session *);
 int set_active_buffer(Session *, size_t);
 int add_err(Session *, Error *);
 int add_error(Session *, Status);
+void set_clipboard(Session *, TextSelection *);
 
 #endif

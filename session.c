@@ -19,6 +19,7 @@
 #include "session.h"
 #include "status.h"
 #include "util.h"
+#include "buffer.h"
 #include "command.h"
 
 Session *new_session(void)
@@ -27,6 +28,7 @@ Session *new_session(void)
     sess->buffers = NULL;
     sess->active_buffer = NULL;
     sess->keymap = NULL;
+    sess->clipboard = NULL;
 
     return sess;
 }
@@ -68,7 +70,9 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
-    init_keymap(sess);
+    if (!init_keymap(sess)) {
+        return 0;
+    }
 
     return 1;
 }
@@ -80,7 +84,7 @@ void free_session(Session *sess)
     }
 
     Buffer *buffer = sess->buffers;
-    Buffer *tmp = NULL;
+    Buffer *tmp;
 
     while (buffer != NULL) {
         tmp = buffer->next;
@@ -90,6 +94,7 @@ void free_session(Session *sess)
 
     free_error_queue(&sess->error_queue);
     free_hashmap(sess->keymap);
+    free_textselection(sess->clipboard);
 
     free(sess);
 }
@@ -219,4 +224,12 @@ int add_error(Session *sess, Status status)
 
     return 1;
 }
-    
+
+void set_clipboard(Session *sess, TextSelection *clipboard)
+{
+    if (sess->clipboard != NULL) {
+        free_textselection(sess->clipboard);
+    }
+
+    sess->clipboard = clipboard;
+}

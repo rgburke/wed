@@ -27,7 +27,8 @@
 #define STATUS(code) (Status) { .success = (code), .error = NULL }
 #define STATUS_SUCCESS STATUS(SUCCESS_CODE)
 #define STATUS_FAIL STATUS(FAIL_CODE)
-#define RETURN_IF_FAIL(status) if (!is_success((status))) return status
+#define RETURN_IF_FAIL(status) { Status _wed_status = (status);\
+                               if (!is_success((_wed_status))) return _wed_status; }
 
 #define ERROR_QUEUE_MAX_SIZE 10
 
