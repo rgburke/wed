@@ -16,32 +16,26 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_SESSION_H
-#define WED_SESSION_H
+#ifndef WED_CONFIG_H
+#define WED_CONFIG_H
 
-#include "buffer.h"
+#include "variable.h"
 #include "status.h"
 #include "hashmap.h"
+#include "session.h"
 
-/* Top level structure containing all state.
- * A new session is created when wed is invoked. */
 typedef struct {
-    Buffer *buffers;
-    Buffer *active_buffer;
-    ErrorQueue error_queue;
-    HashMap *keymap;
-    TextSelection *clipboard;
-    HashMap *config;
-} Session;
+    char *name;
+    char *short_name;  
+    Value default_value;
+    int (*custom_validator)(Value);
+    Status (*on_change_event)(Session *, Value, Value);
+} ConfigVariableDescriptor;
 
-Session *new_session(void);
-int init_session(Session *, char **, int);
-void free_session(Session *);
-int add_buffer(Session *, Buffer *);
-size_t get_buffer_num(Session *);
-int set_active_buffer(Session *, size_t);
-int add_err(Session *, Error *);
-int add_error_if_fail(Session *, Status);
-void set_clipboard(Session *, TextSelection *);
+Status init_config(Session *);
+void free_config(HashMap *);
+Status load_config(Session *, char *);
+Status set_session_var(Session *, char *, char *);
+int config_bool(Session *, char *);
 
 #endif

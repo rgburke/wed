@@ -20,7 +20,9 @@
 #define WED_VARIABLE_H
 
 typedef enum {
+    VAL_TYPE_BOOL,
     VAL_TYPE_INT,
+    VAL_TYPE_FLOAT,
     VAL_TYPE_STR
 } ValueType;
 
@@ -29,14 +31,17 @@ typedef struct {
     ValueType type;
     union {
         int ival;
+        double fval;
         char *sval;
     } val;
 } Value;
 
-#define INT_VAL_STRUCT(ivalue) { .type = VAL_TYPE_INT, .val = { .ival = (ivalue) } }
-#define STR_VAL_STRUCT(svalue) { .type = VAL_TYPE_STR, .val = { .sval = (svalue) } }
-#define INT_VAL(ivalue) (Value) INT_VAL_STRUCT(ivalue)
-#define STR_VAL(svalue) (Value) STR_VAL_STRUCT(svalue)
+#define BOOL_VAL_STRUCT(bvalue) { .type = VAL_TYPE_BOOL, .val = { .ival = (bvalue) } }
+#define INT_VAL_STRUCT(ivalue)  { .type = VAL_TYPE_INT , .val = { .ival = (ivalue) } }
+#define STR_VAL_STRUCT(svalue)  { .type = VAL_TYPE_STR , .val = { .sval = (svalue) } }
+#define INT_VAL(ivalue)  (Value) INT_VAL_STRUCT(ivalue)
+#define STR_VAL(svalue)  (Value) STR_VAL_STRUCT(svalue)
+#define BOOL_VAL(bvalue) (Value) BOOL_VAL_STRUCT(bvalue)
 
 Value deep_copy_value(Value);
 void free_value(Value);

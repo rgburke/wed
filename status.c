@@ -16,20 +16,24 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <stdio.h>
 #include <string.h>
 #include "status.h"
 #include "variable.h"
 #include "util.h"
 
 static const Error errors[] = {
-    { ERR_INVALID_ERROR_CODE , ERR_SVR_CRITICAL, 1, "Invalid Error code %d"      , INT_VAL_STRUCT(0)  },
-    { ERR_FILE_DOESNT_EXIST  , ERR_SVR_CRITICAL, 1, "File %s doesn't exist"      , STR_VAL_STRUCT("") },
-    { ERR_FILE_IS_DIRECTORY  , ERR_SVR_CRITICAL, 1, "File %s is a directory"     , STR_VAL_STRUCT("") },
-    { ERR_UNABLE_TO_OPEN_FILE, ERR_SVR_CRITICAL, 1, "Unable to open file %s"     , STR_VAL_STRUCT("") },
-    { ERR_UNABLE_TO_READ_FILE, ERR_SVR_CRITICAL, 1, "Unable to read from file %s", STR_VAL_STRUCT("") },
-    { ERR_INVALID_COMMAND    , ERR_SVR_CRITICAL, 1, "Invalid command %s"         , STR_VAL_STRUCT("") },
-    { ERR_INVALID_CHARACTER  , ERR_SVR_CRITICAL, 1, "Invalid character %s"       , STR_VAL_STRUCT("") },
-    { ERR_INVALID_STRING     , ERR_SVR_CRITICAL, 1, "Invalid string %s"          , STR_VAL_STRUCT("") }
+    { ERR_INVALID_ERROR_CODE  , ERR_SVR_CRITICAL, 1, "Invalid Error code %d"      , INT_VAL_STRUCT(0)  },
+    { ERR_FILE_DOESNT_EXIST   , ERR_SVR_CRITICAL, 1, "File %s doesn't exist"      , STR_VAL_STRUCT("") },
+    { ERR_FILE_IS_DIRECTORY   , ERR_SVR_CRITICAL, 1, "File %s is a directory"     , STR_VAL_STRUCT("") },
+    { ERR_UNABLE_TO_OPEN_FILE , ERR_SVR_CRITICAL, 1, "Unable to open file %s"     , STR_VAL_STRUCT("") },
+    { ERR_UNABLE_TO_READ_FILE , ERR_SVR_CRITICAL, 1, "Unable to read from file %s", STR_VAL_STRUCT("") },
+    { ERR_INVALID_COMMAND     , ERR_SVR_CRITICAL, 1, "Invalid command %s"         , STR_VAL_STRUCT("") },
+    { ERR_INVALID_CHARACTER   , ERR_SVR_CRITICAL, 1, "Invalid character %s"       , STR_VAL_STRUCT("") },
+    { ERR_INVALID_STRING      , ERR_SVR_CRITICAL, 1, "Invalid string %s"          , STR_VAL_STRUCT("") },
+    { ERR_INVALID_VAR         , ERR_SVR_CRITICAL, 1, "Invalid variable %s"        , STR_VAL_STRUCT("") },
+    { ERR_INVALID_VAL         , ERR_SVR_CRITICAL, 1, "Invalid value %s"           , STR_VAL_STRUCT("") },
+    { ERR_INVALID_CONFIG_ENTRY, ERR_SVR_CRITICAL, 1, "Invalid config entry in %s" , STR_VAL_STRUCT("") }
 };
 
 int is_success(Status status)
@@ -111,3 +115,35 @@ void free_error_queue(ErrorQueue *error_queue)
     }
 }
 
+char *get_error_msg(Error *error) {
+    if (error == NULL) {
+        return NULL;
+    }
+
+    char *error_msg = alloc(MAX_ERROR_MSG_SIZE);
+
+    snprintf(error_msg, MAX_ERROR_MSG_SIZE, error->msg, error->param.val);    
+
+    return error_msg;
+}
+
+char *get_full_error_msg(Error *error) {
+    if (error == NULL) {
+        return NULL;
+    }
+
+    char *error_code_fmt = "Error %d: ";
+    size_t error_msg_fmt_size = strlen(error_code_fmt) + strlen(error->msg) + 1;
+    char *error_msg_fmt = alloc(error_msg_fmt_size);
+
+    strncpy(error_msg_fmt, error_code_fmt, strlen(error_code_fmt));
+    strncat(error_code_fmt, error->msg, strlen(error->msg));
+
+    char *error_msg = alloc(MAX_ERROR_MSG_SIZE);
+
+    snprintf(error_msg, MAX_ERROR_MSG_SIZE, error_msg_fmt, error->error_code, error->param.val);    
+
+    free(error_msg_fmt);
+
+    return error_msg;
+}

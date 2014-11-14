@@ -321,3 +321,21 @@ static void free_hashmapnode(HashMapNode *node)
     free(node);
 }
 
+void free_hashmap_values(HashMap *hashmap, void (*free_func)(void *))
+{
+    if (hashmap == NULL || free_func == NULL) {
+        return;
+    }
+
+    HashMapNode *node;
+
+    for (size_t k = 0; k < hashmap->bucket_num; k++) {
+        node = list_get(hashmap->buckets, k);
+
+        while (node != NULL) {
+            free_func(node->value);
+            node = node->next;
+        } 
+    }
+}
+

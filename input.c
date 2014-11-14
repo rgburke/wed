@@ -49,7 +49,7 @@ void edit(Session *sess)
 
         if (ret == TERMKEY_RES_KEY) {
             termkey_strfkey(termkey, keystr, sizeof(keystr), &key, TERMKEY_FORMAT_VIM);
-            add_error(sess, do_command(sess, keystr, &quit));    
+            add_error_if_fail(sess, do_command(sess, keystr, &quit));    
         }
 
         update_display(sess);

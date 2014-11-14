@@ -31,6 +31,7 @@
                                if (!is_success((_wed_status))) return _wed_status; }
 
 #define ERROR_QUEUE_MAX_SIZE 10
+#define MAX_ERROR_MSG_SIZE 512
 
 typedef enum {
     ERR_SVR_MINIMAL,
@@ -47,6 +48,9 @@ typedef enum {
     ERR_INVALID_COMMAND,
     ERR_INVALID_CHARACTER,
     ERR_INVALID_STRING,
+    ERR_INVALID_VAR,
+    ERR_INVALID_VAL,
+    ERR_INVALID_CONFIG_ENTRY,
     ERR_LAST_ENTRY
 } ErrorCode;
 
@@ -83,6 +87,8 @@ int error_queue_empty(ErrorQueue *);
 int error_queue_add(ErrorQueue *, Error *);
 Error *error_queue_remove(ErrorQueue *);
 void free_error_queue(ErrorQueue *);
+char *get_error_msg(Error *);
+char *get_full_error_msg(Error *);
 
 #endif
 

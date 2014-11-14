@@ -21,6 +21,7 @@
 #include "util.h"
 #include "buffer.h"
 #include "command.h"
+#include "config.h"
 
 Session *new_session(void)
 {
@@ -29,6 +30,7 @@ Session *new_session(void)
     sess->active_buffer = NULL;
     sess->keymap = NULL;
     sess->clipboard = NULL;
+    sess->config = NULL;
 
     return sess;
 }
@@ -47,14 +49,14 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
 
         if (file_info.is_directory) {
             free_fileinfo(file_info);
-            add_error(sess, raise_param_error(ERR_FILE_IS_DIRECTORY, STR_VAL(file_info.file_name)));
+            add_error_if_fail(sess, raise_param_error(ERR_FILE_IS_DIRECTORY, STR_VAL(file_info.file_name)));
             continue;
         }
 
         Buffer *buffer = new_buffer(file_info);
         Status load_status = load_buffer(buffer);
 
-        if (add_error(sess, load_status)) {
+        if (add_error_if_fail(sess, load_status)) {
             free_buffer(buffer);
             continue;
         }
@@ -73,6 +75,8 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
     if (!init_keymap(sess)) {
         return 0;
     }
+
+    add_error_if_fail(sess, init_config(sess));
 
     return 1;
 }
@@ -95,6 +99,7 @@ void free_session(Session *sess)
     free_error_queue(&sess->error_queue);
     free_hashmap(sess->keymap);
     free_textselection(sess->clipboard);
+    free_config(sess->config);
 
     free(sess);
 }
@@ -214,7 +219,7 @@ int add_err(Session *sess, Error *error)
     return error_queue_add(&sess->error_queue, error);
 }
 
-int add_error(Session *sess, Status status)
+int add_error_if_fail(Session *sess, Status status)
 {
     if (is_success(status)) {
         return 0;
