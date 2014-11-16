@@ -26,8 +26,8 @@
 #define HM_SEED 24842118
 #define HM_MAX_LOAD_FACTOR 0.75
 
-static HashMapNode *new_hashmapnode(char *, uint32_t, void *);
-static HashMapNode *get_bucket(HashMap *, char *, uint32_t *, size_t *);
+static HashMapNode *new_hashmapnode(const char *, uint32_t, void *);
+static HashMapNode *get_bucket(HashMap *, const char *, uint32_t *, size_t *);
 static int resize_required(HashMap *);
 static int resize_hashmap(HashMap *, size_t);
 static void free_hashmapnodes(HashMap *);
@@ -66,7 +66,7 @@ HashMap *new_sized_hashmap(size_t size)
     return hashmap;
 }
 
-static HashMapNode *new_hashmapnode(char *key, uint32_t hash, void *value)
+static HashMapNode *new_hashmapnode(const char *key, uint32_t hash, void *value)
 {
     HashMapNode *node = malloc(sizeof(HashMapNode));
 
@@ -121,7 +121,7 @@ uint32_t murmurhash2(const void *key, int len, uint32_t seed)
     return h;
 }
 
-static HashMapNode *get_bucket(HashMap *hashmap, char *key, uint32_t *hash, size_t *index)
+static HashMapNode *get_bucket(HashMap *hashmap, const char *key, uint32_t *hash, size_t *index)
 {
     *hash = murmurhash2(key, strlen(key), HM_SEED);
     *index = *hash % hashmap->bucket_num;
@@ -142,7 +142,7 @@ static HashMapNode *get_bucket(HashMap *hashmap, char *key, uint32_t *hash, size
     return NULL;
 }
 
-int hashmap_set(HashMap *hashmap, char *key, void *value)
+int hashmap_set(HashMap *hashmap, const char *key, void *value)
 {
     uint32_t hash;
     size_t index;
@@ -169,7 +169,7 @@ int hashmap_set(HashMap *hashmap, char *key, void *value)
     return 1;
 }
 
-void *hashmap_get(HashMap *hashmap, char *key)
+void *hashmap_get(HashMap *hashmap, const char *key)
 {
     uint32_t hash;
     size_t index;
@@ -182,7 +182,7 @@ void *hashmap_get(HashMap *hashmap, char *key)
     return node->value;
 }
 
-int hashmap_delete(HashMap *hashmap, char *key)
+int hashmap_delete(HashMap *hashmap, const char *key)
 {
     uint32_t hash;
     size_t index;

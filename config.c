@@ -25,10 +25,13 @@
 #include "variable.h"
 #include "hashmap.h"
 #include "util.h"
+#include "command.h"
 
 #define CFG_LINE_ALLOC 512
 #define CFG_FILE_NAME "wedrc"
 #define CFG_SYSTEM_DIR "/etc"
+
+static const Session *curr_sess = NULL;
 
 static int populate_default_config(HashMap *);
 static char *get_config_line(FILE *);
@@ -42,6 +45,11 @@ static int (*conversion_functions[])(char *, Value *) = {
 static const ConfigVariableDescriptor default_config[] = {
     { "linewrap", "lw", BOOL_VAL_STRUCT(1), NULL, NULL }
 };
+
+void set_config_session(Session *sess)
+{
+    curr_sess = sess;
+}
 
 Status init_config(Session *sess)
 {
@@ -321,9 +329,9 @@ Status set_session_var(Session *sess, char *var_name, char *val)
     return STATUS_SUCCESS;
 }
 
-int config_bool(Session *sess, char *var_name)
+int config_bool(char *var_name)
 {
-    ConfigVariableDescriptor *var = hashmap_get(sess->config, var_name);
+    ConfigVariableDescriptor *var = hashmap_get(curr_sess->config, var_name);
 
     if (var == NULL || var->default_value.type != VAL_TYPE_BOOL) {
         /* TODO Add error to session error queue */

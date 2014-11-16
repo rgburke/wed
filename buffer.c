@@ -27,12 +27,15 @@
 #include "status.h"
 #include "display.h"
 #include "file.h"
+#include "config.h"
 
 static Line *add_to_buffer(const char *, size_t, Line *, int);
 static int is_selection(Direction *);
 static void default_movement_selection_handler(Buffer *, int, Direction *);
-static void update_line_col_offset(Buffer *, BufferPos *);
+static Status pos_change_real_line(Buffer *, BufferPos *, Direction, int);
+static Status pos_change_screen_line(Buffer *, BufferPos *, Direction, int);
 static Status advance_pos_to_line_offset(Buffer *, BufferPos *, int);
+static void update_line_col_offset(Buffer *, BufferPos *);
 static Status delete_line_segment(Line *, size_t, size_t);
 
 Buffer *new_buffer(FileInfo file_info)
@@ -566,32 +569,158 @@ static void default_movement_selection_handler(Buffer *buffer, int is_select, Di
 
 /* Move cursor up or down a line keeping the offset into the line the same 
  * or as close to the original if possible */
-Status pos_change_line(Buffer *buffer, BufferPos *pos, Direction direction)
+Status pos_change_line(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
 {
-    (void)buffer;
-    Line *line = pos->line;
+    if (config_bool("linewrap")) {
+        return pos_change_screen_line(buffer, pos, direction, is_cursor);
+    }
 
-    if (direction == DIRECTION_NONE ||
-        (direction == DIRECTION_DOWN && line->next == NULL) ||
-        (direction == DIRECTION_UP && line->prev == NULL)) {
+    return pos_change_real_line(buffer, pos, direction, is_cursor);
+}
+
+static Status pos_change_real_line(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
+{
+    int is_select = is_selection(&direction);
+
+    if ((direction == DIRECTION_NONE) ||
+        (!(direction == DIRECTION_UP || direction == DIRECTION_DOWN))) {
 
         return STATUS_SUCCESS;
     }
 
+    if (is_cursor) {
+        default_movement_selection_handler(buffer, is_select, NULL);
+        
+        if (is_select) {
+            if (direction == DIRECTION_UP && pos->line->prev != NULL) {
+                pos->line->prev->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
+            } else if (direction == DIRECTION_DOWN && pos->line->next != NULL) {
+                pos->line->next->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
+            }
+        }
+    }
+
+    if ((direction == DIRECTION_DOWN && bufferpos_at_last_line(*pos)) ||
+        (direction == DIRECTION_UP && bufferpos_at_first_line(*pos))) {
+        
+        return STATUS_SUCCESS;
+    }
+
+    Line *line = pos->line;
     size_t current_screen_offset = line_screen_length(line, 0, pos->offset);
     size_t new_screen_offset = 0;
 
     pos->line = line = (direction == DIRECTION_DOWN ? line->next : line->prev);
-    pos->offset = -1;
+    pos->offset = 0;
 
-    while (++pos->offset < line->length && new_screen_offset < current_screen_offset) {
+    while (pos->offset < line->length && new_screen_offset < current_screen_offset) {
         new_screen_offset += byte_screen_length(line->text[pos->offset], line, pos->offset); 
+        pos->offset++;
+    }
+
+    if (is_cursor) {
+        return advance_pos_to_line_offset(buffer, pos, is_select);
     }
 
     return STATUS_SUCCESS;
 }
 
-Status pos_change_muti_line(Buffer *buffer, BufferPos *pos, Direction direction, size_t offset)
+/* Move cursor up or down a screen line keeping the cursor column as close to the
+ * starting value as possible. For lines which don't wrap this function behaves the
+ * same as pos_change_line. For lines which wrap this allows a user to scroll up or
+ * down to a different part of the line displayed as a different line on the screen.
+ * Therefore this function is dependent on the width of the screen. */
+
+static Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
+{
+    int is_select = is_selection(&direction);
+
+    if ((direction == DIRECTION_NONE) ||
+        (!(direction == DIRECTION_UP || direction == DIRECTION_DOWN))) {
+
+        return STATUS_SUCCESS;
+    }
+
+    Direction pos_direction = (direction == DIRECTION_DOWN ? DIRECTION_RIGHT : DIRECTION_LEFT);
+
+    if (is_cursor) {
+        default_movement_selection_handler(buffer, is_select, &pos_direction);
+        
+        if (is_select) {
+            if (direction == DIRECTION_UP && pos->line->prev != NULL) {
+                pos->line->prev->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
+            } else if (direction == DIRECTION_DOWN && pos->line->next != NULL) {
+                pos->line->next->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
+            }
+        }
+    }
+
+    Line *start_line = pos->line;
+    size_t screen_line = line_pos_screen_height(*pos);
+    size_t screen_lines = line_screen_height(pos->line);
+    int break_on_hardline = screen_lines > 1 && (screen_line + DIRECTION_OFFSET(direction)) > 0 && screen_line < screen_lines;
+    size_t cols, col_num;
+    cols = col_num = editor_screen_width();
+    Status status;
+
+    while (cols > 0 && cols <= col_num) {
+        cols -= byte_screen_length(pos->line->text[pos->offset], pos->line, pos->offset);
+        status = pos_change_char(buffer, pos, pos_direction, 0);
+
+        if (!is_success(status)) {
+            return status;
+        } else if (break_on_hardline && (pos->offset == 0 || pos->offset == pos->line->length)) {
+           break; 
+        } else if (pos->line != start_line) {
+            if (break_on_hardline || pos->line->length == 0) {
+                break;
+            }
+
+            break_on_hardline = 1;
+            start_line = pos->line;
+
+            if (direction == DIRECTION_DOWN) {
+                cols -= (col_num - 1 - (pos->line->prev->screen_length % col_num));
+            } else {
+                cols -= (col_num - 1 - (pos->line->screen_length % col_num));
+            }
+        }
+    }
+
+    if (is_cursor) {
+        return advance_pos_to_line_offset(buffer, pos, is_select);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos, int is_select)
+{
+    size_t global_col_offset = buffer->line_col_offset;
+    size_t current_col_offset = screen_col_no(*pos);
+    Direction direction = DIRECTION_RIGHT;
+    Status status;
+
+    if (is_select) {
+        direction |= DIRECTION_WITH_SELECT;
+    }
+
+    while (current_col_offset < global_col_offset &&
+           pos->offset < pos->line->length) {
+        
+        status = pos_change_char(buffer, pos, direction, 1);
+
+        RETURN_IF_FAIL(status);
+
+        current_col_offset++;
+    }
+
+    buffer->line_col_offset = global_col_offset;
+
+    return STATUS_SUCCESS;
+}
+
+Status pos_change_multi_line(Buffer *buffer, BufferPos *pos, Direction direction, size_t offset, int is_cursor)
 {
     if (offset == 0 || direction == DIRECTION_NONE) {
         return STATUS_SUCCESS;
@@ -600,7 +729,7 @@ Status pos_change_muti_line(Buffer *buffer, BufferPos *pos, Direction direction,
     Status status;
 
     for (size_t k = 0; k < offset; k++) {
-        status = pos_change_line(buffer, pos, direction);
+        status = pos_change_line(buffer, pos, direction, is_cursor);
         RETURN_IF_FAIL(status);
     }
 
@@ -689,123 +818,12 @@ Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction
     return STATUS_SUCCESS;
 }
 
-/* Move cursor up or down a screen line keeping the cursor column as close to the
- * starting value as possible. For lines which don't wrap this function behaves the
- * same as pos_change_line. For lines which wrap this allows a user to scroll up or
- * down to a different part of the line displayed as a different line on the screen.
- * Therefore this function is dependent on the width of the screen. */
-
-Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
-{
-    int is_select = is_selection(&direction);
-
-    if ((direction == DIRECTION_NONE) ||
-        (!(direction == DIRECTION_UP || direction == DIRECTION_DOWN))) {
-
-        return STATUS_SUCCESS;
-    }
-
-    Direction pos_direction = (direction == DIRECTION_DOWN ? DIRECTION_RIGHT : DIRECTION_LEFT);
-
-    if (is_cursor) {
-        default_movement_selection_handler(buffer, is_select, &pos_direction);
-        
-        if (is_select) {
-            if (direction == DIRECTION_UP && pos->line->prev != NULL) {
-                pos->line->prev->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
-            } else if (direction == DIRECTION_DOWN && pos->line->next != NULL) {
-                pos->line->next->is_dirty |= DRAW_LINE_SELECTION_CHANGE;
-            }
-        }
-    }
-
-    Line *start_line = pos->line;
-    size_t screen_line = line_pos_screen_height(*pos);
-    size_t screen_lines = line_screen_height(pos->line);
-    int break_on_hardline = screen_lines > 1 && (screen_line + DIRECTION_OFFSET(direction)) > 0 && screen_line < screen_lines;
-    size_t cols, col_num;
-    cols = col_num = editor_screen_width();
-    Status status;
-
-    while (cols > 0 && cols <= col_num) {
-        cols -= byte_screen_length(pos->line->text[pos->offset], pos->line, pos->offset);
-        status = pos_change_char(buffer, pos, pos_direction, 0);
-
-        if (!is_success(status)) {
-            return status;
-        } else if (break_on_hardline && (pos->offset == 0 || pos->offset == pos->line->length)) {
-           break; 
-        } else if (pos->line != start_line) {
-            if (break_on_hardline || pos->line->length == 0) {
-                break;
-            }
-
-            break_on_hardline = 1;
-            start_line = pos->line;
-
-            if (direction == DIRECTION_DOWN) {
-                cols -= (col_num - 1 - (pos->line->prev->screen_length % col_num));
-            } else {
-                cols -= (col_num - 1 - (pos->line->screen_length % col_num));
-            }
-        }
-    }
-
-    if (is_cursor) {
-        return advance_pos_to_line_offset(buffer, pos, is_select);
-    }
-
-    return STATUS_SUCCESS;
-}
-
-Status pos_change_multi_screen_line(Buffer *buffer, BufferPos *pos, Direction direction, size_t offset, int is_cursor)
-{
-    if (offset == 0 || direction == DIRECTION_NONE) {
-        return STATUS_SUCCESS;
-    }
-
-    Status status;
-
-    for (size_t k = 0; k < offset; k++) {
-        status = pos_change_screen_line(buffer, pos, direction, is_cursor);
-        RETURN_IF_FAIL(status);
-    }
-
-    return STATUS_SUCCESS;
-}
-
 static void update_line_col_offset(Buffer *buffer, BufferPos *pos)
 {
     buffer->line_col_offset = screen_col_no(*pos);
 }
 
-static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos, int is_select)
-{
-    size_t global_col_offset = buffer->line_col_offset;
-    size_t current_col_offset = screen_col_no(*pos);
-    Direction direction = DIRECTION_RIGHT;
-    Status status;
-
-    if (is_select) {
-        direction |= DIRECTION_WITH_SELECT;
-    }
-
-    while (current_col_offset < global_col_offset &&
-           pos->offset < pos->line->length) {
-        
-        status = pos_change_char(buffer, pos, direction, 1);
-
-        RETURN_IF_FAIL(status);
-
-        current_col_offset++;
-    }
-
-    buffer->line_col_offset = global_col_offset;
-
-    return STATUS_SUCCESS;
-}
-
-Status pos_to_screen_line_start(Buffer *buffer, int is_select)
+Status pos_to_line_start(Buffer *buffer, int is_select)
 {
     Direction direction = DIRECTION_LEFT;
     default_movement_selection_handler(buffer, is_select, &direction);
@@ -813,6 +831,9 @@ Status pos_to_screen_line_start(Buffer *buffer, int is_select)
     BufferPos *pos = &buffer->pos;
 
     if (pos->offset == 0) {
+        return STATUS_SUCCESS;
+    } else if (!config_bool("linewrap")) {
+        pos->offset = 0;
         return STATUS_SUCCESS;
     }
 
@@ -831,7 +852,7 @@ Status pos_to_screen_line_start(Buffer *buffer, int is_select)
     return STATUS_SUCCESS;
 }
 
-Status pos_to_screen_line_end(Buffer *buffer, int is_select)
+Status pos_to_line_end(Buffer *buffer, int is_select)
 {
     Direction direction = DIRECTION_RIGHT;
     default_movement_selection_handler(buffer, is_select, &direction);
@@ -839,6 +860,9 @@ Status pos_to_screen_line_end(Buffer *buffer, int is_select)
     BufferPos *pos = &buffer->pos;
 
     if (pos->offset == pos->line->length) {
+        return STATUS_SUCCESS;
+    } else if (!config_bool("linewrap")) {
+        pos->offset = pos->line->length;
         return STATUS_SUCCESS;
     }
 
@@ -963,7 +987,7 @@ Status pos_change_page(Buffer *buffer, Direction direction)
     default_movement_selection_handler(buffer, is_select, &direction);
 
     BufferPos *pos = &buffer->pos;
-    Status status = pos_change_multi_screen_line(buffer, pos, direction, editor_screen_height() - 1, 1);
+    Status status = pos_change_multi_line(buffer, pos, direction, editor_screen_height() - 1, 1);
 
     RETURN_IF_FAIL(status);
 
@@ -1245,6 +1269,10 @@ Status delete_range(Buffer *buffer, Range range)
                                         is_single_line ? range.end.offset : range.start.line->length); 
 
     if (is_single_line || !is_success(status)) {
+        if (config_bool("linewrap") && (range.end.offset - range.start.offset) >= editor_screen_width()) {
+            buffer->pos.line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
+        }
+
         return status;
     }
 

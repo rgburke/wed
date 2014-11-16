@@ -25,6 +25,7 @@
 #include "buffer.h"
 #include "variable.h"
 #include "hashmap.h"
+#include "util.h"
 
 static Status bufferpos_change_line(Session *, Value, int *);
 static Status bufferpos_change_char(Session *, Value, int *); 
@@ -44,6 +45,9 @@ static Status buffer_copy_selected_text(Session *, Value, int *);
 static Status buffer_cut_selected_text(Session *, Value, int *);
 static Status buffer_paste_text(Session *, Value, int *);
 static Status quit_wed(Session *, Value, int *);
+
+int update_command_functions(Session *, Status (*)(Session *, Value, int *),
+                                    Status (*)(Session *, Value, int *));
 
 static const Command commands[] = {
     { "<Up>"        , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP)                            },
@@ -96,8 +100,12 @@ int init_keymap(Session *sess)
         return 0;
     }
 
-    for (size_t k = 0; k < command_num; k++) {
-        if (!hashmap_set(sess->keymap, commands[k].keystr, (Command *)&commands[k])) {
+    Command *command = alloc(sizeof(commands));
+
+    for (size_t k = 0; k < command_num; k++, command++) {
+        memcpy(command, &commands[k], sizeof(Command));
+
+        if (!hashmap_set(sess->keymap, command->keystr, command)) {
             return 0;
         }
     }
@@ -123,7 +131,7 @@ Status do_command(Session *sess, char *command_str, int *quit)
 static Status bufferpos_change_line(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    return pos_change_screen_line(sess->active_buffer, &sess->active_buffer->pos, param.val.ival, 1);
+    return pos_change_line(sess->active_buffer, &sess->active_buffer->pos, param.val.ival, 1);
 }
 
 static Status bufferpos_change_char(Session *sess, Value param, int *quit)
@@ -135,13 +143,13 @@ static Status bufferpos_change_char(Session *sess, Value param, int *quit)
 static Status bufferpos_to_line_start(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    return pos_to_screen_line_start(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
+    return pos_to_line_start(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
 static Status bufferpos_to_line_end(Session *sess, Value param, int *quit)
 {
     (void)quit;
-    return pos_to_screen_line_end(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
+    return pos_to_line_end(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
 static Status bufferpos_to_next_word(Session *sess, Value param, int *quit)
@@ -272,5 +280,26 @@ static Status quit_wed(Session *sess, Value param, int *quit)
     (void)&param;
     *quit = true;
     return STATUS_SUCCESS;
+}
+
+int update_command_functions(Session *sess, Status (*old_func)(Session *, Value, int *),
+                             Status (*new_func)(Session *, Value, int *))
+{
+    size_t command_num = sizeof(commands) / sizeof(Command);
+    Command *command;
+
+    for (size_t k = 0; k < command_num; k++, command++) {
+        if (commands[k].func == old_func) {
+            command = hashmap_get(sess->keymap, commands[k].keystr);
+
+            if (command == NULL) {
+                return 0;
+            }
+
+            command->func = new_func;
+        }
+    }
+
+    return 1;
 }
 

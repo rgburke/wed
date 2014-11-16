@@ -50,7 +50,7 @@ void end_display(void);
 void refresh_display(Session *);
 void draw_menu(Session *sess);
 void draw_status(Session *);
-void draw_text(Session *, LineDrawStatus);
+void draw_text(Session *, LineDrawStatus, int);
 void update_display(Session *);
 size_t screen_line_no(BufferPos);
 size_t screen_col_no(BufferPos);

@@ -76,6 +76,7 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
+    set_config_session(sess);
     add_error_if_fail(sess, init_config(sess));
 
     return 1;

@@ -25,7 +25,7 @@
 
 /* Represents a command. Move up, down etc... */
 typedef struct {
-    char *keystr; /* Key combo string representiation */
+    const char *keystr; /* Key combo string representiation */
     Status (*func)(Session *, Value, int *); /* Pointer to command function */
     Value param; /* Argument passed to command function */
 } Command;

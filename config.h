@@ -32,10 +32,11 @@ typedef struct {
     Status (*on_change_event)(Session *, Value, Value);
 } ConfigVariableDescriptor;
 
+void set_config_session(Session *);
 Status init_config(Session *);
 void free_config(HashMap *);
 Status load_config(Session *, char *);
 Status set_session_var(Session *, char *, char *);
-int config_bool(Session *, char *);
+int config_bool(char *);
 
 #endif
