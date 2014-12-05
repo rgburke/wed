@@ -144,6 +144,10 @@ static HashMapNode *get_bucket(HashMap *hashmap, const char *key, uint32_t *hash
 
 int hashmap_set(HashMap *hashmap, const char *key, void *value)
 {
+    if (key == NULL) {
+        return 0;
+    }
+
     uint32_t hash;
     size_t index;
     HashMapNode *node = get_bucket(hashmap, key, &hash, &index);
@@ -171,6 +175,10 @@ int hashmap_set(HashMap *hashmap, const char *key, void *value)
 
 void *hashmap_get(HashMap *hashmap, const char *key)
 {
+    if (key == NULL) {
+        return NULL;
+    }
+
     uint32_t hash;
     size_t index;
     HashMapNode *node = get_bucket(hashmap, key, &hash, &index);

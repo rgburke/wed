@@ -29,6 +29,7 @@
 #include "file.h"
 #include "config.h"
 
+static void reset_buffer(Buffer *);
 static Line *add_to_buffer(const char *, size_t, Line *, int);
 static int is_selection(Direction *);
 static void default_movement_selection_handler(Buffer *, int, Direction *);
@@ -49,6 +50,7 @@ Buffer *new_buffer(FileInfo file_info)
     buffer->lines = NULL;
     buffer->next = NULL;
     buffer->line_col_offset = 0;
+    buffer->config = new_hashmap();
 
     return buffer;
 }
@@ -69,6 +71,7 @@ void free_buffer(Buffer *buffer)
     }
 
     free_fileinfo(buffer->file_info);
+    free_config(buffer->config);
 
     Line *line = buffer->lines;
     Line *tmp = NULL;
@@ -219,10 +222,35 @@ void resize_line_text(Line *line, size_t new_size)
     line->text = ralloc(line->text, line->alloc_num * LINE_ALLOC);
 }
 
+Status clear_buffer(Buffer *buffer)
+{
+    Line *line = buffer->lines;
+    Line *next;
+
+    reset_buffer(buffer);
+
+    while (line != NULL) {
+        next = line->next;
+        free_line(line);
+        line = next;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static void reset_buffer(Buffer *buffer)
+{
+    buffer->lines = new_line();
+    buffer->pos.line = buffer->screen_start.line = buffer->lines;
+    buffer->pos.offset = buffer->screen_start.offset = 0;
+    buffer->line_col_offset = 0;
+    select_reset(buffer);
+}
+
 /* Loads file into buffer structure */
 Status load_buffer(Buffer *buffer)
 {
-    if (!buffer->file_info.exists) {
+    if (!file_exists(buffer->file_info)) {
         /* If the file represented by this buffer doesn't exist
          * then the buffer content is empty */
         buffer->lines = buffer->pos.line = buffer->screen_start.line = new_line();
@@ -282,6 +310,128 @@ static Line *add_to_buffer(const char buffer[], size_t bsize, Line *line, int eo
     }
 
     return line;
+}
+
+/* TODO Write to temporary file then move it to the filename we want to write to */
+Status write_buffer(Buffer *buffer)
+{
+    if (buffer == NULL || buffer->file_info.rel_path == NULL ||
+        buffer->lines == NULL) {
+        /* TODO Raise error */        
+        return STATUS_SUCCESS;
+    }
+
+    FILE *output_file = fopen(buffer->file_info.rel_path, "wb");
+
+    if (output_file == NULL) {
+        /* TODO Raise error */        
+    }
+
+    Line *line = buffer->lines;
+
+    while (line->next != NULL) {
+        fwrite(line->text, sizeof(char), line->length, output_file);
+        fputc('\n', output_file);
+        line = line->next;
+    }
+
+    fwrite(line->text, sizeof(char), line->length, output_file);
+
+    int fail = ferror(output_file);
+
+    fclose(output_file);
+
+    if (fail) {
+        /* TODO Raise error */
+    }
+
+    return STATUS_SUCCESS;
+}
+
+size_t buffer_byte_num(Buffer *buffer)
+{
+    if (buffer == NULL || buffer->lines == NULL) {
+        return 0;
+    }
+
+    Line *line = buffer->lines;
+    size_t bytes = 0;
+
+    while (line->next != NULL) {
+        bytes += line->length + 1;
+        line = line->next;
+    }
+
+    bytes += line->length;
+
+    return bytes;
+}
+
+size_t buffer_line_num(Buffer *buffer)
+{
+    if (buffer == NULL || buffer->lines == NULL) {
+        return 0;
+    }
+
+    Line *line = buffer->lines;
+    size_t line_num = 1;
+
+    while (line->next != NULL) {
+        line_num++;
+        line = line->next;
+    }
+
+    return line_num;
+}
+
+char *get_buffer_as_string(Buffer *buffer)
+{
+    if (buffer == NULL || buffer->lines == NULL) {
+        return NULL;
+    }
+
+    size_t bytes = buffer_byte_num(buffer);
+    char *str = alloc(bytes + 1);
+    char *iter = str;
+    Line *line = buffer->lines;
+
+    while (line->next != NULL) {
+        if (line->length > 0) {
+            memcpy(iter, line->text, line->length);
+            iter += line->length;
+        }
+
+        *iter++ = '\n';
+        line = line->next;
+    }
+
+    if (line->length > 0) {
+        memcpy(iter, line->text, line->length);
+        iter += line->length;
+    }
+
+    *iter = '\0';
+
+    return str;
+}
+
+int buffer_file_exists(Buffer *buffer)
+{
+    return file_exists(buffer->file_info);
+}
+
+int has_file_path(Buffer *buffer)
+{
+    return buffer->file_info.rel_path != NULL;
+}
+
+int set_buffer_file_path(Buffer *buffer, const char *file_path)
+{
+    if (file_path == NULL) {
+        return 0;
+    }
+
+    return set_file_path(&buffer->file_info, file_path);
 }
 
 size_t get_pos_line_number(Buffer *buffer)
@@ -656,11 +806,11 @@ static Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction d
     }
 
     Line *start_line = pos->line;
-    size_t screen_line = line_pos_screen_height(*pos);
-    size_t screen_lines = line_screen_height(pos->line);
+    size_t screen_line = line_pos_screen_height(buffer->win_info, *pos);
+    size_t screen_lines = line_screen_height(buffer->win_info, pos->line);
     int break_on_hardline = screen_lines > 1 && (screen_line + DIRECTION_OFFSET(direction)) > 0 && screen_line < screen_lines;
     size_t cols, col_num;
-    cols = col_num = editor_screen_width();
+    cols = col_num = buffer->win_info.width;
     Status status;
 
     while (cols > 0 && cols <= col_num) {
@@ -697,7 +847,7 @@ static Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction d
 static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos, int is_select)
 {
     size_t global_col_offset = buffer->line_col_offset;
-    size_t current_col_offset = screen_col_no(*pos);
+    size_t current_col_offset = screen_col_no(buffer->win_info, *pos);
     Direction direction = DIRECTION_RIGHT;
     Status status;
 
@@ -820,7 +970,7 @@ Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction
 
 static void update_line_col_offset(Buffer *buffer, BufferPos *pos)
 {
-    buffer->line_col_offset = screen_col_no(*pos);
+    buffer->line_col_offset = screen_col_no(buffer->win_info, *pos);
 }
 
 Status pos_to_line_start(Buffer *buffer, int is_select)
@@ -837,7 +987,7 @@ Status pos_to_line_start(Buffer *buffer, int is_select)
         return STATUS_SUCCESS;
     }
 
-    size_t screen_width = editor_screen_width();
+    size_t screen_width = buffer->win_info.width;
     size_t col_index;
     Status status;
 
@@ -846,7 +996,7 @@ Status pos_to_line_start(Buffer *buffer, int is_select)
 
         RETURN_IF_FAIL(status);
 
-        col_index = screen_col_no(*pos);
+        col_index = screen_col_no(buffer->win_info, *pos);
     } while (pos->offset > 0 && (col_index % screen_width) != 0) ;
 
     return STATUS_SUCCESS;
@@ -866,7 +1016,7 @@ Status pos_to_line_end(Buffer *buffer, int is_select)
         return STATUS_SUCCESS;
     }
 
-    size_t screen_width = editor_screen_width();
+    size_t screen_width = buffer->win_info.width;
     size_t col_index;
     Status status;
 
@@ -875,7 +1025,7 @@ Status pos_to_line_end(Buffer *buffer, int is_select)
 
         RETURN_IF_FAIL(status);
 
-        col_index = screen_col_no(*pos);
+        col_index = screen_col_no(buffer->win_info, *pos);
     } while (pos->offset != pos->line->length && (col_index % screen_width) != (screen_width - 1)) ;
 
     return STATUS_SUCCESS;
@@ -987,7 +1137,7 @@ Status pos_change_page(Buffer *buffer, Direction direction)
     default_movement_selection_handler(buffer, is_select, &direction);
 
     BufferPos *pos = &buffer->pos;
-    Status status = pos_change_multi_line(buffer, pos, direction, editor_screen_height() - 1, 1);
+    Status status = pos_change_multi_line(buffer, pos, direction, buffer->win_info.height - 1, 1);
 
     RETURN_IF_FAIL(status);
 
@@ -999,7 +1149,7 @@ Status pos_change_page(Buffer *buffer, Direction direction)
     return STATUS_SUCCESS;
 }
 
-Status insert_character(Buffer *buffer, char *character)
+Status insert_character(Buffer *buffer, const char *character)
 {
     size_t char_len = 0;
     
@@ -1008,7 +1158,10 @@ Status insert_character(Buffer *buffer, char *character)
     }
 
     if (char_len == 0 || char_len > 6) {
-        return raise_param_error(ERR_INVALID_CHARACTER, STR_VAL(character));     
+        char *character_copy = strdupe(character);
+        Status status = raise_param_error(ERR_INVALID_CHARACTER, STR_VAL(character_copy));
+        free(character_copy);
+        return status;
     }
 
     Range range;
@@ -1026,7 +1179,7 @@ Status insert_character(Buffer *buffer, char *character)
         memmove(pos->line->text + pos->offset + char_len, pos->line->text + pos->offset, pos->line->length - pos->offset);
     }
 
-    size_t start_screen_height = line_screen_height(pos->line);
+    size_t start_screen_height = line_screen_height(buffer->win_info, pos->line);
 
     while (*character && char_len--) {
         pos->line->screen_length += byte_screen_length(*character, pos->line, pos->offset);
@@ -1034,7 +1187,7 @@ Status insert_character(Buffer *buffer, char *character)
         pos->line->length++;
     }
 
-    size_t end_screen_height = line_screen_height(pos->line);
+    size_t end_screen_height = line_screen_height(buffer->win_info, pos->line);
 
     if (end_screen_height > start_screen_height) {
         pos->line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
@@ -1069,7 +1222,7 @@ Status insert_string(Buffer *buffer, char *string, size_t string_length, int adv
     }
 
     size_t start_offset = pos->offset;
-    size_t start_screen_height = line_screen_height(pos->line);
+    size_t start_screen_height = line_screen_height(buffer->win_info, pos->line);
 
     while (string_length--) {
         pos->line->screen_length += byte_screen_length(*string, pos->line, pos->offset);
@@ -1077,7 +1230,7 @@ Status insert_string(Buffer *buffer, char *string, size_t string_length, int adv
         pos->line->length++;
     }
 
-    size_t end_screen_height = line_screen_height(pos->line);
+    size_t end_screen_height = line_screen_height(buffer->win_info, pos->line);
 
     if (!advance_cursor) {
         pos->offset = start_offset;
@@ -1171,8 +1324,7 @@ Status delete_line(Buffer *buffer, Line *line)
         if (line->next != NULL) {
             buffer->lines = line->next;
         } else {
-            buffer->lines = new_line();
-            buffer->screen_start.line = buffer->lines;
+            reset_buffer(buffer);
         }    
     }
 
@@ -1269,7 +1421,7 @@ Status delete_range(Buffer *buffer, Range range)
                                         is_single_line ? range.end.offset : range.start.line->length); 
 
     if (is_single_line || !is_success(status)) {
-        if (config_bool("linewrap") && (range.end.offset - range.start.offset) >= editor_screen_width()) {
+        if (config_bool("linewrap") && (range.end.offset - range.start.offset) >= buffer->win_info.width) {
             buffer->pos.line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
         }
 

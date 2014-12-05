@@ -38,6 +38,12 @@ typedef enum {
     DRAW_LINE_SCROLL_END_REFRESH_DOWN = 1 << 7
 } LineDrawStatus;
 
+typedef enum {
+    WIN_MENU,
+    WIN_TEXT,
+    WIN_STATUS
+} DrawWindow;
+
 /* A screen representation of a BufferPos in terms of a line and column number.
  * This includes counting wrapped lines as lines in their own right. */
 typedef struct {
@@ -47,21 +53,21 @@ typedef struct {
 
 void init_display(void);
 void end_display(void);
+void init_all_window_info(Session *);
+void init_window_info(WindowInfo *);
 void refresh_display(Session *);
 void draw_menu(Session *sess);
 void draw_status(Session *);
-void draw_text(Session *, LineDrawStatus, int);
+void draw_buffer(Session *, LineDrawStatus, int);
 void update_display(Session *);
-size_t screen_line_no(BufferPos);
-size_t screen_col_no(BufferPos);
+size_t screen_line_no(WindowInfo, BufferPos);
+size_t screen_col_no(WindowInfo, BufferPos);
 size_t byte_screen_length(char, Line *, size_t);
 size_t char_byte_length(char);
-size_t editor_screen_width(void);
-size_t editor_screen_height(void);
 size_t line_screen_length(Line *, size_t, size_t);
-size_t line_screen_height(Line *);
-size_t line_pos_screen_height(BufferPos);
-size_t line_offset_screen_height(Line *, size_t, size_t);
-size_t screen_height_from_screen_length(size_t);
+size_t line_screen_height(WindowInfo, Line *);
+size_t line_pos_screen_height(WindowInfo, BufferPos);
+size_t line_offset_screen_height(WindowInfo, Line *, size_t, size_t);
+size_t screen_height_from_screen_length(WindowInfo, size_t);
 
 #endif

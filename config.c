@@ -26,17 +26,22 @@
 #include "hashmap.h"
 #include "util.h"
 #include "command.h"
+#include "buffer.h"
 
 #define CFG_LINE_ALLOC 512
 #define CFG_FILE_NAME "wedrc"
 #define CFG_SYSTEM_DIR "/etc"
 
-static const Session *curr_sess = NULL;
+static Session *curr_sess = NULL;
+static HashMap *config_vars = NULL;
 
+static int is_valid_var(const char *);
+static ConfigVariableDescriptor *clone_config_var_descriptor(const char *);
 static int populate_default_config(HashMap *);
 static char *get_config_line(FILE *);
 static int process_config_line(char *, char **, char **);
 static int get_bool_value(char *, Value *);
+static Status set_config_var(HashMap *, char *, char *);
 
 static int (*conversion_functions[])(char *, Value *) = {
     get_bool_value
@@ -51,7 +56,44 @@ void set_config_session(Session *sess)
     curr_sess = sess;
 }
 
-Status init_config(Session *sess)
+Status init_config(void)
+{
+    size_t var_num = sizeof(default_config) / sizeof(ConfigVariableDescriptor);
+    config_vars = new_sized_hashmap(var_num * 4);
+
+    if (!populate_default_config(config_vars)) {
+        /* TODO raise error here */
+    }
+
+    return STATUS_SUCCESS;
+}
+
+void end_config(void)
+{
+    free_config(config_vars); 
+}
+
+static int is_valid_var(const char *var_name)
+{
+    return hashmap_get(config_vars, var_name) != NULL;
+}
+
+static ConfigVariableDescriptor *clone_config_var_descriptor(const char *var_name)
+{
+    ConfigVariableDescriptor *var = hashmap_get(config_vars, var_name);
+
+    if (var == NULL) {
+        return NULL;
+    }
+
+    ConfigVariableDescriptor *clone = alloc(sizeof(ConfigVariableDescriptor));
+    memcpy(clone, var, sizeof(ConfigVariableDescriptor));
+    clone->default_value = deep_copy_value(clone->default_value);
+
+    return clone;
+}
+
+Status init_session_config(Session *sess)
 {
     HashMap *config = sess->config;
 
@@ -98,6 +140,7 @@ void free_config(HashMap *config)
 
     size_t var_num = sizeof(default_config) / sizeof(ConfigVariableDescriptor);
 
+    /* TODO Consider iterating over the key set of the hash instead */
     for (size_t k = 0; k < var_num; k++) {
         ConfigVariableDescriptor *cvd = hashmap_get(config, default_config[k].name);
 
@@ -296,14 +339,29 @@ static int get_bool_value(char *svalue, Value *value)
 
 Status set_session_var(Session *sess, char *var_name, char *val)
 {
-    if (sess == NULL || var_name == NULL || val == NULL) {
+    return set_config_var(sess->config, var_name, val);
+}
+
+Status set_buffer_var(Buffer *buffer, char *var_name, char *val)
+{
+    return set_config_var(buffer->config, var_name, val);
+}
+
+static Status set_config_var(HashMap *config, char *var_name, char *val)
+{
+    if (config == NULL || var_name == NULL || val == NULL) {
         return raise_param_error(ERR_INVALID_VAR, STR_VAL(var_name));
     }
 
-    ConfigVariableDescriptor *var = hashmap_get(sess->config, var_name);
+    if (!is_valid_var(var_name)) {
+        return raise_param_error(ERR_INVALID_VAR, STR_VAL(var_name));
+    }
+
+    ConfigVariableDescriptor *var = hashmap_get(config, var_name);
 
     if (var == NULL) {
-        return raise_param_error(ERR_INVALID_VAR, STR_VAL(var_name));
+        var = clone_config_var_descriptor(var_name);
+        hashmap_set(config, var_name, var);
     }
 
     Value value;
@@ -323,15 +381,23 @@ Status set_session_var(Session *sess, char *var_name, char *val)
     var->default_value = value; 
 
     if (var->on_change_event != NULL) {
-        return var->on_change_event(sess, old_value, value);
+        return var->on_change_event(curr_sess, old_value, value);
     }
+
+    free_value(old_value);
 
     return STATUS_SUCCESS;
 }
 
 int config_bool(char *var_name)
 {
-    ConfigVariableDescriptor *var = hashmap_get(curr_sess->config, var_name);
+    Buffer *buffer = curr_sess->active_buffer;
+
+    ConfigVariableDescriptor *var = hashmap_get(buffer->config, var_name);
+
+    if (var == NULL) {
+        var = hashmap_get(curr_sess->config, var_name);
+    }
 
     if (var == NULL || var->default_value.type != VAL_TYPE_BOOL) {
         /* TODO Add error to session error queue */

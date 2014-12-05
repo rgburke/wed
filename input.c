@@ -27,13 +27,11 @@
 
 #define MAX_KEY_STR_SIZE 50
 
+static TermKey *termkey = NULL;
+
 void edit(Session *sess)
 {
-    int quit = 0;
-    char keystr[MAX_KEY_STR_SIZE];
-    TermKey *termkey = termkey_new(0, TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
-    TermKeyResult ret;
-    TermKeyKey key;
+    termkey = termkey_new(0, TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
 
     if (termkey == NULL) {
         /* TODO Need to add out of memory type error.
@@ -42,19 +40,33 @@ void edit(Session *sess)
     }
 
     init_display();
+    init_all_window_info(sess);
     refresh_display(sess);
 
-    while (!quit) {
+    process_input(sess);
+
+    end_display();
+    termkey_destroy(termkey);
+}
+
+void process_input(Session *sess)
+{
+    if (termkey == NULL) {
+        return;
+    }
+
+    char keystr[MAX_KEY_STR_SIZE];
+    TermKeyResult ret;
+    TermKeyKey key;
+    int finished = 0;
+
+    while (!finished) {
         ret = termkey_waitkey(termkey, &key);
 
         if (ret == TERMKEY_RES_KEY) {
             termkey_strfkey(termkey, keystr, sizeof(keystr), &key, TERMKEY_FORMAT_VIM);
-            add_error_if_fail(sess, do_command(sess, keystr, &quit));    
+            add_error_if_fail(sess, do_command(sess, keystr, &finished));
+            update_display(sess);
         }
-
-        update_display(sess);
     }
-
-    end_display();
-    termkey_destroy(termkey);
 }

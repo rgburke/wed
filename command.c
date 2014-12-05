@@ -18,6 +18,7 @@
 
 #include <ncurses.h>
 #include <string.h>
+#include "shared.h"
 #include "status.h"
 #include "command.h"
 #include "session.h"
@@ -26,68 +27,72 @@
 #include "variable.h"
 #include "hashmap.h"
 #include "util.h"
+#include "input.h"
 
-static Status bufferpos_change_line(Session *, Value, int *);
-static Status bufferpos_change_char(Session *, Value, int *); 
-static Status bufferpos_to_line_start(Session *, Value, int *);
-static Status bufferpos_to_line_end(Session *, Value, int *);
-static Status bufferpos_to_next_word(Session *, Value, int *);
-static Status bufferpos_to_prev_word(Session *, Value, int *);
-static Status bufferpos_to_buffer_start(Session *, Value, int *);
-static Status bufferpos_to_buffer_end(Session *, Value, int *);
-static Status bufferpos_change_page(Session *, Value, int *);
-static Status buffer_insert_char(Session *, Value, int *);
-static Status buffer_delete_char(Session *, Value, int *);
-static Status buffer_backspace(Session *, Value, int *);
-static Status buffer_insert_line(Session *, Value, int *);
-static Status buffer_select_all_text(Session *, Value, int *);
-static Status buffer_copy_selected_text(Session *, Value, int *);
-static Status buffer_cut_selected_text(Session *, Value, int *);
-static Status buffer_paste_text(Session *, Value, int *);
-static Status quit_wed(Session *, Value, int *);
+static Status bufferpos_change_line(Session *, Value, const char *, int *);
+static Status bufferpos_change_char(Session *, Value, const char *, int *); 
+static Status bufferpos_to_line_start(Session *, Value, const char *, int *);
+static Status bufferpos_to_line_end(Session *, Value, const char *, int *);
+static Status bufferpos_to_next_word(Session *, Value, const char *, int *);
+static Status bufferpos_to_prev_word(Session *, Value, const char *, int *);
+static Status bufferpos_to_buffer_start(Session *, Value, const char *, int *);
+static Status bufferpos_to_buffer_end(Session *, Value, const char *, int *);
+static Status bufferpos_change_page(Session *, Value, const char *, int *);
+static Status buffer_insert_char(Session *, Value, const char *, int *);
+static Status buffer_delete_char(Session *, Value, const char *, int *);
+static Status buffer_backspace(Session *, Value, const char *, int *);
+static Status buffer_insert_line(Session *, Value, const char *, int *);
+static Status buffer_select_all_text(Session *, Value, const char *, int *);
+static Status buffer_copy_selected_text(Session *, Value, const char *, int *);
+static Status buffer_cut_selected_text(Session *, Value, const char *, int *);
+static Status buffer_paste_text(Session *, Value, const char *, int *);
+static Status buffer_save_file(Session *, Value, const char *, int *);
+static Status finished_processing_input(Session *, Value, const char *, int *);
 
-int update_command_functions(Session *, Status (*)(Session *, Value, int *),
-                                    Status (*)(Session *, Value, int *));
+static Status cmd_input_prompt(Session *, const char *);
+static Status cancel_cmd_input_prompt(Session *, Value, const char *, int *);
+static int update_command_function(Session *, const char *, CommandHandler);
 
 static const Command commands[] = {
-    { "<Up>"        , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP)                            },
-    { "<Down>"      , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN)                          },
-    { "<Right>"     , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT)                         },
-    { "<Left>"      , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT)                          },
-    { "<Home>"      , bufferpos_to_line_start  , INT_VAL_STRUCT(0)                                       },
-    { "<End>"       , bufferpos_to_line_end    , INT_VAL_STRUCT(0)                                       },
-    { "<C-Right>"   , bufferpos_to_next_word   , INT_VAL_STRUCT(0)                                       },
-    { "<C-Left>"    , bufferpos_to_prev_word   , INT_VAL_STRUCT(0)                                       },
-    { "<C-Home>"    , bufferpos_to_buffer_start, INT_VAL_STRUCT(0)                                       },
-    { "<C-End>"     , bufferpos_to_buffer_end  , INT_VAL_STRUCT(0)                                       },
-    { "<PageUp>"    , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP)                            },
-    { "<PageDown>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN)                          },
-    { "<S-Up>"      , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP    | DIRECTION_WITH_SELECT) },
-    { "<S-Down>"    , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN  | DIRECTION_WITH_SELECT) },
-    { "<S-Right>"   , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT) },
-    { "<S-Left>"    , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT  | DIRECTION_WITH_SELECT) },
-    { "<S-Home>"    , bufferpos_to_line_start  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
-    { "<S-End>"     , bufferpos_to_line_end    , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
-    { "<C-S-Right>" , bufferpos_to_next_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
-    { "<C-S-Left>"  , bufferpos_to_prev_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
-    { "<C-S-Home>"  , bufferpos_to_buffer_start, INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
-    { "<C-S-End>"   , bufferpos_to_buffer_end  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   },
-    { "<S-PageUp>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP   | DIRECTION_WITH_SELECT)  },
-    { "<S-PageDown>", bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT)  },
-    { "<Space>"     , buffer_insert_char       , STR_VAL_STRUCT(" ")                                     },
-    { "<Tab>"       , buffer_insert_char       , STR_VAL_STRUCT("\t")                                    },
-    { "<KPDiv>"     , buffer_insert_char       , STR_VAL_STRUCT("/")                                     },
-    { "<KPMult>"    , buffer_insert_char       , STR_VAL_STRUCT("*")                                     },
-    { "<KPMinus>"   , buffer_insert_char       , STR_VAL_STRUCT("-")                                     },
-    { "<KPPlus>"    , buffer_insert_char       , STR_VAL_STRUCT("+")                                     },
-    { "<Delete>"    , buffer_delete_char       , INT_VAL_STRUCT(0)                                       },
-    { "<Backspace>" , buffer_backspace         , INT_VAL_STRUCT(0)                                       },
-    { "<Enter>"     , buffer_insert_line       , INT_VAL_STRUCT(0)                                       },
-    { "<C-a>"       , buffer_select_all_text   , INT_VAL_STRUCT(0)                                       },
-    { "<C-c>"       , buffer_copy_selected_text, INT_VAL_STRUCT(0)                                       },
-    { "<C-x>"       , buffer_cut_selected_text , INT_VAL_STRUCT(0)                                       },
-    { "<C-v>"       , buffer_paste_text        , INT_VAL_STRUCT(0)                                       },
-    { "<F2>"        , quit_wed                 , INT_VAL_STRUCT(0)                                       }
+    { "<Up>"        , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP)                           , CMDT_BUFFER_MOVE },
+    { "<Down>"      , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN)                         , CMDT_BUFFER_MOVE },
+    { "<Right>"     , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_BUFFER_MOVE },
+    { "<Left>"      , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_BUFFER_MOVE },
+    { "<Home>"      , bufferpos_to_line_start  , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<End>"       , bufferpos_to_line_end    , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<C-Right>"   , bufferpos_to_next_word   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<C-Left>"    , bufferpos_to_prev_word   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<C-Home>"    , bufferpos_to_buffer_start, INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<C-End>"     , bufferpos_to_buffer_end  , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<PageUp>"    , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP)                           , CMDT_BUFFER_MOVE },
+    { "<PageDown>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN)                         , CMDT_BUFFER_MOVE },
+    { "<S-Up>"      , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP    | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
+    { "<S-Down>"    , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN  | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
+    { "<S-Right>"   , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
+    { "<S-Left>"    , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT  | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
+    { "<S-Home>"    , bufferpos_to_line_start  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<S-End>"     , bufferpos_to_line_end    , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<C-S-Right>" , bufferpos_to_next_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<C-S-Left>"  , bufferpos_to_prev_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<C-S-Home>"  , bufferpos_to_buffer_start, INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<C-S-End>"   , bufferpos_to_buffer_end  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<S-PageUp>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP   | DIRECTION_WITH_SELECT) , CMDT_BUFFER_MOVE },
+    { "<S-PageDown>", bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) , CMDT_BUFFER_MOVE },
+    { "<Space>"     , buffer_insert_char       , STR_VAL_STRUCT(" ")                                    , CMDT_BUFFER_MOD  }, 
+    { "<Tab>"       , buffer_insert_char       , STR_VAL_STRUCT("\t")                                   , CMDT_BUFFER_MOD  }, 
+    { "<KPDiv>"     , buffer_insert_char       , STR_VAL_STRUCT("/")                                    , CMDT_BUFFER_MOD  }, 
+    { "<KPMult>"    , buffer_insert_char       , STR_VAL_STRUCT("*")                                    , CMDT_BUFFER_MOD  }, 
+    { "<KPMinus>"   , buffer_insert_char       , STR_VAL_STRUCT("-")                                    , CMDT_BUFFER_MOD  }, 
+    { "<KPPlus>"    , buffer_insert_char       , STR_VAL_STRUCT("+")                                    , CMDT_BUFFER_MOD  }, 
+    { "<Delete>"    , buffer_delete_char       , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<Backspace>" , buffer_backspace         , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<Enter>"     , buffer_insert_line       , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-a>"       , buffer_select_all_text   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-c>"       , buffer_copy_selected_text, INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-x>"       , buffer_cut_selected_text , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-v>"       , buffer_paste_text        , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-s>"       , buffer_save_file         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<Escape>"    , finished_processing_input, INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
 };
 
 int init_keymap(Session *sess)
@@ -113,92 +118,105 @@ int init_keymap(Session *sess)
     return 1;
 }
 
-Status do_command(Session *sess, char *command_str, int *quit)
+Status do_command(Session *sess, const char *command_str, int *finished)
 {
     Command *command = hashmap_get(sess->keymap, command_str);
 
-    if (command != NULL) {
-        return command->func(sess, command->param, quit);
+    if (command != NULL && !command_type_excluded(sess, command->cmd_type)) {
+        return command->command_handler(sess, command->param, command_str, finished);
     }
 
-    if (!(command_str[0] == '<' && command_str[1] != '\0')) {
+    if (!(command_str[0] == '<' && command_str[1] != '\0') &&
+        !command_type_excluded(sess, CMDT_BUFFER_MOD)) {
         return insert_character(sess->active_buffer, command_str);
     }
 
     return STATUS_SUCCESS;
 }
 
-static Status bufferpos_change_line(Session *sess, Value param, int *quit)
+static Status bufferpos_change_line(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
+    (void)keystr;
+    (void)finished;
     return pos_change_line(sess->active_buffer, &sess->active_buffer->pos, param.val.ival, 1);
 }
 
-static Status bufferpos_change_char(Session *sess, Value param, int *quit)
+static Status bufferpos_change_char(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
+    (void)keystr;
+    (void)finished;
     return pos_change_char(sess->active_buffer, &sess->active_buffer->pos, param.val.ival, 1);
 }
 
-static Status bufferpos_to_line_start(Session *sess, Value param, int *quit)
+static Status bufferpos_to_line_start(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
+    (void)keystr;
+    (void)finished;
     return pos_to_line_start(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
-static Status bufferpos_to_line_end(Session *sess, Value param, int *quit)
+static Status bufferpos_to_line_end(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
+    (void)keystr;
+    (void)finished;
     return pos_to_line_end(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
-static Status bufferpos_to_next_word(Session *sess, Value param, int *quit)
+static Status bufferpos_to_next_word(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
+    (void)keystr;
+    (void)finished;
     return pos_to_next_word(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
-static Status bufferpos_to_prev_word(Session *sess, Value param, int *quit)
+static Status bufferpos_to_prev_word(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
+    (void)keystr;
+    (void)finished;
     return pos_to_prev_word(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
-static Status bufferpos_to_buffer_start(Session *sess, Value param, int *quit)
+static Status bufferpos_to_buffer_start(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
+    (void)keystr;
+    (void)finished;
     return pos_to_buffer_start(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
-static Status bufferpos_to_buffer_end(Session *sess, Value param, int *quit)
+static Status bufferpos_to_buffer_end(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
+    (void)keystr;
+    (void)finished;
     return pos_to_buffer_end(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
 }
 
-static Status bufferpos_change_page(Session *sess, Value param, int *quit)
+static Status bufferpos_change_page(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
+    (void)keystr;
+    (void)finished;
     return pos_change_page(sess->active_buffer, param.val.ival);
 }
 
-static Status buffer_insert_char(Session *sess, Value param, int *quit)
+static Status buffer_insert_char(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
+    (void)keystr;
+    (void)finished;
     return insert_character(sess->active_buffer, param.val.sval);
 }
 
-static Status buffer_delete_char(Session *sess, Value param, int *quit)
+static Status buffer_delete_char(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
     (void)param;
+    (void)keystr;
+    (void)finished;
     return delete_character(sess->active_buffer);
 }
 
-static Status buffer_backspace(Session *sess, Value param, int *quit)
+static Status buffer_backspace(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
     (void)param;
+    (void)keystr;
+    (void)finished;
 
     if (!selection_started(sess->active_buffer)) {
         if (bufferpos_at_buffer_start(sess->active_buffer->pos)) {
@@ -212,24 +230,27 @@ static Status buffer_backspace(Session *sess, Value param, int *quit)
     return delete_character(sess->active_buffer);
 }
 
-static Status buffer_insert_line(Session *sess, Value param, int *quit)
+static Status buffer_insert_line(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
     (void)param;
+    (void)keystr;
+    (void)finished;
     return insert_line(sess->active_buffer);
 }
 
-static Status buffer_select_all_text(Session *sess, Value param, int *quit)
+static Status buffer_select_all_text(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
     (void)param;
+    (void)keystr;
+    (void)finished;
     return select_all_text(sess->active_buffer);
 }
 
-static Status buffer_copy_selected_text(Session *sess, Value param, int *quit)
+static Status buffer_copy_selected_text(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
     (void)param;
+    (void)keystr;
+    (void)finished;
 
     TextSelection *text_selection;
 
@@ -244,10 +265,11 @@ static Status buffer_copy_selected_text(Session *sess, Value param, int *quit)
     return status;
 }
 
-static Status buffer_cut_selected_text(Session *sess, Value param, int *quit)
+static Status buffer_cut_selected_text(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
     (void)param;
+    (void)keystr;
+    (void)finished;
 
     TextSelection *text_selection;
 
@@ -262,10 +284,11 @@ static Status buffer_cut_selected_text(Session *sess, Value param, int *quit)
     return status;
 }
 
-static Status buffer_paste_text(Session *sess, Value param, int *quit)
+static Status buffer_paste_text(Session *sess, Value param, const char *keystr, int *finished)
 {
-    (void)quit;
     (void)param;
+    (void)keystr;
+    (void)finished;
 
     if (sess->clipboard == NULL) {
         return STATUS_SUCCESS;
@@ -274,31 +297,81 @@ static Status buffer_paste_text(Session *sess, Value param, int *quit)
     return insert_textselection(sess->active_buffer, sess->clipboard);
 }
 
-static Status quit_wed(Session *sess, Value param, int *quit)
+static Status buffer_save_file(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    if (!has_file_path(sess->active_buffer)) {
+        cmd_input_prompt(sess, "Save As");
+
+        if (sess->cmd_prompt.cancelled) {
+            return STATUS_SUCCESS;
+        }
+
+        char *input = get_cmd_buffer_text(sess);
+
+        if (input == NULL || strlen(input) == 0) {
+            free(input);
+            return raise_param_error(ERR_INVALID_FILE_PATH, STR_VAL(input));
+        }
+
+        set_buffer_file_path(sess->active_buffer, input);        
+    }
+
+    return write_buffer(sess->active_buffer);
+}
+
+static Status finished_processing_input(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)sess;
-    (void)&param;
-    *quit = true;
+    (void)param;
+    (void)keystr;
+
+    *finished = 1;
+
     return STATUS_SUCCESS;
 }
 
-int update_command_functions(Session *sess, Status (*old_func)(Session *, Value, int *),
-                             Status (*new_func)(Session *, Value, int *))
+static Status cmd_input_prompt(Session *sess, const char *prompt_text)
 {
-    size_t command_num = sizeof(commands) / sizeof(Command);
-    Command *command;
+    make_cmd_buffer_active(sess, prompt_text);
+    update_command_function(sess, "<Enter>", finished_processing_input);
+    update_command_function(sess, "<Escape>", cancel_cmd_input_prompt);
+    exclude_command_type(sess, CMDT_CMD_INPUT);
 
-    for (size_t k = 0; k < command_num; k++, command++) {
-        if (commands[k].func == old_func) {
-            command = hashmap_get(sess->keymap, commands[k].keystr);
+    update_display(sess);
+    process_input(sess);
 
-            if (command == NULL) {
-                return 0;
-            }
+    enable_command_type(sess, CMDT_CMD_INPUT);
+    update_command_function(sess, "<Enter>", buffer_insert_line);
+    update_command_function(sess, "<Escape>", finished_processing_input);
+    end_cmd_buffer_active(sess);
 
-            command->func = new_func;
-        }
+    return STATUS_SUCCESS;
+}
+
+static Status cancel_cmd_input_prompt(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+
+    sess->cmd_prompt.cancelled = 1;
+    *finished = 1;
+
+    return STATUS_SUCCESS;
+}
+
+static int update_command_function(Session *sess, const char *keystr, CommandHandler new_command_handler)
+{
+    Command *command = hashmap_get(sess->keymap, keystr);
+
+    if (command == NULL) {
+        return 0;
     }
+
+    command->command_handler = new_command_handler;
 
     return 1;
 }

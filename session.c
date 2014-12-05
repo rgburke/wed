@@ -31,6 +31,10 @@ Session *new_session(void)
     sess->keymap = NULL;
     sess->clipboard = NULL;
     sess->config = NULL;
+    sess->cmd_prompt.cmd_buffer = NULL;
+    sess->cmd_prompt.cmd_text = NULL;
+    sess->cmd_prompt.cancelled = 0;
+    sess->exclude_cmd_types = 0;
 
     return sess;
 }
@@ -47,7 +51,7 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
     for (int k = 1; k < buffer_num; k++) {
         init_fileinfo(&file_info, buffer_paths[k]);
 
-        if (file_info.is_directory) {
+        if (file_is_directory(file_info)) {
             free_fileinfo(file_info);
             add_error_if_fail(sess, raise_param_error(ERR_FILE_IS_DIRECTORY, STR_VAL(file_info.file_name)));
             continue;
@@ -76,8 +80,14 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
+    if ((sess->cmd_prompt.cmd_buffer = new_empty_buffer()) == NULL) {
+        return 0;
+    }
+
+    set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", "0");
     set_config_session(sess);
-    add_error_if_fail(sess, init_config(sess));
+    add_error_if_fail(sess, init_session_config(sess));
+
 
     return 1;
 }
@@ -101,6 +111,8 @@ void free_session(Session *sess)
     free_hashmap(sess->keymap);
     free_textselection(sess->clipboard);
     free_config(sess->config);
+    free_buffer(sess->cmd_prompt.cmd_buffer);
+    free(sess->cmd_prompt.cmd_text);
 
     free(sess);
 }
@@ -167,6 +179,54 @@ int set_active_buffer(Session *sess, size_t buff_index)
     sess->active_buffer = buffer;
 
     return 1;
+}
+
+int make_cmd_buffer_active(Session *sess, const char *text)
+{
+    if (sess == NULL || sess->active_buffer == NULL || 
+        sess->cmd_prompt.cmd_buffer == NULL) {
+        return 0;
+    }
+
+    sess->cmd_prompt.cmd_buffer->next = sess->active_buffer;
+    sess->active_buffer = sess->cmd_prompt.cmd_buffer;
+
+    if (sess->cmd_prompt.cmd_text != NULL) {
+        free(sess->cmd_prompt.cmd_text);
+    }
+
+    sess->cmd_prompt.cmd_text = strdupe(text);
+    sess->cmd_prompt.cancelled = 0;
+    clear_buffer(sess->cmd_prompt.cmd_buffer);
+
+    return 1;
+}
+
+int end_cmd_buffer_active(Session *sess)
+{
+    if (sess == NULL || sess->active_buffer == NULL || 
+        sess->cmd_prompt.cmd_buffer == NULL) {
+        return 0;
+    }
+
+    sess->active_buffer = sess->cmd_prompt.cmd_buffer->next;
+
+    return 1;
+}
+
+int cmd_buffer_active(Session *sess)
+{
+    if (sess == NULL || sess->active_buffer == NULL || 
+        sess->cmd_prompt.cmd_buffer == NULL) {
+        return 0;
+    }
+
+    return sess->active_buffer == sess->cmd_prompt.cmd_buffer;
+}
+
+char *get_cmd_buffer_text(Session *sess)
+{
+    return get_buffer_as_string(sess->cmd_prompt.cmd_buffer);
 }
 
 int remove_buffer(Session *sess, Buffer *to_remove)
@@ -238,4 +298,19 @@ void set_clipboard(Session *sess, TextSelection *clipboard)
     }
 
     sess->clipboard = clipboard;
+}
+
+void exclude_command_type(Session *sess, CommandType cmd_type)
+{
+    sess->exclude_cmd_types |= cmd_type;
+}
+
+void enable_command_type(Session *sess, CommandType cmd_type)
+{
+    sess->exclude_cmd_types &= ~cmd_type;
+}
+
+int command_type_excluded(Session *sess, CommandType cmd_type)
+{
+    return sess->exclude_cmd_types & cmd_type;
 }

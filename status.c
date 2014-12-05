@@ -33,7 +33,8 @@ static const Error errors[] = {
     { ERR_INVALID_STRING      , ERR_SVR_CRITICAL, 1, "Invalid string %s"          , STR_VAL_STRUCT("") },
     { ERR_INVALID_VAR         , ERR_SVR_CRITICAL, 1, "Invalid variable %s"        , STR_VAL_STRUCT("") },
     { ERR_INVALID_VAL         , ERR_SVR_CRITICAL, 1, "Invalid value %s"           , STR_VAL_STRUCT("") },
-    { ERR_INVALID_CONFIG_ENTRY, ERR_SVR_CRITICAL, 1, "Invalid config entry in %s" , STR_VAL_STRUCT("") }
+    { ERR_INVALID_CONFIG_ENTRY, ERR_SVR_CRITICAL, 1, "Invalid config entry in %s" , STR_VAL_STRUCT("") },
+    { ERR_INVALID_FILE_PATH   , ERR_SVR_CRITICAL, 1, "Invalid file path \"%s\""   , STR_VAL_STRUCT("") }
 };
 
 int is_success(Status status)

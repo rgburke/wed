@@ -51,6 +51,7 @@ typedef enum {
     ERR_INVALID_VAR,
     ERR_INVALID_VAL,
     ERR_INVALID_CONFIG_ENTRY,
+    ERR_INVALID_FILE_PATH,
     ERR_LAST_ENTRY
 } ErrorCode;
 

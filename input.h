@@ -21,8 +21,7 @@
 
 #include "session.h"
 
-#define ESC 27
-
 void edit(Session *);
+void process_input(Session *);
 
 #endif

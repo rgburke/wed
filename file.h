@@ -21,15 +21,30 @@
 
 #include "status.h"
 
+typedef enum {
+    FATTR_NONE,
+    FATTR_EXISTS,
+    FATTR_DIR,
+    FATTR_READABLE = 1 << 2,
+    FATTR_WRITABLE = 1 << 3
+} FileAttributes; 
+
 typedef struct {
-    char *rel_path; /* The path a user passes in as an argument */
+    char *rel_path; /* The path entered by the user */
     char *file_name; /* The file name part of rel_path */
-    int exists; /* Does this file exist */
-    int is_directory; /* Is this file a directory */
+    FileAttributes file_attrs;
 } FileInfo;
 
 int init_fileinfo(FileInfo *, char *);
 int init_empty_fileinfo(FileInfo *);
 void free_fileinfo(FileInfo);
+int file_is_directory(FileInfo);
+int file_exists(FileInfo);
+int check_file_exists(FileInfo *);
+int can_read_file(FileInfo);
+int check_can_read_file(FileInfo *);
+int can_write_file(FileInfo);
+int check_can_write_file(FileInfo *);
+int set_file_path(FileInfo *, const char *);
 
 #endif

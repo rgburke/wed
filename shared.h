@@ -16,31 +16,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_CONFIG_H
-#define WED_CONFIG_H
+#ifndef WED_SHARED_H
+#define WED_SHARED_H
 
-#include "variable.h"
-#include "status.h"
-#include "hashmap.h"
-#include "session.h"
-#include "buffer.h"
-
-typedef struct {
-    char *name;
-    char *short_name;  
-    Value default_value;
-    int (*custom_validator)(Value);
-    Status (*on_change_event)(Session *, Value, Value);
-} ConfigVariableDescriptor;
-
-void set_config_session(Session *);
-Status init_config(void);
-void end_config(void);
-Status init_session_config(Session *);
-void free_config(HashMap *);
-Status load_config(Session *, char *);
-Status set_session_var(Session *, char *, char *);
-Status set_buffer_var(Buffer *, char *, char *);
-int config_bool(char *);
+typedef enum {
+    CMDT_BUFFER_MOVE = 1,
+    CMDT_BUFFER_MOD = 1 << 1,
+    CMDT_CMD_INPUT = 1 << 2,
+    CMDT_EXIT = 1 << 3
+} CommandType;
 
 #endif

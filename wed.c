@@ -25,6 +25,7 @@
 #include "display.h"
 #include "input.h"
 #include "file.h"
+#include "config.h"
 
 int parse_args(int argc, char *argv[], Session *sess)
 {
@@ -49,6 +50,7 @@ int main(int argc, char *argv[])
     }
 
     setlocale(LC_ALL, "");
+    init_config();
 
     if (!init_session(sess, argv, argc)) {
         return 1;
@@ -57,6 +59,7 @@ int main(int argc, char *argv[])
     edit(sess);
 
     free_session(sess);
+    end_config();
     
     return 0;
 }

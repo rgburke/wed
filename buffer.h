@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include "status.h"
 #include "file.h"
+#include "hashmap.h"
 
 #define FILE_BUF_SIZE 512
 #define LINE_ALLOC 32
@@ -76,6 +77,14 @@ typedef struct {
     BufferPos end;
 } Range;
 
+typedef struct {
+    size_t height;
+    size_t width;
+    size_t start_y;
+    size_t start_x;
+    size_t win_index;
+} WindowInfo;
+
 /* The in memory representation of a file */
 struct Buffer {
     FileInfo file_info; /* stat like info */
@@ -85,6 +94,8 @@ struct Buffer {
     BufferPos select_start; /* Starting position of selected text */
     Buffer *next; /* Next buffer in this session */
     size_t line_col_offset; /* Global cursor line offset */
+    WindowInfo win_info; /* Window dimension info */
+    HashMap *config; /* Stores config variables */
 };
 
 typedef struct {
@@ -107,7 +118,15 @@ void free_textselection(TextSelection *);
 Line *clone_line(Line *line);
 void resize_line_text(Line *, size_t);
 void resize_line_text_if_req(Line *, size_t);
+Status clear_buffer(Buffer *);
 Status load_buffer(Buffer *);
+Status write_buffer(Buffer *);
+size_t buffer_byte_num(Buffer *);
+size_t buffer_line_num(Buffer *);
+char *get_buffer_as_string(Buffer *);
+int buffer_file_exists(Buffer *);
+int has_file_path(Buffer *);
+int set_buffer_file_path(Buffer *, const char *);
 size_t get_pos_line_number(Buffer *);
 size_t get_bufferpos_line_number(BufferPos);
 size_t get_pos_col_number(Buffer *);
@@ -145,7 +164,7 @@ Status pos_to_buffer_start(Buffer *, int);
 Status pos_to_buffer_end(Buffer *, int);
 Status pos_to_bufferpos(Buffer *, BufferPos);
 Status pos_change_page(Buffer *, Direction);
-Status insert_character(Buffer *, char *);
+Status insert_character(Buffer *, const char *);
 Status insert_string(Buffer *, char *, size_t, int);
 Status delete_character(Buffer *);
 Status delete_line(Buffer *, Line *);

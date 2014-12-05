@@ -16,6 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <string.h>
 #include <ncurses.h>
 #include "display.h"
 #include "session.h"
@@ -33,9 +34,10 @@ static WINDOW *windows[WINDOW_NUM];
 static size_t text_y;
 static size_t text_x;
 
+static void draw_prompt(Session *);
 static void handle_draw_status(Line *, LineDrawStatus *);
-static size_t draw_line(Line *, size_t, int, LineDrawStatus *, int, Range, int);
-static void convert_pos_to_point(Point *, BufferPos);
+static size_t draw_line(Line *, size_t, int, LineDrawStatus *, int, Range, int, WindowInfo);
+static void convert_pos_to_point(Point *, WindowInfo, BufferPos);
 static void vertical_scroll(Buffer *, Point *, Point);
 static void horizontal_scroll(Buffer *buffer, Point *screen_start, Point cursor);
 
@@ -74,11 +76,34 @@ void end_display(void)
     endwin();
 }
 
+void init_all_window_info(Session *sess)
+{
+    Buffer *buffer = sess->buffers;
+
+    while (buffer != NULL) {
+        init_window_info(&buffer->win_info);
+        buffer = buffer->next;
+    }
+
+    init_window_info(&sess->cmd_prompt.cmd_buffer->win_info);
+    sess->cmd_prompt.cmd_buffer->win_info.height = 1;
+    sess->cmd_prompt.cmd_buffer->win_info.win_index = WIN_STATUS;
+}
+
+void init_window_info(WindowInfo *win_info)
+{
+    win_info->height = text_y;
+    win_info->width = text_x;
+    win_info->start_y = 0;
+    win_info->start_x = 0;
+    win_info->win_index = WIN_TEXT;
+}
+
 void refresh_display(Session *sess)
 {
     draw_menu(sess);
     draw_status(sess);
-    draw_text(sess, DRAW_LINE_FULL_REFRESH, config_bool("linewrap"));
+    draw_buffer(sess, DRAW_LINE_FULL_REFRESH, config_bool("linewrap"));
     update_display(sess);
 }
 
@@ -112,6 +137,25 @@ void draw_status(Session *sess)
     wnoutrefresh(status); 
 }
 
+static void draw_prompt(Session *sess)
+{
+    wmove(status, 0, 0);
+    wbkgd(status, COLOR_PAIR(0));
+    wattron(status, COLOR_PAIR(STATUS_COLOR_PAIR));
+    wprintw(status, "%s:", sess->cmd_prompt.cmd_text); 
+    wattroff(status, COLOR_PAIR(STATUS_COLOR_PAIR));
+    wprintw(status, " "); 
+
+    if (buffer_byte_num(sess->cmd_prompt.cmd_buffer) == 0) {
+        wclrtoeol(status);
+    }
+
+    size_t prompt_size = strlen(sess->cmd_prompt.cmd_text) + 2;
+    WindowInfo *win_info = &sess->cmd_prompt.cmd_buffer->win_info;
+    win_info->start_x = prompt_size;
+    win_info->width = text_x - prompt_size;
+}
+
 static void handle_draw_status(Line *line, LineDrawStatus *draw_status)
 {
     if (line->is_dirty) {
@@ -129,16 +173,18 @@ static void handle_draw_status(Line *line, LineDrawStatus *draw_status)
 
 /* Refresh the active buffer on the screen. Only draw
  * necessary buffer parts. */
-void draw_text(Session *sess, LineDrawStatus draw_status, int line_wrap)
+void draw_buffer(Session *sess, LineDrawStatus draw_status, int line_wrap)
 {
+    Buffer *buffer = sess->active_buffer;
+    WINDOW *draw_win = windows[buffer->win_info.win_index];
+
     if (draw_status & DRAW_LINE_FULL_REFRESH) {
-        wclear(text);
+        wclear(draw_win);
     }
 
-    Buffer *buffer = sess->active_buffer;
     Range select_range;
     int is_selection = get_selection_range(buffer, &select_range);
-    size_t line_num = text_y;
+    size_t line_num = buffer->win_info.height;
     size_t line_count = 0;
     BufferPos screen_start = buffer->screen_start;
     size_t horizontal_offset = screen_start.offset;
@@ -154,7 +200,7 @@ void draw_text(Session *sess, LineDrawStatus draw_status, int line_wrap)
     }
 
     line_count += draw_line(line, horizontal_offset, line_count, &draw_status,
-                            is_selection, select_range, line_wrap);
+                            is_selection, select_range, line_wrap, buffer->win_info);
 
     handle_draw_status(line, &draw_status);
     line->is_dirty = DRAW_LINE_NO_CHANGE;
@@ -166,7 +212,7 @@ void draw_text(Session *sess, LineDrawStatus draw_status, int line_wrap)
 
     while (line_count < line_num && line != NULL) {
         line_count += draw_line(line, horizontal_offset, line_count, &draw_status,
-                                is_selection, select_range, line_wrap);
+                                is_selection, select_range, line_wrap, buffer->win_info);
 
         handle_draw_status(line, &draw_status);
         line->is_dirty = DRAW_LINE_NO_CHANGE;
@@ -174,11 +220,18 @@ void draw_text(Session *sess, LineDrawStatus draw_status, int line_wrap)
     }
 
     if (draw_status) {
-        wstandend(text);
+        if (!line_wrap && horizontal_offset > 0 && 
+            (line_count < buffer->win_info.height)) {
 
-        while (line_count < text_y) {
-            mvwaddch(text, line_count++, 0, '~');
-            wclrtoeol(text);
+            wmove(text, buffer->win_info.start_y + line_count, buffer->win_info.start_x);
+            wclrtobot(draw_win);
+        } else {
+            wstandend(draw_win);
+
+            while (line_count < buffer->win_info.height) {
+                mvwaddch(text, buffer->win_info.start_y + line_count++, buffer->win_info.start_x, '~');
+                wclrtoeol(draw_win);
+            }
         }
     }
 
@@ -192,26 +245,28 @@ void draw_text(Session *sess, LineDrawStatus draw_status, int line_wrap)
 }
 
 static size_t draw_line(Line *line, size_t char_index, int y, LineDrawStatus *draw_status, 
-                        int is_selection, Range select_range, int line_wrap)
+                        int is_selection, Range select_range, int line_wrap, WindowInfo win_info)
 {
+    WINDOW *draw_win = windows[win_info.win_index];
+
     if (!(*draw_status || line->is_dirty)) {
         if (char_index > 0) {
-            return line_offset_screen_height(line, char_index, line->length);
+            return line_offset_screen_height(win_info, line, char_index, line->length);
         } 
 
-        return line_screen_height(line);
+        return line_screen_height(win_info, line);
     }
 
     if (line->length == 0) {
         if (*draw_status || (line->is_dirty & (DRAW_LINE_SHRUNK | DRAW_LINE_REFRESH_DOWN))) {
-            wmove(text, y, 0);
-            wclrtoeol(text);
+            wmove(draw_win, win_info.start_y + y, win_info.start_x);
+            wclrtoeol(draw_win);
         }
 
         return 1;
     }
 
-    if (line_wrap) {
+    if (!line_wrap) {
         size_t col_no = 0;
         size_t index = 0;
         
@@ -231,20 +286,24 @@ static size_t draw_line(Line *line, size_t char_index, int y, LineDrawStatus *dr
     size_t scr_line_num = 0;
     size_t start_index = char_index;
     size_t char_byte_len;
+    size_t window_width = win_info.start_x + win_info.width;
 
-    while (draw_pos.offset < line->length && scr_line_num < text_y) {
-        wmove(text, y++, 0);
+    while (draw_pos.offset < line->length && scr_line_num < win_info.height) {
+        wmove(draw_win, win_info.start_y + y++, win_info.start_x);
         scr_line_num++;
 
-        for (size_t k = 0; k < text_x && draw_pos.offset < line->length; draw_pos.offset += char_byte_len, k++) {
+        for (size_t k = win_info.start_x; 
+             k < window_width && draw_pos.offset < line->length;
+             draw_pos.offset += char_byte_len, k++) {
+
             if (is_selection && bufferpos_in_range(select_range, draw_pos)) {
-                wattron(text, A_REVERSE);
+                wattron(draw_win, A_REVERSE);
             } else {
-                wattroff(text, A_REVERSE);
+                wattroff(draw_win, A_REVERSE);
             }
 
             char_byte_len = char_byte_length(line->text[draw_pos.offset]);
-            waddnstr(text, line->text + draw_pos.offset, char_byte_len);
+            waddnstr(draw_win, line->text + draw_pos.offset, char_byte_len);
         }
 
         if (!line_wrap) {
@@ -253,12 +312,12 @@ static size_t draw_line(Line *line, size_t char_index, int y, LineDrawStatus *dr
     }
 
     if (*draw_status || (line->is_dirty & (DRAW_LINE_SHRUNK | DRAW_LINE_REFRESH_DOWN))) {
-        wclrtoeol(text);  
+        wclrtoeol(draw_win);  
     }
 
-    if (scr_line_num < line_offset_screen_height(line, start_index, line->length)) {
-        wmove(text, y, 0);
-        wclrtoeol(text);
+    if (scr_line_num < line_offset_screen_height(win_info, line, start_index, line->length)) {
+        wmove(draw_win, win_info.start_y + y, win_info.start_x);
+        wclrtoeol(draw_win);
         scr_line_num++;
     }
 
@@ -270,14 +329,20 @@ static size_t draw_line(Line *line, size_t char_index, int y, LineDrawStatus *dr
  * needs to be reflected in the UI. */
 void update_display(Session *sess)
 {
-    draw_status(sess);
+    if (cmd_buffer_active(sess)) {
+        draw_prompt(sess);
+    } else {
+        draw_status(sess);
+    }
 
     Buffer *buffer = sess->active_buffer;
+    WindowInfo win_info = buffer->win_info;
     int line_wrap = config_bool("linewrap");
+    WINDOW *draw_win = windows[buffer->win_info.win_index];
 
     Point screen_start, cursor;
-    convert_pos_to_point(&screen_start, buffer->screen_start);
-    convert_pos_to_point(&cursor, buffer->pos);
+    convert_pos_to_point(&screen_start, win_info, buffer->screen_start);
+    convert_pos_to_point(&cursor, win_info, buffer->pos);
 
     vertical_scroll(buffer, &screen_start, cursor);
 
@@ -286,31 +351,33 @@ void update_display(Session *sess)
         horizontal_scroll(buffer, &screen_start, cursor);
     }
 
-    draw_text(sess, 0, line_wrap);
+    draw_buffer(sess, 0, line_wrap);
 
-    wmove(text, cursor.line_no - screen_start.line_no, cursor.col_no - screen_start.col_no);
-    wnoutrefresh(text);
+    size_t cursor_y = buffer->win_info.start_y + cursor.line_no - screen_start.line_no;
+    size_t cursor_x = buffer->win_info.start_x + cursor.col_no - screen_start.col_no;
+    wmove(draw_win, cursor_y, cursor_x);
+    wnoutrefresh(draw_win);
 
     doupdate();
 }
 
-static void convert_pos_to_point(Point *point, BufferPos pos)
+static void convert_pos_to_point(Point *point, WindowInfo win_info, BufferPos pos)
 {
-    point->line_no = screen_line_no(pos);
-    point->col_no = screen_col_no(pos);
+    point->line_no = screen_line_no(win_info, pos);
+    point->col_no = screen_col_no(win_info, pos);
 }
 
 /* Calculate the line number pos represents counting 
  * wrapped lines as whole lines */
-size_t screen_line_no(BufferPos pos)
+size_t screen_line_no(WindowInfo win_info, BufferPos pos)
 {
     size_t line_no = 0;
     Line *line = pos.line;
 
-    line_no += line_pos_screen_height(pos);
+    line_no += line_pos_screen_height(win_info, pos);
 
     while ((line = line->prev) != NULL) {
-        line_no += line_screen_height(line);
+        line_no += line_screen_height(win_info, line);
     }
 
     return line_no;
@@ -318,12 +385,12 @@ size_t screen_line_no(BufferPos pos)
 
 /* TODO This isn't generic, it assumes line wrapping is enabled. This 
  * may not be the case in future when horizontal scrolling is added. */
-size_t screen_col_no(BufferPos pos)
+size_t screen_col_no(WindowInfo win_info, BufferPos pos)
 {
     size_t screen_length = line_screen_length(pos.line, 0, pos.offset);
 
     if (config_bool("linewrap")) {
-        screen_length %= text_x;
+        screen_length %= win_info.width;
     }
 
     return screen_length; 
@@ -345,34 +412,34 @@ size_t line_screen_length(Line *line, size_t start_offset, size_t limit_offset)
     return screen_length;
 }
 
-size_t line_screen_height(Line *line)
+size_t line_screen_height(WindowInfo win_info, Line *line)
 {
-    return screen_height_from_screen_length(line->screen_length);
+    return screen_height_from_screen_length(win_info, line->screen_length);
 }
 
-size_t line_pos_screen_height(BufferPos pos)
+size_t line_pos_screen_height(WindowInfo win_info, BufferPos pos)
 {
     size_t screen_length = line_screen_length(pos.line, 0, pos.offset);
-    return screen_height_from_screen_length(screen_length);
+    return screen_height_from_screen_length(win_info, screen_length);
 }
 
-size_t line_offset_screen_height(Line *line, size_t start_offset, size_t limit_offset)
+size_t line_offset_screen_height(WindowInfo win_info, Line *line, size_t start_offset, size_t limit_offset)
 {
     size_t screen_length = line_screen_length(line, start_offset, limit_offset);
-    return screen_height_from_screen_length(screen_length);
+    return screen_height_from_screen_length(win_info, screen_length);
 }
 
 /* This calculates the number of lines that text, when displayed on the screen
  * takes up screen_length columns, takes up */
-size_t screen_height_from_screen_length(size_t screen_length)
+size_t screen_height_from_screen_length(WindowInfo win_info, size_t screen_length)
 {
     if (!config_bool("linewrap") || screen_length == 0) {
         return 1;
-    } else if ((screen_length % text_x) == 0) {
+    } else if ((screen_length % win_info.width) == 0) {
         screen_length++;
     }
 
-    return roundup_div(screen_length, text_x);
+    return roundup_div(screen_length, win_info.width);
 }
 
 /* The number of columns a byte takes up on the screen.
@@ -424,16 +491,6 @@ size_t char_byte_length(char c)
     return 0;
 }
 
-size_t editor_screen_width(void)
-{
-    return text_x;
-}
-
-size_t editor_screen_height(void)
-{
-    return text_y;
-}
-
 /* Determine if the screen needs to be scrolled and what parts need to be updated if so */
 static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
 {
@@ -452,17 +509,19 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
         return;
     }
 
+    WindowInfo win_info = buffer->win_info;
+
     if (direction == DIRECTION_DOWN) {
-        if (diff < text_y) {
+        if (diff < win_info.height) {
             return;
         }
 
-        diff -= (text_y - 1);
+        diff -= (win_info.height - 1);
 
-        size_t draw_start = diff % text_y;
+        size_t draw_start = diff % win_info.height;
 
         if (draw_start == 0) {
-            draw_start = text_y;
+            draw_start = win_info.height;
         }
 
         Line *line = get_line_from_offset(buffer->pos.line, DIRECTION_UP, draw_start - 1);
@@ -470,7 +529,7 @@ static void vertical_scroll(Buffer *buffer, Point *screen_start, Point cursor)
     }
 
     pos_change_multi_line(buffer, &buffer->screen_start, direction, diff, 0);
-    convert_pos_to_point(screen_start, buffer->screen_start);
+    convert_pos_to_point(screen_start, buffer->win_info, buffer->screen_start);
 
     if (direction == DIRECTION_UP) {
         buffer->screen_start.line->is_dirty |= DRAW_LINE_SCROLL_REFRESH_DOWN;
@@ -500,12 +559,14 @@ static void horizontal_scroll(Buffer *buffer, Point *screen_start, Point cursor)
         return;
     }
 
+    WindowInfo win_info = buffer->win_info;
+
     if (direction == DIRECTION_RIGHT) {
-        if (diff < text_x) {
+        if (diff < win_info.width) {
             return;
         }
 
-        diff -= (text_x - 1);
+        diff -= (win_info.width - 1);
 
         buffer->screen_start.offset += diff;
     } else {
