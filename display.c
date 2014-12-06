@@ -73,6 +73,9 @@ void init_display(void)
 
 void end_display(void)
 {
+    delwin(menu);
+    delwin(text);
+    delwin(status);
     endwin();
 }
 

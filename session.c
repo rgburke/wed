@@ -16,6 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <string.h>
 #include "session.h"
 #include "status.h"
 #include "util.h"
@@ -26,6 +27,8 @@
 Session *new_session(void)
 {
     Session *sess = alloc(sizeof(Session));
+    memset(sess, 0, sizeof(Session));
+
     sess->buffers = NULL;
     sess->active_buffer = NULL;
     sess->keymap = NULL;
@@ -108,7 +111,7 @@ void free_session(Session *sess)
     }
 
     free_error_queue(&sess->error_queue);
-    free_hashmap(sess->keymap);
+    free_keymap(sess);
     free_textselection(sess->clipboard);
     free_config(sess->config);
     free_buffer(sess->cmd_prompt.cmd_buffer);

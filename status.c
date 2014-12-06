@@ -111,6 +111,10 @@ Error *error_queue_remove(ErrorQueue *error_queue)
 
 void free_error_queue(ErrorQueue *error_queue)
 {
+    if (error_queue == NULL) {
+        return;
+    }
+
     while (!error_queue_empty(error_queue)) {
         free_error(error_queue_remove(error_queue));
     }

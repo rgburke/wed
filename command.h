@@ -35,6 +35,7 @@ typedef struct {
 } Command;
 
 int init_keymap(Session *);
+void free_keymap(Session *);
 Status do_command(Session *, const char *, int *);
 
 #endif

@@ -16,6 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <stdlib.h>
 #include <ncurses.h>
 #include <string.h>
 #include "shared.h"
@@ -28,6 +29,8 @@
 #include "hashmap.h"
 #include "util.h"
 #include "input.h"
+
+static void free_command(void *);
 
 static Status bufferpos_change_line(Session *, Value, const char *, int *);
 static Status bufferpos_change_char(Session *, Value, const char *, int *); 
@@ -105,9 +108,10 @@ int init_keymap(Session *sess)
         return 0;
     }
 
-    Command *command = alloc(sizeof(commands));
+    Command *command;
 
     for (size_t k = 0; k < command_num; k++, command++) {
+        command = alloc(sizeof(Command));
         memcpy(command, &commands[k], sizeof(Command));
 
         if (!hashmap_set(sess->keymap, command->keystr, command)) {
@@ -116,6 +120,23 @@ int init_keymap(Session *sess)
     }
 
     return 1;
+}
+
+static void free_command(void *command)
+{
+    if (command != NULL) {
+        free(command);
+    }
+}
+
+void free_keymap(Session *sess)
+{
+    if (sess == NULL || sess->keymap == NULL) {
+        return;
+    } 
+
+    free_hashmap_values(sess->keymap, free_command);
+    free_hashmap(sess->keymap);
 }
 
 Status do_command(Session *sess, const char *command_str, int *finished)
@@ -313,11 +334,13 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
         char *input = get_cmd_buffer_text(sess);
 
         if (input == NULL || strlen(input) == 0) {
+            Status status = raise_param_error(ERR_INVALID_FILE_PATH, STR_VAL(input));
             free(input);
-            return raise_param_error(ERR_INVALID_FILE_PATH, STR_VAL(input));
+            return status;
         }
 
         set_buffer_file_path(sess->active_buffer, input);        
+        free(input);
     }
 
     return write_buffer(sess->active_buffer);

@@ -158,9 +158,10 @@ void free_config(HashMap *config)
 static int populate_default_config(HashMap *config)
 {
     size_t var_num = sizeof(default_config) / sizeof(ConfigVariableDescriptor);
-    ConfigVariableDescriptor *clone = alloc(sizeof(default_config));
+    ConfigVariableDescriptor *clone;
 
     for (size_t k = 0; k < var_num; k++, clone++) {
+        clone = alloc(sizeof(ConfigVariableDescriptor));
         memcpy(clone, &default_config[k], sizeof(ConfigVariableDescriptor));
         clone->default_value = deep_copy_value(clone->default_value);
 
