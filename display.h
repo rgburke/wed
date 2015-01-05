@@ -63,7 +63,6 @@ void update_display(Session *);
 size_t screen_line_no(WindowInfo, BufferPos);
 size_t screen_col_no(WindowInfo, BufferPos);
 size_t byte_screen_length(char, Line *, size_t);
-size_t char_byte_length(char);
 size_t line_screen_length(Line *, size_t, size_t);
 size_t line_screen_height(WindowInfo, Line *);
 size_t line_pos_screen_height(WindowInfo, BufferPos);

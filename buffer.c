@@ -28,6 +28,7 @@
 #include "display.h"
 #include "file.h"
 #include "config.h"
+#include "encoding.h"
 
 static void reset_buffer(Buffer *);
 static Line *add_to_buffer(const char *, size_t, Line *, int);
@@ -51,6 +52,8 @@ Buffer *new_buffer(FileInfo file_info)
     buffer->next = NULL;
     buffer->line_col_offset = 0;
     buffer->config = new_hashmap();
+    buffer->encoding_type = ENC_UTF8;
+    init_char_enc_funcs(buffer->encoding_type, &buffer->cef);
 
     return buffer;
 }
@@ -552,9 +555,9 @@ size_t range_length(Buffer *buffer, Range range)
 }
 
 /* TODO Consider UTF-8 punctuation and whitespace */
-CharacterClass character_class(const char *character)
+CharacterClass character_class(Buffer *buffer, const char *character, size_t offset, size_t length)
 {
-    if (char_byte_length(*character) == 1) {
+    if (buffer->cef.char_byte_length(character, offset, length) == 1) {
         if (isspace(*character)) {
             return CCLASS_WHITESPACE;
         } else if (ispunct(*character)) {
@@ -757,16 +760,8 @@ static Status pos_change_real_line(Buffer *buffer, BufferPos *pos, Direction dir
     }
 
     Line *line = pos->line;
-    size_t current_screen_offset = line_screen_length(line, 0, pos->offset);
-    size_t new_screen_offset = 0;
-
     pos->line = line = (direction == DIRECTION_DOWN ? line->next : line->prev);
     pos->offset = 0;
-
-    while (pos->offset < line->length && new_screen_offset < current_screen_offset) {
-        new_screen_offset += byte_screen_length(line->text[pos->offset], line, pos->offset); 
-        pos->offset++;
-    }
 
     if (is_cursor) {
         return advance_pos_to_line_offset(buffer, pos, is_select);
@@ -937,13 +932,12 @@ Status pos_change_char(Buffer *buffer, BufferPos *pos, Direction direction, int 
         pos->line = line = line->next; 
         pos->offset = 0;
     } else {
-        pos->offset += DIRECTION_OFFSET(direction);
+        if (direction == DIRECTION_LEFT) {
+            pos->offset -= buffer->cef.previous_char_offset(pos->line->text + pos->offset, pos->offset); 
+        } else {
+            pos->offset += buffer->cef.char_byte_length(pos->line->text + pos->offset, pos->offset, pos->line->length);
+        }
     }
-
-    /* Ensure we're not on a continuation byte */
-    while (!byte_screen_length(line->text[pos->offset], line, pos->offset) &&
-           pos->offset < line->length &&
-           (pos->offset += DIRECTION_OFFSET(direction)) > 0) ;
 
     if (is_cursor) {
         update_line_col_offset(buffer, pos);
@@ -1039,16 +1033,16 @@ Status pos_to_next_word(Buffer *buffer, int is_select)
     BufferPos *pos = &buffer->pos;
     Status status;
 
-    CharacterClass start_class = character_class(pos_character(buffer));
+    CharacterClass start_class = character_class(buffer, pos_character(buffer), pos->offset, pos->line->length);
 
     do {
         status = pos_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
     } while (!bufferpos_at_buffer_end(buffer->pos) &&
-             start_class == character_class(pos_character(buffer)));
+             start_class == character_class(buffer, pos_character(buffer), pos->offset, pos->line->length));
 
     while (!bufferpos_at_buffer_extreme(buffer->pos) &&
-           character_class(pos_character(buffer)) == CCLASS_WHITESPACE) {
+           character_class(buffer, pos_character(buffer), pos->offset, pos->line->length) == CCLASS_WHITESPACE) {
 
         if (bufferpos_at_line_end(buffer->pos)) {
             break;
@@ -1073,12 +1067,14 @@ Status pos_to_prev_word(Buffer *buffer, int is_select)
         status = pos_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
     } while (!bufferpos_at_buffer_start(buffer->pos) &&
-             character_class(pos_character(buffer)) == CCLASS_WHITESPACE);
+             character_class(buffer, pos_character(buffer), pos->offset, pos->line->length) == CCLASS_WHITESPACE);
 
-    CharacterClass start_class = character_class(pos_character(buffer));
+    CharacterClass start_class = character_class(buffer, pos_character(buffer), pos->offset, pos->line->length);
 
     while (!bufferpos_at_buffer_start(buffer->pos) &&
-           start_class == character_class(pos_offset_character(buffer, DIRECTION_LEFT, 1))) {
+           start_class == character_class(buffer, pos_offset_character(buffer, DIRECTION_LEFT, 1), 
+                          pos->offset, pos->line->length)
+          ) {
 
         status = pos_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
@@ -1154,10 +1150,10 @@ Status insert_character(Buffer *buffer, const char *character)
     size_t char_len = 0;
     
     if (character != NULL) {
-        char_len = strnlen(character, 7);
+        char_len = strnlen(character, 5);
     }
 
-    if (char_len == 0 || char_len > 6) {
+    if (char_len == 0 || char_len > 4) {
         char *character_copy = strdupe(character);
         Status status = raise_param_error(ERR_INVALID_CHARACTER, STR_VAL(character_copy));
         free(character_copy);
@@ -1274,7 +1270,7 @@ Status delete_character(Buffer *buffer)
         return STATUS_SUCCESS;
     }
 
-    size_t char_byte_len = char_byte_length(line->text[pos->offset]);
+    size_t char_byte_len = buffer->cef.char_byte_length(line->text + pos->offset, pos->offset, pos->line->length);
     size_t screen_length = byte_screen_length(line->text[pos->offset], line, pos->offset);
 
     if (pos->offset != (line->length - 1)) {

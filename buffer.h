@@ -24,6 +24,7 @@
 #include "status.h"
 #include "file.h"
 #include "hashmap.h"
+#include "encoding.h"
 
 #define FILE_BUF_SIZE 512
 #define LINE_ALLOC 32
@@ -96,6 +97,8 @@ struct Buffer {
     size_t line_col_offset; /* Global cursor line offset */
     WindowInfo win_info; /* Window dimension info */
     HashMap *config; /* Stores config variables */
+    CharacterEncodingType encoding_type;
+    CharacterEncodingFunctions cef;
 };
 
 typedef struct {
@@ -138,7 +141,7 @@ BufferPos bufferpos_max(BufferPos, BufferPos);
 int get_selection_range(Buffer *, Range *);
 int bufferpos_in_range(Range, BufferPos);
 size_t range_length(Buffer *, Range);
-CharacterClass character_class(const char *);
+CharacterClass character_class(Buffer *, const char *, size_t, size_t);
 const char *pos_character(Buffer *);
 const char *pos_offset_character(Buffer *, Direction, size_t);
 char *get_line_segment(Line *, size_t, size_t);

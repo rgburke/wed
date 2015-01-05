@@ -36,7 +36,7 @@ static size_t text_x;
 
 static void draw_prompt(Session *);
 static void handle_draw_status(Line *, LineDrawStatus *);
-static size_t draw_line(Line *, size_t, int, LineDrawStatus *, int, Range, int, WindowInfo);
+static size_t draw_line(Buffer *buffer, Line *, size_t, int, LineDrawStatus *, int, Range, int, WindowInfo);
 static void convert_pos_to_point(Point *, WindowInfo, BufferPos);
 static void vertical_scroll(Buffer *, Point *, Point);
 static void horizontal_scroll(Buffer *buffer, Point *screen_start, Point cursor);
@@ -202,7 +202,7 @@ void draw_buffer(Session *sess, LineDrawStatus draw_status, int line_wrap)
         line = line->next;
     }
 
-    line_count += draw_line(line, horizontal_offset, line_count, &draw_status,
+    line_count += draw_line(buffer, line, horizontal_offset, line_count, &draw_status,
                             is_selection, select_range, line_wrap, buffer->win_info);
 
     handle_draw_status(line, &draw_status);
@@ -214,7 +214,7 @@ void draw_buffer(Session *sess, LineDrawStatus draw_status, int line_wrap)
     }
 
     while (line_count < line_num && line != NULL) {
-        line_count += draw_line(line, horizontal_offset, line_count, &draw_status,
+        line_count += draw_line(buffer, line, horizontal_offset, line_count, &draw_status,
                                 is_selection, select_range, line_wrap, buffer->win_info);
 
         handle_draw_status(line, &draw_status);
@@ -247,7 +247,7 @@ void draw_buffer(Session *sess, LineDrawStatus draw_status, int line_wrap)
     }
 }
 
-static size_t draw_line(Line *line, size_t char_index, int y, LineDrawStatus *draw_status, 
+static size_t draw_line(Buffer *buffer, Line *line, size_t char_index, int y, LineDrawStatus *draw_status, 
                         int is_selection, Range select_range, int line_wrap, WindowInfo win_info)
 {
     WINDOW *draw_win = windows[win_info.win_index];
@@ -274,7 +274,7 @@ static size_t draw_line(Line *line, size_t char_index, int y, LineDrawStatus *dr
         size_t index = 0;
         
         while (col_no < char_index && index < line->length) {
-            index += char_byte_length(line->text[index]);
+            index += buffer->cef.char_byte_length(line->text + index, index, line->length);
             col_no++;
         }
 
@@ -305,7 +305,7 @@ static size_t draw_line(Line *line, size_t char_index, int y, LineDrawStatus *dr
                 wattroff(draw_win, A_REVERSE);
             }
 
-            char_byte_len = char_byte_length(line->text[draw_pos.offset]);
+            char_byte_len = buffer->cef.char_byte_length(line->text + draw_pos.offset, draw_pos.offset, line->length);
             waddnstr(draw_win, line->text + draw_pos.offset, char_byte_len);
         }
 
@@ -408,6 +408,10 @@ size_t line_screen_length(Line *line, size_t start_offset, size_t limit_offset)
         return screen_length;
     }
 
+    /*while (start_offset < limit_offset && start_offset < line->length) {
+        
+    }*/
+
     for (size_t k = start_offset; k < line->length && k < limit_offset; k++) {
         screen_length += byte_screen_length(line->text[k], line, k);
     }
@@ -461,37 +465,6 @@ size_t byte_screen_length(char c, Line *line, size_t offset)
     }
 
     return ((c & 0xc0) != 0x80);
-}
-
-/* The length in bytes of a character 
- * (assumes we're on the first byte of the character) */
-size_t char_byte_length(char c)
-{
-    if (!(c & 0x80)) {
-        return 1;
-    }
-
-    if ((c & 0xFC) == 0xFC) {
-        return 6;
-    }
-
-    if ((c & 0xF8) == 0xF8) {
-        return 5;
-    }
-
-    if ((c & 0xF0) == 0xF0) {
-        return 4;
-    }
-
-    if ((c & 0xE0) == 0xE0) {
-        return 3;
-    }
-
-    if ((c & 0xC0) == 0xC0) {
-        return 2;
-    }
-
-    return 0;
 }
 
 /* Determine if the screen needs to be scrolled and what parts need to be updated if so */
