@@ -57,12 +57,11 @@ typedef struct Buffer Buffer;
 /* Each line of a buffer is stored in a Line structure */
 struct Line {
     char *text; /* Where the actual line content is stored */
+    Line *prev; /* NULL if this is the first line in the buffer */
+    Line *next; /* NULL if this is the last line in the buffer */
     size_t length; /* The number of bytes of text used */
     size_t screen_length; /* The number of columns on the screen text uses */
     size_t alloc_num; /* alloc_num * LINE_ALLOC = bytes allocated for text */
-    int is_dirty; /* Does this line need to be redrawn */
-    Line *prev; /* NULL if this is the first line in the buffer */
-    Line *next; /* NULL if this is the last line in the buffer */
 };
 
 /* Represent a position in a buffer */
