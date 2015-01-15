@@ -66,10 +66,14 @@ struct Line {
 };
 
 /* Represent a position in a buffer */
-typedef struct {
+struct BufferPos {
     Line *line;
     size_t offset;
-} BufferPos;
+    size_t line_no;
+    size_t col_no;
+};
+
+typedef struct BufferPos BufferPos;
 
 /* Represent selected text in a buffer,
  * start is inclusive, end is exclusive */
@@ -116,7 +120,7 @@ Line *new_line(void);
 Line *new_sized_line(size_t);
 void free_line(Line *);
 int init_bufferpos(BufferPos *);
-TextSelection *new_textselection(Range);
+TextSelection *new_textselection(Buffer *, Range);
 void free_textselection(TextSelection *);
 Line *clone_line(Line *line);
 void resize_line_text(Line *, size_t);
@@ -130,24 +134,22 @@ char *get_buffer_as_string(Buffer *);
 int buffer_file_exists(Buffer *);
 int has_file_path(Buffer *);
 int set_buffer_file_path(Buffer *, const char *);
-size_t get_pos_line_number(Buffer *);
-size_t get_bufferpos_line_number(BufferPos);
-size_t get_pos_col_number(Buffer *);
 Line *get_line_from_offset(Line *, Direction, size_t);
-int offset_compare(size_t, size_t);
 int bufferpos_compare(BufferPos, BufferPos);
 BufferPos bufferpos_min(BufferPos, BufferPos);
 BufferPos bufferpos_max(BufferPos, BufferPos);
 int get_selection_range(Buffer *, Range *);
 int bufferpos_in_range(Range, BufferPos);
 size_t range_length(Buffer *, Range);
-CharacterClass character_class(Buffer *, const char *, size_t, size_t);
+CharacterClass character_class(Buffer *, BufferPos);
 const char *pos_character(Buffer *);
 const char *pos_offset_character(Buffer *, Direction, size_t);
 char *get_line_segment(Line *, size_t, size_t);
-Line *clone_line_segment(Line *, size_t, size_t);
+Line *clone_line_segment(Buffer *, BufferPos, BufferPos);
 int bufferpos_at_line_start(BufferPos);
+int bufferpos_at_screen_line_start(BufferPos, WindowInfo);
 int bufferpos_at_line_end(BufferPos);
+int bufferpos_at_screen_line_end(BufferPos, WindowInfo);
 int bufferpos_at_first_line(BufferPos);
 int bufferpos_at_last_line(BufferPos);
 int bufferpos_at_buffer_start(BufferPos);
@@ -159,6 +161,8 @@ Status pos_change_line(Buffer *, BufferPos *, Direction, int);
 Status pos_change_multi_line(Buffer *, BufferPos *, Direction, size_t, int);
 Status pos_change_char(Buffer *, BufferPos *, Direction, int);
 Status pos_change_multi_char(Buffer *, BufferPos *, Direction, size_t, int);
+Status bpos_to_line_start(Buffer *, BufferPos *, int, int);
+Status bpos_to_screen_line_start(Buffer *, BufferPos *, int, int);
 Status pos_to_line_start(Buffer *, int);
 Status pos_to_line_end(Buffer *, int);
 Status pos_to_next_word(Buffer *, int);

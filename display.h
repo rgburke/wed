@@ -44,29 +44,14 @@ typedef enum {
     WIN_STATUS
 } DrawWindow;
 
-/* A screen representation of a BufferPos in terms of a line and column number.
- * This includes counting wrapped lines as lines in their own right. */
-typedef struct {
-    size_t line_no;
-    size_t col_no;
-} Point;
-
 void init_display(void);
 void end_display(void);
 void init_all_window_info(Session *);
 void init_window_info(WindowInfo *);
-void refresh_display(Session *);
-void draw_menu(Session *sess);
-void draw_status(Session *);
-void draw_buffer(Session *, LineDrawStatus, int);
 void update_display(Session *);
-size_t screen_line_no(WindowInfo, BufferPos);
 size_t screen_col_no(WindowInfo, BufferPos);
-size_t byte_screen_length(char, Line *, size_t);
-size_t line_screen_length(Line *, size_t, size_t);
+size_t line_screen_length(Buffer *, BufferPos, size_t);
 size_t line_screen_height(WindowInfo, Line *);
-size_t line_pos_screen_height(WindowInfo, BufferPos);
-size_t line_offset_screen_height(WindowInfo, Line *, size_t, size_t);
 size_t screen_height_from_screen_length(WindowInfo, size_t);
 
 #endif

@@ -21,6 +21,7 @@
 
 #include <stddef.h>
 
+struct BufferPos;
 typedef unsigned int uint;
 typedef unsigned char uchar;
 
@@ -28,10 +29,20 @@ typedef enum {
     ENC_UTF8
 } CharacterEncodingType;
 
+typedef enum {
+    CIP_DEFAULT,
+    CIP_SCREEN_LENGTH   
+} CharInfoProperties;
+
 typedef struct {
-    uint (*char_byte_length)(const char *, size_t, size_t);
-    uint (*char_screen_length)(const char *, size_t, size_t, int *);
-    uint (*previous_char_offset)(const char *, size_t);
+    int is_valid;
+    size_t byte_length;
+    size_t screen_length;
+} CharInfo;
+
+typedef struct {
+    int (*char_info)(CharInfo *, CharInfoProperties, struct BufferPos);
+    size_t (*previous_char_offset)(const char *, size_t);
 } CharacterEncodingFunctions;
 
 int init_char_enc_funcs(CharacterEncodingType, CharacterEncodingFunctions *);

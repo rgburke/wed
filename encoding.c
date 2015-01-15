@@ -18,21 +18,23 @@
 
 #define _XOPEN_SOURCE
 #include <stddef.h>
+#include <string.h>
 #include <wchar.h>
-#include "encoding.h"
+#include "buffer.h"
 
 #include "unicode.c"
 
-static uint utf8_char_byte_length(const char *, size_t, size_t);
-static uint utf8_char_screen_length(const char *, size_t, size_t, int *);
-static uint utf8_previous_char_offset(const char *, size_t);
+/* TODO make this configurable */
+#define WED_TAB_SIZE 8
+
+static int utf8_char_info(CharInfo *, CharInfoProperties, BufferPos);
+static size_t utf8_previous_char_offset(const char *, size_t);
 static int utf8_is_valid_character(const uchar *, size_t, size_t, size_t *);
 static uint utf8_code_point(const uchar *, uint);
 static int utf8_is_combining_char(uint);
 
 static const CharacterEncodingFunctions utf8_character_encoding_functions = {
-    utf8_char_byte_length,
-    utf8_char_screen_length,
+    utf8_char_info,
     utf8_previous_char_offset
 };
 
@@ -53,33 +55,55 @@ int init_char_enc_funcs(CharacterEncodingType type, CharacterEncodingFunctions *
     return 1;
 }
 
-static uint utf8_char_byte_length(const char *character, size_t offset, size_t length)
+static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos pos)
 {
-    const uchar *ch = (const uchar *)character;
-    size_t char_byte_length;
+    if (char_info == NULL) {
+        return 0;
+    }
 
-    if (!utf8_is_valid_character(ch, offset, length, &char_byte_length)) {
+    memset(char_info, 0, sizeof(CharInfo));
+    const uchar *ch = (const uchar *)(pos.line->text + pos.offset);
+
+    if (utf8_is_valid_character(ch, pos.offset, pos.line->length, &char_info->byte_length)) {
+        char_info->is_valid = 1;
+    } else {
+        char_info->screen_length = 1;
         return 1;
     }
 
     const uchar *next;
     size_t next_byte_length;
 
-    while (offset + char_byte_length < length) {
-        next = ch + char_byte_length;
+    while (pos.offset + char_info->byte_length < pos.line->length) {
+        next = ch + char_info->byte_length;
 
-        if (!utf8_is_valid_character(next, offset + char_byte_length, length, &next_byte_length)) {
+        if (!utf8_is_valid_character(next, pos.offset + char_info->byte_length, pos.line->length, &next_byte_length)) {
             break;
         }
            
         if (utf8_is_combining_char(utf8_code_point(next, next_byte_length))) {
-            char_byte_length += next_byte_length;
+            char_info->byte_length += next_byte_length;
         } else {
             break;
         }
     }
 
-    return char_byte_length;
+    if (cip & CIP_SCREEN_LENGTH) {
+        if (*ch == '\t') {
+            char_info->screen_length = WED_TAB_SIZE - ((pos.col_no - 1) % WED_TAB_SIZE);
+        } else {
+            uint code_point = utf8_code_point(ch, char_info->byte_length);    
+            int screen_length = wcwidth(code_point);
+
+            if (screen_length < 0) {
+                /* TODO Unprintable */
+            } else {
+                char_info->screen_length = screen_length;
+            }
+        }
+    }
+
+    return 1;
 }
 
 static int utf8_is_valid_character(const uchar *character, size_t offset, 
@@ -125,30 +149,6 @@ static int utf8_is_valid_character(const uchar *character, size_t offset,
     }
 
     return 1;
-}
-
-static uint utf8_char_screen_length(const char *character, size_t offset, size_t length, int *is_valid)
-{
-    size_t char_byte_length;
-    const uchar *ch = (const uchar *)character;
-    int valid = utf8_is_valid_character(ch, offset, length, &char_byte_length);
-
-    if (is_valid != NULL) {
-        *is_valid = valid;
-    }
-
-    if (!valid) {
-        return 1;
-    }
-
-    uint code_point = utf8_code_point(ch, char_byte_length);    
-    int screen_length = wcwidth(code_point);
-
-    if (screen_length < 0) {
-        /* Unprintable */
-    }
-
-    return screen_length;
 }
 
 /* Must pass valid character */
@@ -197,7 +197,7 @@ static int utf8_is_combining_char(uint code_point)
     return 0;
 }
 
-static uint utf8_previous_char_offset(const char *character, size_t offset)
+static size_t utf8_previous_char_offset(const char *character, size_t offset)
 {
     if (offset == 0) {
         return 0;

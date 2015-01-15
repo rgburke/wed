@@ -41,7 +41,7 @@ void edit(Session *sess)
 
     init_display();
     init_all_window_info(sess);
-    refresh_display(sess);
+    update_display(sess);
 
     process_input(sess);
 

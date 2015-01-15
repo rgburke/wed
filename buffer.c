@@ -31,14 +31,15 @@
 #include "encoding.h"
 
 static void reset_buffer(Buffer *);
-static Line *add_to_buffer(const char *, size_t, Line *, int);
+static Line *add_to_buffer(Buffer *, BufferPos *, const char *, size_t, int);
 static int is_selection(Direction *);
 static void default_movement_selection_handler(Buffer *, int, Direction *);
 static Status pos_change_real_line(Buffer *, BufferPos *, Direction, int);
 static Status pos_change_screen_line(Buffer *, BufferPos *, Direction, int);
 static Status advance_pos_to_line_offset(Buffer *, BufferPos *, int);
 static void update_line_col_offset(Buffer *, BufferPos *);
-static Status delete_line_segment(Line *, size_t, size_t);
+static BufferPos to_line_start(BufferPos);
+static Status delete_line_segment(Buffer *, BufferPos, BufferPos);
 
 Buffer *new_buffer(FileInfo file_info)
 {
@@ -128,11 +129,13 @@ int init_bufferpos(BufferPos *pos)
 
     pos->line = NULL;
     pos->offset = 0;
+    pos->line_no = 1;
+    pos->col_no = 1;
 
     return 1;
 }
 
-TextSelection *new_textselection(Range range)
+TextSelection *new_textselection(Buffer *buffer, Range range)
 {
     TextSelection *text_selection = alloc(sizeof(TextSelection));
 
@@ -141,7 +144,9 @@ TextSelection *new_textselection(Range range)
         text_selection->text.string = get_line_segment(range.start.line, range.start.offset, range.end.offset);
     } else {
         text_selection->type = TST_LINE;
-        Line *line = text_selection->text.lines = clone_line_segment(range.start.line, range.start.offset, range.start.line->length);
+        BufferPos line_end = range.start;
+        line_end.offset = line_end.line->length;
+        Line *line = text_selection->text.lines = clone_line_segment(buffer, range.start, line_end);
         line->prev = NULL;
         Line *prev = line;
 
@@ -152,7 +157,8 @@ TextSelection *new_textselection(Range range)
             prev = line;
         }
 
-        line = clone_line_segment(range.end.line, 0, range.end.offset); 
+        BufferPos line_start = to_line_start(range.end);
+        line = clone_line_segment(buffer, line_start, range.end); 
         prev->next = line;
         line->prev = prev;
         line->next = NULL;
@@ -244,8 +250,9 @@ Status clear_buffer(Buffer *buffer)
 static void reset_buffer(Buffer *buffer)
 {
     buffer->lines = new_line();
+    init_bufferpos(&buffer->pos);
+    init_bufferpos(&buffer->screen_start);
     buffer->pos.line = buffer->screen_start.line = buffer->lines;
-    buffer->pos.offset = buffer->screen_start.offset = 0;
     buffer->line_col_offset = 0;
     select_reset(buffer);
 }
@@ -268,7 +275,9 @@ Status load_buffer(Buffer *buffer)
 
     char buf[FILE_BUF_SIZE];
     size_t read;
-    Line *line = buffer->lines = new_line();
+    BufferPos pos;
+    init_bufferpos(&pos);
+    Line *line = pos.line = buffer->lines = new_line();
 
     while ((read = fread(buf, sizeof(char), FILE_BUF_SIZE, input_file)) > 0) {
         if (read != FILE_BUF_SIZE && ferror(input_file)) {
@@ -276,12 +285,12 @@ Status load_buffer(Buffer *buffer)
             return raise_param_error(ERR_UNABLE_TO_READ_FILE, STR_VAL(buffer->file_info.file_name));
         } 
 
-        line = add_to_buffer(buf, read, line, read < FILE_BUF_SIZE);
+        line = add_to_buffer(buffer, &pos, buf, read, read < FILE_BUF_SIZE);
     }
 
     fclose(input_file);
 
-    line->screen_length = line_screen_length(line, 0, line->length);
+    line->screen_length = line_screen_length(buffer, pos, line->length);
 
     if (buffer->lines) {
         buffer->pos.line = buffer->screen_start.line = buffer->lines;
@@ -291,22 +300,23 @@ Status load_buffer(Buffer *buffer)
 }
 
 /* Used when loading a file into a buffer */
-static Line *add_to_buffer(const char buffer[], size_t bsize, Line *line, int eof)
+static Line *add_to_buffer(Buffer *buffer, BufferPos *pos, const char buf[], size_t bsize, int eof)
 {
     size_t idx = 0;
+    Line *line = pos->line;
 
     while (idx < bsize) {
         if (line->length > 0 && ((line->length % LINE_ALLOC) == 0)) {
             resize_line_text(line, line->length + LINE_ALLOC);
         }
 
-        if (buffer[idx] == '\n' && !(eof && idx == (bsize - 1))) {
-            line->screen_length = line_screen_length(line, 0, line->length);
+        if (buf[idx] == '\n' && !(eof && idx == (bsize - 1))) {
+            line->screen_length = line_screen_length(buffer, *pos, line->length);
             line->next = new_line();
             line->next->prev = line;
-            line = line->next;
+            pos->line = line = line->next;
         } else {
-            line->text[line->length++] = buffer[idx];
+            line->text[line->length++] = buf[idx];
         }
 
         idx++;
@@ -437,67 +447,32 @@ int set_buffer_file_path(Buffer *buffer, const char *file_path)
     return set_file_path(&buffer->file_info, file_path);
 }
 
-size_t get_pos_line_number(Buffer *buffer)
-{
-    return get_bufferpos_line_number(buffer->pos);
-}
-
-size_t get_bufferpos_line_number(BufferPos pos)
-{
-    size_t line_num = 1;
-    Line *line = pos.line;
-
-    while ((line = line->prev) != NULL) {
-        line_num++;
-    }
-
-    return line_num;
-}
-
-size_t get_pos_col_number(Buffer *buffer)
-{
-    BufferPos pos = buffer->pos;
-    size_t col_no = line_screen_length(pos.line, 0, pos.offset);
-    return col_no + 1;
-}
-
 Line *get_line_from_offset(Line *line, Direction direction, size_t offset)
 {
     if (offset == 0 || line == NULL) {
         return line;
     }
 
-    Line *next;
-
     if (direction == DIRECTION_DOWN) {
-        while ((next = line->next) != NULL && offset-- > 0) {
-            line = next;
+        while (line->next != NULL && offset-- > 0) {
+            line = line->next;
         }
     } else if (direction == DIRECTION_UP) {
-        while ((next = line->prev) != NULL && offset-- > 0) {
-            line = next;
+        while (line->prev != NULL && offset-- > 0) {
+            line = line->prev;
         }
     }
 
     return line;
 }
 
-int offset_compare(size_t offset1, size_t offset2)
-{
-    return (offset1 < offset2 ? -1 : offset1 > offset2);
-}
-
-/* TODO This could be optimized. It's pretty heavy going as it is. */
 int bufferpos_compare(BufferPos pos1, BufferPos pos2)
 {
-    if (pos1.line == pos2.line) {
-        return offset_compare(pos1.offset, pos2.offset);
+    if (pos1.line_no == pos2.line_no) {
+        return (pos1.col_no < pos2.col_no ? -1 : pos1.col_no > pos2.col_no);
     }
 
-    size_t pos1_line_no = get_bufferpos_line_number(pos1);
-    size_t pos2_line_no = get_bufferpos_line_number(pos2);
-
-    return (pos1_line_no < pos2_line_no ? -1 : 1);
+    return (pos1.line_no < pos2.line_no ? -1 : pos1.line_no > pos2.line_no);
 }
 
 BufferPos bufferpos_min(BufferPos pos1, BufferPos pos2)
@@ -532,7 +507,6 @@ int get_selection_range(Buffer *buffer, Range *range)
     return 1;
 }
 
-/* TODO This could also be optimized */
 int bufferpos_in_range(Range range, BufferPos pos)
 {
     if (bufferpos_compare(pos, range.start) < 0 || bufferpos_compare(pos, range.end) >= 0) {
@@ -555,12 +529,17 @@ size_t range_length(Buffer *buffer, Range range)
 }
 
 /* TODO Consider UTF-8 punctuation and whitespace */
-CharacterClass character_class(Buffer *buffer, const char *character, size_t offset, size_t length)
+CharacterClass character_class(Buffer *buffer, BufferPos pos)
 {
-    if (buffer->cef.char_byte_length(character, offset, length) == 1) {
-        if (isspace(*character)) {
+    CharInfo char_info;
+    buffer->cef.char_info(&char_info, CIP_DEFAULT, pos);
+
+    if (char_info.byte_length == 1) {
+        char character = *(pos.line->text + pos.offset);
+
+        if (isspace(character)) {
             return CCLASS_WHITESPACE;
-        } else if (ispunct(*character)) {
+        } else if (ispunct(character)) {
             return CCLASS_PUNCTUATION;
         }
     }
@@ -611,27 +590,30 @@ char *get_line_segment(Line *line, size_t start_offset, size_t end_offset)
     return text;
 }
 
-/* start_offset is inclusive, end_offset is exclusive */
-Line *clone_line_segment(Line *line, size_t start_offset, size_t end_offset)
+/* start is inclusive, end is exclusive */
+Line *clone_line_segment(Buffer *buffer, BufferPos start, BufferPos end)
 {
-    if ((start_offset >= line->length || end_offset <= start_offset) &&
+    Line *line = start.line;
+
+    if (start.line != end.line || ((start.offset >= line->length || end.offset <= start.offset) &&
         /* Allow empty lines */
-        end_offset - start_offset != 0) {
+        end.offset - start.offset != 0)) {
         return NULL;
     }
 
-    end_offset = (end_offset > line->length ? line->length : end_offset);
-    size_t bytes_to_copy = end_offset - start_offset;
+    end.offset = (end.offset > line->length ? line->length : end.offset);
+    size_t bytes_to_copy = end.offset - start.offset;
 
     Line *clone = alloc(sizeof(Line));
     *clone = *line;
     clone->alloc_num = (bytes_to_copy / LINE_ALLOC) + 1;
     clone->text = alloc(clone->alloc_num * LINE_ALLOC);
     clone->length = bytes_to_copy;
-    clone->screen_length = line_screen_length(line, start_offset, end_offset);
+    start.col_no = 1;
+    clone->screen_length = line_screen_length(buffer, start, end.offset);
 
     if (bytes_to_copy > 0) {
-        memcpy(clone->text, line->text + start_offset, bytes_to_copy);
+        memcpy(clone->text, line->text + start.offset, bytes_to_copy);
     }
 
     return clone;
@@ -642,9 +624,27 @@ int bufferpos_at_line_start(BufferPos pos)
     return pos.offset == 0;
 }
 
+int bufferpos_at_screen_line_start(BufferPos pos, WindowInfo win_info)
+{
+    if (config_bool("linewrap")) {
+        return ((pos.col_no - 1) % win_info.width) == 0;
+    }
+
+    return bufferpos_at_line_start(pos);
+}
+
 int bufferpos_at_line_end(BufferPos pos)
 {
     return pos.line->length == pos.offset;
+}
+
+int bufferpos_at_screen_line_end(BufferPos pos, WindowInfo win_info)
+{
+    if (config_bool("linewrap")) {
+        return (pos.col_no % win_info.width) == 0;
+    }
+
+    return bufferpos_at_line_end(pos);
 }
 
 int bufferpos_at_first_line(BufferPos pos)
@@ -759,9 +759,16 @@ static Status pos_change_real_line(Buffer *buffer, BufferPos *pos, Direction dir
         return STATUS_SUCCESS;
     }
 
-    Line *line = pos->line;
-    pos->line = line = (direction == DIRECTION_DOWN ? line->next : line->prev);
+    if (direction == DIRECTION_DOWN) {
+        pos->line_no++;
+        pos->line = pos->line->next;
+    } else {
+        pos->line_no--;
+        pos->line = pos->line->prev;
+    }
+
     pos->offset = 0;
+    pos->col_no = 1;
 
     if (is_cursor) {
         return advance_pos_to_line_offset(buffer, pos, is_select);
@@ -801,15 +808,17 @@ static Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction d
     }
 
     Line *start_line = pos->line;
-    size_t screen_line = line_pos_screen_height(buffer->win_info, *pos);
+    size_t screen_line = screen_height_from_screen_length(buffer->win_info, pos->col_no - 1);
     size_t screen_lines = line_screen_height(buffer->win_info, pos->line);
     int break_on_hardline = screen_lines > 1 && (screen_line + DIRECTION_OFFSET(direction)) > 0 && screen_line < screen_lines;
     size_t cols, col_num;
     cols = col_num = buffer->win_info.width;
+    CharInfo char_info;
     Status status;
 
     while (cols > 0 && cols <= col_num) {
-        cols -= byte_screen_length(pos->line->text[pos->offset], pos->line, pos->offset);
+        buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
+        cols -= char_info.screen_length;
         status = pos_change_char(buffer, pos, pos_direction, 0);
 
         if (!is_success(status)) {
@@ -842,9 +851,8 @@ static Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction d
 static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos, int is_select)
 {
     size_t global_col_offset = buffer->line_col_offset;
-    size_t current_col_offset = screen_col_no(buffer->win_info, *pos);
+    size_t current_col_offset = screen_col_no(buffer->win_info, *pos) - 1;
     Direction direction = DIRECTION_RIGHT;
-    Status status;
 
     if (is_select) {
         direction |= DIRECTION_WITH_SELECT;
@@ -853,10 +861,7 @@ static Status advance_pos_to_line_offset(Buffer *buffer, BufferPos *pos, int is_
     while (current_col_offset < global_col_offset &&
            pos->offset < pos->line->length) {
         
-        status = pos_change_char(buffer, pos, direction, 1);
-
-        RETURN_IF_FAIL(status);
-
+        RETURN_IF_FAIL(pos_change_char(buffer, pos, direction, 1));
         current_col_offset++;
     }
 
@@ -928,14 +933,31 @@ Status pos_change_char(Buffer *buffer, BufferPos *pos, Direction direction, int 
     if (pos->offset == 0 && direction == DIRECTION_LEFT) {
         pos->line = line = line->prev; 
         pos->offset = line->length == 0 ? 0 : line->length;
+        pos->line_no--;
+        pos->col_no = line->screen_length + 1;
     } else if ((pos->offset == line->length || line->length == 0) && direction == DIRECTION_RIGHT) {
         pos->line = line = line->next; 
         pos->offset = 0;
+        pos->line_no++;
+        pos->col_no = 1;
     } else {
+        CharInfo char_info;
+
         if (direction == DIRECTION_LEFT) {
-            pos->offset -= buffer->cef.previous_char_offset(pos->line->text + pos->offset, pos->offset); 
+            size_t byte_offset = buffer->cef.previous_char_offset(pos->line->text + pos->offset, pos->offset);
+            pos->offset -= byte_offset;
+
+            if (*(pos->line->text + pos->offset) == '\t') {
+                BufferPos line_start = to_line_start(*pos);
+                pos->col_no = line_screen_length(buffer, line_start, pos->offset) + 1;
+            } else {
+                buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
+                pos->col_no -= char_info.screen_length;
+            }
         } else {
-            pos->offset += buffer->cef.char_byte_length(pos->line->text + pos->offset, pos->offset, pos->line->length);
+            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
+            pos->col_no += char_info.screen_length;
+            pos->offset += char_info.byte_length;
         }
     }
 
@@ -964,34 +986,64 @@ Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction
 
 static void update_line_col_offset(Buffer *buffer, BufferPos *pos)
 {
-    buffer->line_col_offset = screen_col_no(buffer->win_info, *pos);
+    if (config_bool("linewrap")) {
+        buffer->line_col_offset = (pos->col_no - 1) % buffer->win_info.width;
+    } else {
+        buffer->line_col_offset = pos->col_no - 1;
+    }
 }
 
 Status pos_to_line_start(Buffer *buffer, int is_select)
 {
-    Direction direction = DIRECTION_LEFT;
-    default_movement_selection_handler(buffer, is_select, &direction);
+    if (config_bool("linewrap")) {
+        return bpos_to_screen_line_start(buffer, &buffer->pos, is_select, 1);
+    }
 
-    BufferPos *pos = &buffer->pos;
+    return bpos_to_line_start(buffer, &buffer->pos, is_select, 1);
+}
+
+static BufferPos to_line_start(BufferPos pos)
+{
+    bpos_to_line_start(NULL, &pos, 0, 0);
+    return pos;
+}
+
+Status bpos_to_line_start(Buffer *buffer, BufferPos *pos, int is_select, int is_cursor)
+{
+    if (is_cursor) {
+        Direction direction = DIRECTION_LEFT;
+        default_movement_selection_handler(buffer, is_select, &direction);
+    }
 
     if (pos->offset == 0) {
         return STATUS_SUCCESS;
-    } else if (!config_bool("linewrap")) {
-        pos->offset = 0;
+    }
+
+    if (is_cursor) {
+        buffer->line_col_offset = 0;
+    }
+
+    pos->offset = 0;
+    pos->col_no = 1;
+
+    return STATUS_SUCCESS;
+}
+
+Status bpos_to_screen_line_start(Buffer *buffer, BufferPos *pos, int is_select, int is_cursor)
+{
+    Direction direction = DIRECTION_LEFT;
+
+    if (is_cursor) {
+        default_movement_selection_handler(buffer, is_select, &direction);
+    }
+
+    if (pos->offset == 0) {
         return STATUS_SUCCESS;
     }
 
-    size_t screen_width = buffer->win_info.width;
-    size_t col_index;
-    Status status;
-
     do {
-        status = pos_change_char(buffer, pos, direction, 1);
-
-        RETURN_IF_FAIL(status);
-
-        col_index = screen_col_no(buffer->win_info, *pos);
-    } while (pos->offset > 0 && (col_index % screen_width) != 0) ;
+        RETURN_IF_FAIL(pos_change_char(buffer, pos, direction, is_cursor));
+    } while (pos->offset > 0 && !bufferpos_at_screen_line_start(*pos, buffer->win_info)) ;
 
     return STATUS_SUCCESS;
 }
@@ -1007,20 +1059,14 @@ Status pos_to_line_end(Buffer *buffer, int is_select)
         return STATUS_SUCCESS;
     } else if (!config_bool("linewrap")) {
         pos->offset = pos->line->length;
+        pos->col_no = pos->line->screen_length + 1;
         return STATUS_SUCCESS;
     }
 
-    size_t screen_width = buffer->win_info.width;
-    size_t col_index;
-    Status status;
-
     do {
-        status = pos_change_char(buffer, pos, direction, 1);
-
-        RETURN_IF_FAIL(status);
-
-        col_index = screen_col_no(buffer->win_info, *pos);
-    } while (pos->offset != pos->line->length && (col_index % screen_width) != (screen_width - 1)) ;
+        RETURN_IF_FAIL(pos_change_char(buffer, pos, direction, 1));
+    } while (pos->offset != pos->line->length && 
+             !bufferpos_at_screen_line_end(*pos, buffer->win_info)) ;
 
     return STATUS_SUCCESS;
 }
@@ -1033,16 +1079,16 @@ Status pos_to_next_word(Buffer *buffer, int is_select)
     BufferPos *pos = &buffer->pos;
     Status status;
 
-    CharacterClass start_class = character_class(buffer, pos_character(buffer), pos->offset, pos->line->length);
+    CharacterClass start_class = character_class(buffer, *pos);
 
     do {
         status = pos_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
     } while (!bufferpos_at_buffer_end(buffer->pos) &&
-             start_class == character_class(buffer, pos_character(buffer), pos->offset, pos->line->length));
+             start_class == character_class(buffer, *pos));
 
     while (!bufferpos_at_buffer_extreme(buffer->pos) &&
-           character_class(buffer, pos_character(buffer), pos->offset, pos->line->length) == CCLASS_WHITESPACE) {
+           character_class(buffer, *pos) == CCLASS_WHITESPACE) {
 
         if (bufferpos_at_line_end(buffer->pos)) {
             break;
@@ -1067,14 +1113,17 @@ Status pos_to_prev_word(Buffer *buffer, int is_select)
         status = pos_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
     } while (!bufferpos_at_buffer_start(buffer->pos) &&
-             character_class(buffer, pos_character(buffer), pos->offset, pos->line->length) == CCLASS_WHITESPACE);
+             character_class(buffer, *pos) == CCLASS_WHITESPACE);
 
-    CharacterClass start_class = character_class(buffer, pos_character(buffer), pos->offset, pos->line->length);
+    CharacterClass start_class = character_class(buffer, *pos);
+    BufferPos look_ahead = buffer->pos;
 
-    while (!bufferpos_at_buffer_start(buffer->pos) &&
-           start_class == character_class(buffer, pos_offset_character(buffer, DIRECTION_LEFT, 1), 
-                          pos->offset, pos->line->length)
-          ) {
+    while (!bufferpos_at_buffer_start(buffer->pos)) {
+        RETURN_IF_FAIL(pos_change_char(buffer, &look_ahead, DIRECTION_LEFT, 0));
+
+        if (start_class != character_class(buffer, look_ahead)) {
+            break;
+        }
 
         status = pos_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
@@ -1090,6 +1139,8 @@ Status pos_to_buffer_start(Buffer *buffer, int is_select)
     BufferPos *pos = &buffer->pos;
     pos->line = buffer->lines;
     pos->offset = 0;
+    pos->line_no = 1;
+    pos->col_no = 1;
 
     if (is_select) {
         pos->line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
@@ -1109,9 +1160,11 @@ Status pos_to_buffer_end(Buffer *buffer, int is_select)
 
     while ((next = pos->line->next) != NULL) {
         pos->line = next;
+        pos->line_no++;
     }
 
     pos->offset = pos->line->length;
+    pos->col_no = pos->line->screen_length + 1;
 
     return STATUS_SUCCESS;
 }
@@ -1175,21 +1228,20 @@ Status insert_character(Buffer *buffer, const char *character)
         memmove(pos->line->text + pos->offset + char_len, pos->line->text + pos->offset, pos->line->length - pos->offset);
     }
 
-    size_t start_screen_height = line_screen_height(buffer->win_info, pos->line);
+    memcpy(pos->line->text + pos->offset, character, char_len);
+    pos->line->length += char_len;
+    pos->line->screen_length = pos->col_no - 1 + line_screen_length(buffer, *pos, pos->line->length);
+    RETURN_IF_FAIL(pos_change_char(buffer, pos, DIRECTION_RIGHT, 1));
 
-    while (*character && char_len--) {
-        pos->line->screen_length += byte_screen_length(*character, pos->line, pos->offset);
-        pos->line->text[pos->offset++] = *character++;
-        pos->line->length++;
-    }
+    /*size_t start_screen_height = line_screen_height(buffer->win_info, pos->line);*/
 
-    size_t end_screen_height = line_screen_height(buffer->win_info, pos->line);
+    /*size_t end_screen_height = line_screen_height(buffer->win_info, pos->line);
 
     if (end_screen_height > start_screen_height) {
         pos->line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
     } else {
         pos->line->is_dirty |= DRAW_LINE_EXTENDED;
-    }
+    }*/
 
     return STATUS_SUCCESS;
 }
@@ -1217,26 +1269,39 @@ Status insert_string(Buffer *buffer, char *string, size_t string_length, int adv
         memmove(pos->line->text + pos->offset + string_length, pos->line->text + pos->offset, pos->line->length - pos->offset);
     }
 
-    size_t start_offset = pos->offset;
+    memcpy(pos->line->text + pos->offset, string, string_length);
+    pos->line->length += string_length;
+    pos->line->screen_length = pos->col_no - 1 + line_screen_length(buffer, *pos, pos->line->length);
+
+    if (advance_cursor) {
+        size_t end_offset = pos->offset + string_length;
+
+        while (pos->offset < end_offset) {
+            RETURN_IF_FAIL(pos_change_char(buffer, pos, DIRECTION_RIGHT, 1));
+        }
+    }
+
+    /*size_t start_offset = pos->offset;
+    size_t start_col_no = pos->col_no;
     size_t start_screen_height = line_screen_height(buffer->win_info, pos->line);
+    size_t byte_screen_len;
 
     while (string_length--) {
-        pos->line->screen_length += byte_screen_length(*string, pos->line, pos->offset);
+        byte_screen_len = byte_screen_length(*string, pos->line, pos->offset);
+        pos->line->screen_length += byte_screen_len;
+        pos->col_no += byte_screen_len;
         pos->line->text[pos->offset++] = *string++;
         pos->line->length++;
     }
 
     size_t end_screen_height = line_screen_height(buffer->win_info, pos->line);
 
-    if (!advance_cursor) {
-        pos->offset = start_offset;
-    }
 
     if (end_screen_height > start_screen_height) {
         pos->line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
     } else {
         pos->line->is_dirty |= DRAW_LINE_EXTENDED;
-    }
+    }*/
 
     return STATUS_SUCCESS;
 } 
@@ -1270,15 +1335,15 @@ Status delete_character(Buffer *buffer)
         return STATUS_SUCCESS;
     }
 
-    size_t char_byte_len = buffer->cef.char_byte_length(line->text + pos->offset, pos->offset, pos->line->length);
-    size_t screen_length = byte_screen_length(line->text[pos->offset], line, pos->offset);
+    CharInfo char_info;
+    buffer->cef.char_info(&char_info, CIP_DEFAULT, *pos);
 
     if (pos->offset != (line->length - 1)) {
-        memmove(line->text + pos->offset, line->text + pos->offset + char_byte_len, line->length - pos->offset);
+        memmove(line->text + pos->offset, line->text + pos->offset + char_info.byte_length, line->length - pos->offset);
     }
 
-    line->length -= char_byte_len;
-    line->screen_length -= screen_length; 
+    line->length -= char_info.byte_length;
+    line->screen_length = pos->col_no - 1 + line_screen_length(buffer, *pos, pos->line->length);
     pos->line->is_dirty |= DRAW_LINE_SHRUNK;
 
     resize_line_text_if_req(pos->line, pos->line->length);
@@ -1346,8 +1411,10 @@ Status insert_line(Buffer *buffer)
     if (line_length > 0) {
         memcpy(line->text, pos->line->text + pos->offset, line_length); 
         line->length = line_length;
-        line->screen_length = line_screen_length(pos->line, pos->offset, pos->line->length);
-        pos->line->screen_length -= line->screen_length;
+        BufferPos line_start =  to_line_start(*pos);
+        line_start.line = line;
+        line->screen_length = line_screen_length(buffer, line_start, line_length);
+        pos->line->screen_length = pos->col_no - 1;
         pos->line->length = pos->offset;
     }
 
@@ -1362,6 +1429,8 @@ Status insert_line(Buffer *buffer)
     pos->line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
     pos->line = line;
     pos->offset = 0;
+    pos->line_no++;
+    pos->col_no = 1;
 
     return STATUS_SUCCESS;
 }
@@ -1384,22 +1453,23 @@ Status select_reset(Buffer *buffer)
 }
 
 /* start_offset is inclusive, end_offset is exclusive */
-static Status delete_line_segment(Line *line, size_t start_offset, size_t end_offset)
+static Status delete_line_segment(Buffer *buffer, BufferPos start, BufferPos end)
 {
-    if (line->length == 0 || start_offset >= line->length || end_offset <= start_offset) {
+    if (start.line != end.line || start.line->length == 0 ||
+        start.offset >= start.line->length || end.offset <= start.offset) {
         return STATUS_SUCCESS; 
     }
 
-    end_offset = (end_offset > line->length ? line->length : end_offset);
-    size_t bytes_to_move = line->length - end_offset;
-    size_t screen_length = line_screen_length(line, start_offset, end_offset);
+    Line *line = start.line;
+    end.offset = (end.offset > line->length ? line->length : end.offset);
+    size_t bytes_to_move = line->length - end.offset;
 
     if (bytes_to_move > 0) {
-        memmove(line->text + start_offset, line->text + end_offset, bytes_to_move);
+        memmove(line->text + start.offset, line->text + end.offset, bytes_to_move);
     }
 
-    line->length -= (end_offset - start_offset);
-    line->screen_length -= screen_length; 
+    line->length -= (end.offset - start.offset);
+    line->screen_length = start.col_no - 1 + line_screen_length(buffer, start, line->length);
     line->is_dirty |= DRAW_LINE_SHRUNK;
 
     resize_line_text_if_req(line, line->length);
@@ -1413,8 +1483,15 @@ Status delete_range(Buffer *buffer, Range range)
     buffer->pos = range.start;
 
     int is_single_line = (range.start.line == range.end.line);
-    Status status = delete_line_segment(range.start.line, range.start.offset, 
-                                        is_single_line ? range.end.offset : range.start.line->length); 
+
+    BufferPos end = range.start;
+    end.offset = end.line->length;
+
+    if (is_single_line) {
+        end = range.end;
+    }
+
+    Status status = delete_line_segment(buffer, range.start, end);
 
     if (is_single_line || !is_success(status)) {
         if (config_bool("linewrap") && (range.end.offset - range.start.offset) >= buffer->win_info.width) {
@@ -1449,13 +1526,26 @@ Status delete_range(Buffer *buffer, Range range)
 Status select_all_text(Buffer *buffer)
 {
     Line *line = buffer->pos.line;
+    size_t end_line_no = buffer->pos.line_no;
 
     while (line->next != NULL) {
         line = line->next;
+        end_line_no++;
     }
 
-    buffer->select_start = (BufferPos) { .line = line, .offset = line->length };
-    buffer->pos = (BufferPos) { .line = buffer->lines, .offset = 0 };
+    buffer->select_start = (BufferPos) { 
+        .line = line, 
+        .offset = line->length, 
+        .line_no = end_line_no, 
+        .col_no = line->screen_length + 1 
+    };
+
+    buffer->pos = (BufferPos) { 
+        .line = buffer->lines, 
+        .offset = 0,
+        .line_no = 1,
+        .col_no = 1 
+    };
 
     buffer->pos.line->is_dirty |= DRAW_LINE_REFRESH_DOWN;
 
@@ -1475,7 +1565,7 @@ Status copy_selected_text(Buffer *buffer, TextSelection **text_selection)
         return STATUS_SUCCESS;
     }
 
-    *text_selection = new_textselection(range); 
+    *text_selection = new_textselection(buffer, range); 
 
     return STATUS_SUCCESS;
 }
@@ -1530,6 +1620,7 @@ Status insert_textselection(Buffer *buffer, TextSelection *text_selection)
         buf_line->next = clone_line(line); 
         buf_line->next->prev = buf_line;
         buf_line = buf_line->next;
+        buffer->pos.line_no++;
         line = line->next;
     }
 
