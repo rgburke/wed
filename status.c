@@ -22,56 +22,43 @@
 #include "variable.h"
 #include "util.h"
 
-static const Error errors[] = {
-    { ERR_INVALID_ERROR_CODE  , ERR_SVR_CRITICAL, 1, "Invalid Error code %d"      , INT_VAL_STRUCT(0)  },
-    { ERR_FILE_DOESNT_EXIST   , ERR_SVR_CRITICAL, 1, "File %s doesn't exist"      , STR_VAL_STRUCT("") },
-    { ERR_FILE_IS_DIRECTORY   , ERR_SVR_CRITICAL, 1, "File %s is a directory"     , STR_VAL_STRUCT("") },
-    { ERR_UNABLE_TO_OPEN_FILE , ERR_SVR_CRITICAL, 1, "Unable to open file %s"     , STR_VAL_STRUCT("") },
-    { ERR_UNABLE_TO_READ_FILE , ERR_SVR_CRITICAL, 1, "Unable to read from file %s", STR_VAL_STRUCT("") },
-    { ERR_INVALID_COMMAND     , ERR_SVR_CRITICAL, 1, "Invalid command %s"         , STR_VAL_STRUCT("") },
-    { ERR_INVALID_CHARACTER   , ERR_SVR_CRITICAL, 1, "Invalid character %s"       , STR_VAL_STRUCT("") },
-    { ERR_INVALID_STRING      , ERR_SVR_CRITICAL, 1, "Invalid string %s"          , STR_VAL_STRUCT("") },
-    { ERR_INVALID_VAR         , ERR_SVR_CRITICAL, 1, "Invalid variable %s"        , STR_VAL_STRUCT("") },
-    { ERR_INVALID_VAL         , ERR_SVR_CRITICAL, 1, "Invalid value %s"           , STR_VAL_STRUCT("") },
-    { ERR_INVALID_CONFIG_ENTRY, ERR_SVR_CRITICAL, 1, "Invalid config entry in %s" , STR_VAL_STRUCT("") },
-    { ERR_INVALID_FILE_PATH   , ERR_SVR_CRITICAL, 1, "Invalid file path \"%s\""   , STR_VAL_STRUCT("") }
+static char *get_default_error_message(ErrorCode);
+
+typedef struct {
+    ErrorCode error_code;
+    char *error_msg;
+} ErrorCodeMsg;
+
+static const ErrorCodeMsg default_error_messages[] = {
+    { ERR_FILE_DOESNT_EXIST   , "File doesn't exist"       },
+    { ERR_FILE_IS_DIRECTORY   , "File is a directory"      },
+    { ERR_UNABLE_TO_OPEN_FILE , "Unable to open file"      },
+    { ERR_UNABLE_TO_READ_FILE , "Unable to read from file" },
+    { ERR_INVALID_COMMAND     , "Invalid command"          },
+    { ERR_INVALID_CHARACTER   , "Invalid character"        },
+    { ERR_INVALID_STRING      , "Invalid string"           },
+    { ERR_INVALID_VAR         , "Invalid variable"         },
+    { ERR_INVALID_VAL         , "Invalid value"            },
+    { ERR_INVALID_CONFIG_ENTRY, "Invalid config entry"     },
+    { ERR_INVALID_FILE_PATH   , "Invalid file path"        },
+    { ERR_OUT_OF_MEMORY       , "Out of memory"            }
 };
 
-int is_success(Status status)
+Status get_error(ErrorCode error_code, char *format, ...)
 {
-    return status.success == SUCCESS_CODE;
-}
+    char *error_msg = malloc(MAX_ERROR_MSG_SIZE);
 
-Status raise_error(ErrorCode error_code)
-{
-    Value param = INT_VAL(0);
-    return raise_param_error(error_code, param);
-}
-
-Status raise_param_error(ErrorCode error_code, Value param)
-{
-    if (error_code < 0 || error_code >= ERR_LAST_ENTRY) {
-        param.type = VAL_TYPE_INT;
-        param.val.ival = error_code; 
-        error_code = 0;
+    if (error_msg == NULL) {
+        /* TODO Should/Can we raise an out of memory error here as well? */
+        return STATUS_ERROR(error_code, get_default_error_message(error_code), 1);
     }
 
-    Error *error = alloc(sizeof(Error));
-    memcpy(error, &errors[error_code], sizeof(Error));
-    error->param = deep_copy_value(param);
+    va_list arg_ptr;
+    va_start(arg_ptr, format);
+    vsnprintf(error_msg, MAX_ERROR_MSG_SIZE, format, arg_ptr);
+    va_end(arg_ptr);
 
-    Status status = { .success = 0, .error = error };
-    return status;
-}
-
-void free_error(Error *error)
-{
-    if (error == NULL) {
-        return;
-    }
-
-    free_value(error->param);
-    free(error);
+    return STATUS_ERROR(error_code, error_msg, 0);
 }
 
 int error_queue_full(ErrorQueue *error_queue)
@@ -84,25 +71,38 @@ int error_queue_empty(ErrorQueue *error_queue)
     return error_queue->count == 0;
 }
 
-int error_queue_add(ErrorQueue *error_queue, Error *error)
+static char *get_default_error_message(ErrorCode error_code)
 {
-    if (error_queue_full(error_queue)) {
+    size_t error_msg_num = sizeof(default_error_messages) / sizeof(ErrorCodeMsg);
+
+    for (size_t k = 0; k < error_msg_num; k++) {
+        if (default_error_messages[k].error_code == error_code) {
+            return default_error_messages[k].error_msg;
+        }
+    }
+
+    return "Unknown error occured";
+}
+
+int error_queue_add(ErrorQueue *error_queue, Status status)
+{
+    if (STATUS_IS_SUCCESS(status) || error_queue_full(error_queue)) {
         return 0;
     } 
 
     int index = (error_queue->start + error_queue->count++) % ERROR_QUEUE_MAX_SIZE;
-    error_queue->errors[index] = error;
+    error_queue->errors[index] = status;
 
     return 1;
 }
 
-Error *error_queue_remove(ErrorQueue *error_queue)
+Status error_queue_remove(ErrorQueue *error_queue)
 {
     if (error_queue_empty(error_queue)) {
-        return NULL;
+        return STATUS_SUCCESS;
     }
 
-    Error *error = error_queue->errors[error_queue->start++];
+    Status error = error_queue->errors[error_queue->start++];
     error_queue->start %= ERROR_QUEUE_MAX_SIZE; 
     error_queue->count--;
 
@@ -115,40 +115,27 @@ void free_error_queue(ErrorQueue *error_queue)
         return;
     }
 
+    Status error;
+
     while (!error_queue_empty(error_queue)) {
-        free_error(error_queue_remove(error_queue));
+        error = error_queue_remove(error_queue);
+        free_error(error);
     }
 }
 
-char *get_error_msg(Error *error) {
-    if (error == NULL) {
+void free_error(Status error)
+{
+    if (!STATUS_IS_SUCCESS(error) && !error.error_msg_literal) {
+        free(error.error_msg);
+    }
+}
+
+char *get_error_msg(Status error) {
+    if (STATUS_IS_SUCCESS(error)) {
         return NULL;
     }
 
     char *error_msg = alloc(MAX_ERROR_MSG_SIZE);
-
-    snprintf(error_msg, MAX_ERROR_MSG_SIZE, error->msg, error->param.val);    
-
-    return error_msg;
-}
-
-char *get_full_error_msg(Error *error) {
-    if (error == NULL) {
-        return NULL;
-    }
-
-    char *error_code_fmt = "Error %d: ";
-    size_t error_msg_fmt_size = strlen(error_code_fmt) + strlen(error->msg) + 1;
-    char *error_msg_fmt = alloc(error_msg_fmt_size);
-
-    strncpy(error_msg_fmt, error_code_fmt, strlen(error_code_fmt));
-    strncat(error_code_fmt, error->msg, strlen(error->msg));
-
-    char *error_msg = alloc(MAX_ERROR_MSG_SIZE);
-
-    snprintf(error_msg, MAX_ERROR_MSG_SIZE, error_msg_fmt, error->error_code, error->param.val);    
-
-    free(error_msg_fmt);
-
+    snprintf(error_msg, MAX_ERROR_MSG_SIZE, "Error %d: %s", error.error_code, error.error_msg);    
     return error_msg;
 }

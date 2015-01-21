@@ -179,7 +179,7 @@ Status load_config(Session *sess, char *config_file_path)
     FILE *config_file = fopen(config_file_path, "rb");
 
     if (config_file == NULL) {
-        return raise_param_error(ERR_UNABLE_TO_OPEN_FILE, STR_VAL(config_file_path));
+        return get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open file %s for reading", config_file_path);
     } 
 
     Status status = STATUS_SUCCESS;
@@ -191,7 +191,7 @@ Status load_config(Session *sess, char *config_file_path)
 
         if (ferror(config_file)) {
             free(line);
-            status = raise_param_error(ERR_UNABLE_TO_READ_FILE, STR_VAL(config_file_path));
+            status = get_error(ERR_UNABLE_TO_READ_FILE, "Unable to read file %s", config_file_path);
             break;
         } 
 
@@ -206,21 +206,13 @@ Status load_config(Session *sess, char *config_file_path)
 
         free(line);
 
-        if (!is_success(status)) {
-            char *error_msg = get_error_msg(status.error);
-
-            if (error_msg != NULL) {
-                char *new_error_msg = alloc(MAX_ERROR_MSG_SIZE);
-                snprintf(new_error_msg, MAX_ERROR_MSG_SIZE, "%s on line %zu: %s", config_file_path, line_no, error_msg);
-                free_error(status.error);
-                status = raise_param_error(ERR_INVALID_CONFIG_ENTRY, STR_VAL(new_error_msg));
-                free(new_error_msg);
-                free(error_msg);
-            }
-             
+        if (!STATUS_IS_SUCCESS(status)) {
+            Status error = get_error(ERR_INVALID_CONFIG_ENTRY, "%s on line %zu: %s", 
+                                     config_file_path, line_no, status.error_msg);
+            free_error(status);
+            status = error;
             break;
         }
-
     }
 
     fclose(config_file);
@@ -351,11 +343,11 @@ Status set_buffer_var(Buffer *buffer, char *var_name, char *val)
 static Status set_config_var(HashMap *config, char *var_name, char *val)
 {
     if (config == NULL || var_name == NULL || val == NULL) {
-        return raise_param_error(ERR_INVALID_VAR, STR_VAL(var_name));
+        return get_error(ERR_INVALID_VAR, "Invalid entry");
     }
 
     if (!is_valid_var(var_name)) {
-        return raise_param_error(ERR_INVALID_VAR, STR_VAL(var_name));
+        return get_error(ERR_INVALID_VAR, "Invalid variable name %s", var_name);
     }
 
     ConfigVariableDescriptor *var = hashmap_get(config, var_name);
@@ -368,13 +360,13 @@ static Status set_config_var(HashMap *config, char *var_name, char *val)
     Value value;
     
     if (!conversion_functions[var->default_value.type](val, &value)) {
-        return raise_param_error(ERR_INVALID_VAL, STR_VAL(val));
+        return get_error(ERR_INVALID_VAL, "Invalid value \"%s\" for variable %s", value, var_name);
     }
 
     if (var->custom_validator != NULL) {
         if (!var->custom_validator(value)) {
             /* TODO It would be useful to know why the value isn't valid */
-            return raise_param_error(ERR_INVALID_VAL, STR_VAL(val));
+            return get_error(ERR_INVALID_VAL, "Invalid value \"%s\" for variable %s", value, var_name);
         }
     }
 

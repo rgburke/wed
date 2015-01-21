@@ -277,7 +277,7 @@ static Status buffer_copy_selected_text(Session *sess, Value param, const char *
 
     Status status = copy_selected_text(sess->active_buffer, &text_selection);
 
-    if (!is_success(status) || text_selection == NULL) {
+    if (!STATUS_IS_SUCCESS(status) || text_selection == NULL) {
         return status;
     }
 
@@ -296,7 +296,7 @@ static Status buffer_cut_selected_text(Session *sess, Value param, const char *k
 
     Status status = cut_selected_text(sess->active_buffer, &text_selection);
 
-    if (!is_success(status) || text_selection == NULL) {
+    if (!STATUS_IS_SUCCESS(status) || text_selection == NULL) {
         return status;
     }
 
@@ -334,7 +334,8 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
         char *input = get_cmd_buffer_text(sess);
 
         if (input == NULL || strlen(input) == 0) {
-            Status status = raise_param_error(ERR_INVALID_FILE_PATH, STR_VAL(input));
+            Status status = get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", 
+                                     input == NULL ? "NULL" : "");
             free(input);
             return status;
         }

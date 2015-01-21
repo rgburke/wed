@@ -16,6 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <stdio.h>
 #include <string.h>
 #include "session.h"
 #include "status.h"
@@ -56,14 +57,20 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
 
         if (file_is_directory(file_info)) {
             free_fileinfo(file_info);
-            add_error_if_fail(sess, raise_param_error(ERR_FILE_IS_DIRECTORY, STR_VAL(file_info.file_name)));
+            add_error(sess, get_error(ERR_FILE_IS_DIRECTORY, "%s is a directory", file_info.file_name));
             continue;
         }
 
         Buffer *buffer = new_buffer(file_info);
+
+        if (buffer == NULL) {
+            add_error(sess, get_error(ERR_OUT_OF_MEMORY, "Unable to create buffer for file %s", file_info.file_name));
+            continue;
+        }
+
         Status load_status = load_buffer(buffer);
 
-        if (add_error_if_fail(sess, load_status)) {
+        if (add_error(sess, load_status)) {
             free_buffer(buffer);
             continue;
         }
@@ -89,8 +96,7 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
 
     set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", "0");
     set_config_session(sess);
-    add_error_if_fail(sess, init_session_config(sess));
-
+    add_error(sess, init_session_config(sess));
 
     return 1;
 }
@@ -274,24 +280,13 @@ int remove_buffer(Session *sess, Buffer *to_remove)
     return 1;
 }
 
-int add_err(Session *sess, Error *error)
+int add_error(Session *sess, Status error)
 {
-    if (sess == NULL || error == NULL) {
+    if (sess == NULL || STATUS_IS_SUCCESS(error)) {
         return 0;
     }
 
     return error_queue_add(&sess->error_queue, error);
-}
-
-int add_error_if_fail(Session *sess, Status status)
-{
-    if (is_success(status)) {
-        return 0;
-    } 
-
-    add_err(sess, status.error);
-
-    return 1;
 }
 
 void set_clipboard(Session *sess, TextSelection *clipboard)

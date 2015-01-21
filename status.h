@@ -20,27 +20,22 @@
 #define WED_STATUS_H
 
 #include <stdlib.h>
+#include <stdarg.h>
 #include "variable.h"
 
-#define SUCCESS_CODE 1
-#define FAIL_CODE 0
-#define STATUS(code) (Status) { .success = (code), .error = NULL }
-#define STATUS_SUCCESS STATUS(SUCCESS_CODE)
-#define STATUS_FAIL STATUS(FAIL_CODE)
+#define RETURN_IF_NULL(ptr) if ((ptr) == NULL) { return NULL; }
+#define STATUS_ERROR(ecode, emsg, emliteral) (Status)\
+                    { .error_code = (ecode), .error_msg = (emsg), .error_msg_literal = (emliteral) }
+#define STATUS_SUCCESS STATUS_ERROR(ERR_NONE, NULL, 0)
+#define STATUS_IS_SUCCESS(status) ((status).error_code == ERR_NONE)
 #define RETURN_IF_FAIL(status) { Status _wed_status = (status);\
-                               if (!is_success((_wed_status))) return _wed_status; }
+                               if (!STATUS_IS_SUCCESS(_wed_status)) return _wed_status; }
 
 #define ERROR_QUEUE_MAX_SIZE 10
-#define MAX_ERROR_MSG_SIZE 512
+#define MAX_ERROR_MSG_SIZE 1024
 
 typedef enum {
-    ERR_SVR_MINIMAL,
-    ERR_SVR_WARNING,
-    ERR_SVR_CRITICAL
-} ErrorSeverity;
-
-typedef enum {
-    ERR_INVALID_ERROR_CODE,
+    ERR_NONE,
     ERR_FILE_DOESNT_EXIST,
     ERR_FILE_IS_DIRECTORY,
     ERR_UNABLE_TO_OPEN_FILE,
@@ -52,44 +47,32 @@ typedef enum {
     ERR_INVALID_VAL,
     ERR_INVALID_CONFIG_ENTRY,
     ERR_INVALID_FILE_PATH,
-    ERR_LAST_ENTRY
+    ERR_OUT_OF_MEMORY
 } ErrorCode;
-
-/* Error info is stored in an Error structure */
-typedef struct {
-    ErrorCode error_code; /* Which error this is */
-    ErrorSeverity error_svr; /* How serious is this error */
-    int accepts_param; /* Does this error message allow parameters to be set through format specifiers */
-    char *msg; /* The core error message */
-    Value param; /* Error instance specific message part */
-} Error;
-
-/* Queue structure for storing multiple errors */
-typedef struct {
-    Error *errors[ERROR_QUEUE_MAX_SIZE];
-    int start;
-    int count;
-} ErrorQueue;
 
 /* Used to determine the success of an action.
  * error is NULL when successful. */
 typedef struct {
-    int success;
-    Error *error;
+    ErrorCode error_code;
+    char *error_msg;
+    int error_msg_literal;
 } Status;
 
-int is_success(Status);
-Status raise_error(ErrorCode);
-Status raise_param_error(ErrorCode, Value);
-void free_error(Error *);
+/* Queue structure for storing multiple errors */
+typedef struct {
+    Status errors[ERROR_QUEUE_MAX_SIZE];
+    int start;
+    int count;
+} ErrorQueue;
 
+Status get_error(ErrorCode, char *, ...);
 int error_queue_full(ErrorQueue *);
 int error_queue_empty(ErrorQueue *);
-int error_queue_add(ErrorQueue *, Error *);
-Error *error_queue_remove(ErrorQueue *);
+int error_queue_add(ErrorQueue *, Status);
+Status error_queue_remove(ErrorQueue *);
 void free_error_queue(ErrorQueue *);
-char *get_error_msg(Error *);
-char *get_full_error_msg(Error *);
+void free_error(Status);
+char *get_error_msg(Status);
 
 #endif
 

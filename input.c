@@ -65,7 +65,7 @@ void process_input(Session *sess)
 
         if (ret == TERMKEY_RES_KEY) {
             termkey_strfkey(termkey, keystr, sizeof(keystr), &key, TERMKEY_FORMAT_VIM);
-            add_error_if_fail(sess, do_command(sess, keystr, &finished));
+            add_error(sess, do_command(sess, keystr, &finished));
             update_display(sess);
         }
     }

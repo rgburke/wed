@@ -43,7 +43,10 @@ static Status delete_line_segment(Buffer *, BufferPos, BufferPos);
 
 Buffer *new_buffer(FileInfo file_info)
 {
-    Buffer *buffer = alloc(sizeof(Buffer));
+    Buffer *buffer = malloc(sizeof(Buffer));
+
+    RETURN_IF_NULL(buffer);
+    RETURN_IF_NULL(buffer->config = new_hashmap());
 
     buffer->file_info = file_info;
     init_bufferpos(&buffer->pos);
@@ -52,7 +55,6 @@ Buffer *new_buffer(FileInfo file_info)
     buffer->lines = NULL;
     buffer->next = NULL;
     buffer->line_col_offset = 0;
-    buffer->config = new_hashmap();
     buffer->encoding_type = ENC_UTF8;
     init_char_enc_funcs(buffer->encoding_type, &buffer->cef);
 
@@ -64,7 +66,8 @@ Buffer *new_empty_buffer(void)
     FileInfo file_info;
     init_empty_fileinfo(&file_info);
     Buffer *buffer = new_buffer(file_info); 
-    buffer->lines = buffer->pos.line = buffer->screen_start.line = new_line();
+    RETURN_IF_NULL(buffer);
+    RETURN_IF_NULL(buffer->lines = buffer->pos.line = buffer->screen_start.line = new_line());
     return buffer;
 }
 
@@ -98,8 +101,9 @@ Line *new_sized_line(size_t length)
 {
     size_t alloc_num = (length / LINE_ALLOC) + 1;
 
-    Line *line = alloc(sizeof(Line));
-    line->text = alloc(alloc_num * LINE_ALLOC);
+    Line *line = malloc(sizeof(Line));
+    RETURN_IF_NULL(line);
+    RETURN_IF_NULL(line->text = alloc(alloc_num * LINE_ALLOC));
     line->alloc_num = alloc_num;
     line->length = 0; 
     line->screen_length = 0;
@@ -269,7 +273,7 @@ Status load_buffer(Buffer *buffer)
     FILE *input_file = fopen(buffer->file_info.rel_path, "rb");
 
     if (input_file == NULL) {
-        return raise_param_error(ERR_UNABLE_TO_OPEN_FILE, STR_VAL(buffer->file_info.file_name));
+        return get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open file %s for reading", buffer->file_info.file_name);
     } 
 
     char buf[FILE_BUF_SIZE];
@@ -281,7 +285,7 @@ Status load_buffer(Buffer *buffer)
     while ((read = fread(buf, sizeof(char), FILE_BUF_SIZE, input_file)) > 0) {
         if (read != FILE_BUF_SIZE && ferror(input_file)) {
             fclose(input_file);
-            return raise_param_error(ERR_UNABLE_TO_READ_FILE, STR_VAL(buffer->file_info.file_name));
+            return get_error(ERR_UNABLE_TO_READ_FILE, "Unable to read from file %s", buffer->file_info.file_name);
         } 
 
         line = add_to_buffer(buffer, &pos, buf, read, read < FILE_BUF_SIZE);
@@ -555,7 +559,7 @@ const char *pos_offset_character(Buffer *buffer, Direction direction, size_t off
 {
     BufferPos pos = buffer->pos;
 
-    if (!is_success(pos_change_multi_char(buffer, &pos, direction, offset, 0))) {
+    if (!STATUS_IS_SUCCESS(pos_change_multi_char(buffer, &pos, direction, offset, 0))) {
         return "";
     }
 
@@ -796,7 +800,7 @@ static Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction d
         cols -= char_info.screen_length;
         status = pos_change_char(buffer, pos, pos_direction, 0);
 
-        if (!is_success(status)) {
+        if (!STATUS_IS_SUCCESS(status)) {
             return status;
         } else if (break_on_hardline && (pos->offset == 0 || pos->offset == pos->line->length)) {
            break; 
@@ -1171,10 +1175,7 @@ Status insert_character(Buffer *buffer, const char *character)
     }
 
     if (char_len == 0 || char_len > 4) {
-        char *character_copy = strdupe(character);
-        Status status = raise_param_error(ERR_INVALID_CHARACTER, STR_VAL(character_copy));
-        free(character_copy);
-        return status;
+        return get_error(ERR_INVALID_CHARACTER, "Invalid character %s", character);
     }
 
     Range range;
@@ -1203,7 +1204,7 @@ Status insert_character(Buffer *buffer, const char *character)
 Status insert_string(Buffer *buffer, char *string, size_t string_length, int advance_cursor)
 {
     if (string == NULL) {
-        return raise_param_error(ERR_INVALID_CHARACTER, STR_VAL(string));     
+        return get_error(ERR_INVALID_CHARACTER, "Cannot insert NULL string");
     } else if (string_length == 0) {
         return STATUS_SUCCESS;
     }
@@ -1415,7 +1416,7 @@ Status delete_range(Buffer *buffer, Range range)
 
     Status status = delete_line_segment(buffer, range.start, end);
 
-    if (is_single_line || !is_success(status)) {
+    if (is_single_line || !STATUS_IS_SUCCESS(status)) {
         return status;
     }
 
@@ -1498,7 +1499,7 @@ Status cut_selected_text(Buffer *buffer, TextSelection **text_selection)
     
     Status status = copy_selected_text(buffer, text_selection);
 
-    if (!is_success(status) || text_selection == NULL) {
+    if (!STATUS_IS_SUCCESS(status) || text_selection == NULL) {
         return status;
     }
 
