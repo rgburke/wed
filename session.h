@@ -47,7 +47,7 @@ void free_session(Session *);
 int add_buffer(Session *, Buffer *);
 size_t get_buffer_num(Session *);
 int set_active_buffer(Session *, size_t);
-int make_cmd_buffer_active(Session *, const char *);
+Status make_cmd_buffer_active(Session *, const char *);
 int end_cmd_buffer_active(Session *);
 int cmd_buffer_active(Session *);
 char *get_cmd_buffer_text(Session *);

@@ -19,6 +19,8 @@
 #ifndef WED_VARIABLE_H
 #define WED_VARIABLE_H
 
+#include "status.h"
+
 typedef enum {
     VAL_TYPE_BOOL,
     VAL_TYPE_INT,
@@ -43,7 +45,7 @@ typedef struct {
 #define STR_VAL(svalue)  (Value) STR_VAL_STRUCT(svalue)
 #define BOOL_VAL(bvalue) (Value) BOOL_VAL_STRUCT(bvalue)
 
-Value deep_copy_value(Value);
+Status deep_copy_value(Value, Value *);
 void free_value(Value);
 
 #endif

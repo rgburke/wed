@@ -21,7 +21,6 @@
 
 #include <stdlib.h>
 #include <stdarg.h>
-#include "variable.h"
 
 #define RETURN_IF_NULL(ptr) if ((ptr) == NULL) { return NULL; }
 #define STATUS_ERROR(ecode, emsg, emliteral) (Status)\

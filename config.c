@@ -62,7 +62,7 @@ Status init_config(void)
     config_vars = new_sized_hashmap(var_num * 4);
 
     if (!populate_default_config(config_vars)) {
-        /* TODO raise error here */
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to load config");
     }
 
     return STATUS_SUCCESS;
@@ -81,14 +81,14 @@ static int is_valid_var(const char *var_name)
 static ConfigVariableDescriptor *clone_config_var_descriptor(const char *var_name)
 {
     ConfigVariableDescriptor *var = hashmap_get(config_vars, var_name);
+    ConfigVariableDescriptor *clone = malloc(sizeof(ConfigVariableDescriptor));
+    RETURN_IF_NULL(clone);
+    memcpy(clone, var, sizeof(ConfigVariableDescriptor));
 
-    if (var == NULL) {
+    if (!STATUS_IS_SUCCESS(deep_copy_value(clone->default_value, &clone->default_value))) {
+        free(clone);
         return NULL;
     }
-
-    ConfigVariableDescriptor *clone = alloc(sizeof(ConfigVariableDescriptor));
-    memcpy(clone, var, sizeof(ConfigVariableDescriptor));
-    clone->default_value = deep_copy_value(clone->default_value);
 
     return clone;
 }
@@ -103,7 +103,7 @@ Status init_session_config(Session *sess)
     }
 
     if (!populate_default_config(config)) {
-        /* TODO raise error here */
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to load config");
     }
     
     char *system_config_path = CFG_SYSTEM_DIR "/" CFG_FILE_NAME;
@@ -118,7 +118,12 @@ Status init_session_config(Session *sess)
 
     if (home_path != NULL) {
         size_t user_config_path_size = strlen(home_path) + strlen("/." CFG_FILE_NAME) + 1;
-        char *user_config_path = alloc(user_config_path_size);
+        char *user_config_path = malloc(user_config_path_size);
+
+        if (user_config_path == NULL) {
+            return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to check for config file in HOME directory"); 
+        }
+
         snprintf(user_config_path, user_config_path_size, "%s/.%s", home_path, CFG_FILE_NAME);
         *(user_config_path + user_config_path_size - 1) = '\0';
 
@@ -161,9 +166,17 @@ static int populate_default_config(HashMap *config)
     ConfigVariableDescriptor *clone;
 
     for (size_t k = 0; k < var_num; k++, clone++) {
-        clone = alloc(sizeof(ConfigVariableDescriptor));
+        clone = malloc(sizeof(ConfigVariableDescriptor));
+
+        if (clone == NULL) {
+            return 0;
+        }
+
         memcpy(clone, &default_config[k], sizeof(ConfigVariableDescriptor));
-        clone->default_value = deep_copy_value(clone->default_value);
+
+        if (!STATUS_IS_SUCCESS(deep_copy_value(clone->default_value, &clone->default_value))) {
+            return 0;
+        }
 
         if (!(hashmap_set(config, clone->name, clone) && 
               hashmap_set(config, clone->short_name, clone))) {
@@ -188,6 +201,11 @@ Status load_config(Session *sess, char *config_file_path)
 
     while (!feof(config_file)) {
         line = get_config_line(config_file);
+
+        if (line == NULL) {
+            status = get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to read config file %s", config_file_path);
+            break;
+        }
 
         if (ferror(config_file)) {
             free(line);
@@ -223,14 +241,15 @@ Status load_config(Session *sess, char *config_file_path)
 static char *get_config_line(FILE *file)
 {
     size_t allocated = CFG_LINE_ALLOC;
+    char *line = malloc(allocated);
+    RETURN_IF_NULL(line);
     size_t line_size = 0;
-    char *line = alloc(allocated);
     char *iter = line;
     int c;
 
     while ((c = fgetc(file)) != EOF) {
         if (line_size++ == allocated) {
-            line = ralloc(line, allocated *= 2); 
+            line = realloc(line, allocated *= 2); 
             iter = line + line_size - 1;
         }
         if (c == '\n') {
@@ -354,6 +373,11 @@ static Status set_config_var(HashMap *config, char *var_name, char *val)
 
     if (var == NULL) {
         var = clone_config_var_descriptor(var_name);
+
+        if (var == NULL) {
+            return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to set config value");
+        }
+
         hashmap_set(config, var_name, var);
     }
 

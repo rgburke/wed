@@ -23,30 +23,8 @@
 
 void fatal(const char *error_msg)
 {
-    fprintf(stderr, "%s\n", error_msg);
+    fprintf(stderr, "FATAL: %s\n", error_msg);
     exit(1);
-}
-
-void *alloc(size_t size)
-{
-    void *ptr = malloc(size); 
-
-    if (ptr == NULL) {
-        fatal("Failed to allocate memory"); 
-    }
-
-    return ptr;
-}
-
-void *ralloc(void *ptr, size_t size)
-{
-    ptr = realloc(ptr, size);
-
-    if (ptr == NULL) {
-        fatal("Failed to allocate memory"); 
-    }
-
-    return ptr;
 }
 
 int roundup_div(int dividend, int divisor)
@@ -83,7 +61,7 @@ char *strdupe(const char *str)
         return NULL;
     }
 
-    char *copy = alloc(strlen(str) + 1);
+    char *copy = malloc(strlen(str) + 1);
 
     if (copy == NULL) {
         return NULL;

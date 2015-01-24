@@ -19,16 +19,23 @@
 #include <stdlib.h>
 #include "variable.h"
 #include "util.h"
+#include "status.h"
 
-Value deep_copy_value(Value value)
+Status deep_copy_value(Value value, Value *new_val)
 {
+    *new_val = value;
+
     if (value.type != VAL_TYPE_STR || value.val.sval == NULL) {
-        return value;
+        return STATUS_SUCCESS;
     }
 
-    value.val.sval = strdupe(value.val.sval);
+    new_val->val.sval = strdupe(value.val.sval);
 
-    return value;
+    if (new_val->val.sval == NULL) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to copy value");
+    }
+
+    return STATUS_SUCCESS;
 }
 
 void free_value(Value value)

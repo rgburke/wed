@@ -28,11 +28,12 @@
 
 int init_fileinfo(FileInfo *file_info, char *path)
 {
-    if (file_info == NULL || path == NULL) {
+    file_info->rel_path = strdupe(path);
+
+    if (file_info->rel_path == NULL) {
         return 0;
     }
 
-    file_info->rel_path = strdupe(path);
     file_info->file_name = basename(file_info->rel_path);
     file_info->file_attrs = FATTR_NONE;
 
@@ -156,6 +157,11 @@ int set_file_path(FileInfo *file_info, const char *file_path)
     }
 
     file_info->rel_path = strdupe(file_path);
+
+    if (file_info->rel_path == NULL) {
+        return 0;
+    }
+
     file_info->file_name = basename(file_info->rel_path);
 
     return 1;

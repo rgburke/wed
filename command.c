@@ -110,8 +110,13 @@ int init_keymap(Session *sess)
 
     Command *command;
 
-    for (size_t k = 0; k < command_num; k++, command++) {
-        command = alloc(sizeof(Command));
+    for (size_t k = 0; k < command_num; k++) {
+        command = malloc(sizeof(Command));
+
+        if (command == NULL) {
+            return 0;
+        }
+
         memcpy(command, &commands[k], sizeof(Command));
 
         if (!hashmap_set(sess->keymap, command->keystr, command)) {
@@ -333,15 +338,23 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
 
         char *input = get_cmd_buffer_text(sess);
 
-        if (input == NULL || strlen(input) == 0) {
-            Status status = get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", 
-                                     input == NULL ? "NULL" : "");
-            free(input);
-            return status;
+        if (input == NULL) {
+            return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
         }
 
-        set_buffer_file_path(sess->active_buffer, input);        
+        Status status;
+
+        if (strlen(input) == 0) {
+            status = get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", 
+                               input == NULL ? "NULL" : "");
+        }
+
+        if (!set_buffer_file_path(sess->active_buffer, input)) {
+            status = get_error(ERR_INVALID_FILE_PATH, "Out of memory - Unable to set buffer file path");
+        }
+
         free(input);
+        RETURN_IF_FAIL(status);
     }
 
     return write_buffer(sess->active_buffer);
@@ -360,7 +373,7 @@ static Status finished_processing_input(Session *sess, Value param, const char *
 
 static Status cmd_input_prompt(Session *sess, const char *prompt_text)
 {
-    make_cmd_buffer_active(sess, prompt_text);
+    RETURN_IF_FAIL(make_cmd_buffer_active(sess, prompt_text));
     update_command_function(sess, "<Enter>", finished_processing_input);
     update_command_function(sess, "<Escape>", cancel_cmd_input_prompt);
     exclude_command_type(sess, CMDT_CMD_INPUT);

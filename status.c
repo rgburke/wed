@@ -135,7 +135,7 @@ char *get_error_msg(Status error) {
         return NULL;
     }
 
-    char *error_msg = alloc(MAX_ERROR_MSG_SIZE);
+    char *error_msg = malloc(MAX_ERROR_MSG_SIZE);
     snprintf(error_msg, MAX_ERROR_MSG_SIZE, "Error %d: %s", error.error_code, error.error_msg);    
     return error_msg;
 }

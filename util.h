@@ -22,8 +22,6 @@
 #include <stddef.h>
 
 void fatal(const char *);
-void *alloc(size_t size);
-void *ralloc(void *, size_t);
 
 int roundup_div(int, int);
 int sign(int);

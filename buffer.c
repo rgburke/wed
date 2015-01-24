@@ -30,7 +30,9 @@
 #include "config.h"
 #include "encoding.h"
 
-static void reset_buffer(Buffer *);
+static int resize_line_text_if_req(Line *, size_t);
+static int resize_line_text(Line *, size_t);
+static Status reset_buffer(Buffer *);
 static Line *add_to_buffer(Buffer *, BufferPos *, const char *, size_t, int);
 static int is_selection(Direction *);
 static void default_movement_selection_handler(Buffer *, int, Direction *);
@@ -44,9 +46,12 @@ static Status delete_line_segment(Buffer *, BufferPos, BufferPos);
 Buffer *new_buffer(FileInfo file_info)
 {
     Buffer *buffer = malloc(sizeof(Buffer));
-
     RETURN_IF_NULL(buffer);
-    RETURN_IF_NULL(buffer->config = new_hashmap());
+
+    if ((buffer->config = new_hashmap()) == NULL) {
+        free(buffer);
+        return NULL;
+    }
 
     buffer->file_info = file_info;
     init_bufferpos(&buffer->pos);
@@ -67,7 +72,13 @@ Buffer *new_empty_buffer(void)
     init_empty_fileinfo(&file_info);
     Buffer *buffer = new_buffer(file_info); 
     RETURN_IF_NULL(buffer);
-    RETURN_IF_NULL(buffer->lines = buffer->pos.line = buffer->screen_start.line = new_line());
+    buffer->lines = buffer->pos.line = buffer->screen_start.line = new_line();
+
+    if (buffer->lines == NULL) {
+        free(buffer);
+        return NULL;
+    }
+
     return buffer;
 }
 
@@ -103,7 +114,12 @@ Line *new_sized_line(size_t length)
 
     Line *line = malloc(sizeof(Line));
     RETURN_IF_NULL(line);
-    RETURN_IF_NULL(line->text = alloc(alloc_num * LINE_ALLOC));
+
+    if ((line->text = malloc(alloc_num * LINE_ALLOC)) == NULL) {
+        free(line);
+        return NULL;
+    }
+
     line->alloc_num = alloc_num;
     line->length = 0; 
     line->screen_length = 0;
@@ -140,21 +156,36 @@ int init_bufferpos(BufferPos *pos)
 
 TextSelection *new_textselection(Buffer *buffer, Range range)
 {
-    TextSelection *text_selection = alloc(sizeof(TextSelection));
+    TextSelection *text_selection = malloc(sizeof(TextSelection));
+    RETURN_IF_NULL(text_selection);
 
     if (range.start.line == range.end.line) {
         text_selection->type = TST_STRING;
         text_selection->text.string = get_line_segment(range.start.line, range.start.offset, range.end.offset);
+
+        if (text_selection->text.string == NULL) {
+            goto cleanup;
+        }
     } else {
         text_selection->type = TST_LINE;
         BufferPos line_end = range.start;
         line_end.offset = line_end.line->length;
         Line *line = text_selection->text.lines = clone_line_segment(buffer, range.start, line_end);
+        
+        if (line == NULL) {
+            goto cleanup;
+        }
+
         line->prev = NULL;
         Line *prev = line;
 
         while ((line = line->next) != range.end.line) {
             line = clone_line(line);    
+
+            if (line == NULL) {
+                goto cleanup;
+            }
+
             prev->next = line;
             line->prev = prev;
             prev = line;
@@ -162,12 +193,37 @@ TextSelection *new_textselection(Buffer *buffer, Range range)
 
         BufferPos line_start = to_line_start(range.end);
         line = clone_line_segment(buffer, line_start, range.end); 
+
+        if (line == NULL) {
+            goto cleanup;
+        }
+
         prev->next = line;
         line->prev = prev;
         line->next = NULL;
     }
 
     return text_selection;
+
+cleanup:
+    RETURN_IF_NULL(text_selection);
+
+    if (text_selection->type == TST_STRING) {
+        free(text_selection->text.string);
+    } else if (text_selection->type == TST_LINE) {
+        Line *line = text_selection->text.lines;
+        Line *next;
+
+        while (line != NULL) {
+            next = line->next;
+            free_line(line);
+            line = next;
+        }
+    }
+
+    free(text_selection);
+
+    return NULL;
 }
 
 void free_textselection(TextSelection *text_selection)
@@ -195,9 +251,16 @@ void free_textselection(TextSelection *text_selection)
 /* Returns deep copy of a line */
 Line *clone_line(Line *line)
 {
-    Line *clone = alloc(sizeof(Line));
+    Line *clone = malloc(sizeof(Line));
+    RETURN_IF_NULL(clone);
     *clone = *line;
-    clone->text = alloc(line->alloc_num * LINE_ALLOC);
+    clone->text = malloc(line->alloc_num * LINE_ALLOC);
+
+    if (clone->text == NULL) {
+        free(clone);
+        return NULL;
+    }
+
     memcpy(clone->text, line->text, line->length);
 
     return clone;
@@ -208,30 +271,33 @@ Line *clone_line(Line *line)
  * Also need to consider adding a function to determine
  * how much to expand or shrink by.
  * Also pick better function name. */
-void resize_line_text_if_req(Line *line, size_t new_size)
+static int resize_line_text_if_req(Line *line, size_t new_size)
 {
-    if (line == NULL) {
-        return;
-    }
-
     size_t allocated = line->alloc_num * LINE_ALLOC;
+    int success = 1;
 
     if (new_size > allocated) {
-        resize_line_text(line, new_size);  
+        success = resize_line_text(line, new_size);  
     } else if (new_size < (allocated - LINE_ALLOC)) {
-        resize_line_text(line, new_size);
+        success = resize_line_text(line, new_size);
     }
+
+    return success;
 }
 
-void resize_line_text(Line *line, size_t new_size)
+static int resize_line_text(Line *line, size_t new_size)
 {
-    if (line == NULL) {
-        return;
+    size_t alloc_num = (new_size / LINE_ALLOC) + 1;
+    void *ptr = realloc(line->text, alloc_num * LINE_ALLOC);
+
+    if (ptr == NULL) {
+        return 0;
     }
 
-    line->alloc_num = (new_size / LINE_ALLOC) + 1;
+    line->alloc_num = alloc_num;
+    line->text = ptr;
 
-    line->text = ralloc(line->text, line->alloc_num * LINE_ALLOC);
+    return 1;
 }
 
 Status clear_buffer(Buffer *buffer)
@@ -239,7 +305,7 @@ Status clear_buffer(Buffer *buffer)
     Line *line = buffer->lines;
     Line *next;
 
-    reset_buffer(buffer);
+    RETURN_IF_FAIL(reset_buffer(buffer));
 
     while (line != NULL) {
         next = line->next;
@@ -250,14 +316,21 @@ Status clear_buffer(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
-static void reset_buffer(Buffer *buffer)
+static Status reset_buffer(Buffer *buffer)
 {
     buffer->lines = new_line();
+
+    if (buffer->lines == NULL) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to reset buffer");
+    }
+
     init_bufferpos(&buffer->pos);
     init_bufferpos(&buffer->screen_start);
     buffer->pos.line = buffer->screen_start.line = buffer->lines;
     buffer->line_col_offset = 0;
     select_reset(buffer);
+
+    return STATUS_SUCCESS;
 }
 
 /* Loads file into buffer structure */
@@ -267,6 +340,11 @@ Status load_buffer(Buffer *buffer)
         /* If the file represented by this buffer doesn't exist
          * then the buffer content is empty */
         buffer->lines = buffer->pos.line = buffer->screen_start.line = new_line();
+
+        if (buffer->lines == NULL) {
+            return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to create empty buffer");
+        }
+
         return STATUS_SUCCESS;
     }
 
@@ -282,6 +360,10 @@ Status load_buffer(Buffer *buffer)
     init_bufferpos(&pos);
     Line *line = pos.line = buffer->lines = new_line();
 
+    if (line == NULL) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to populate buffer");
+    }
+
     while ((read = fread(buf, sizeof(char), FILE_BUF_SIZE, input_file)) > 0) {
         if (read != FILE_BUF_SIZE && ferror(input_file)) {
             fclose(input_file);
@@ -289,6 +371,11 @@ Status load_buffer(Buffer *buffer)
         } 
 
         line = add_to_buffer(buffer, &pos, buf, read, read < FILE_BUF_SIZE);
+
+        if (line == NULL) {
+            fclose(input_file);
+            return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to populate buffer");
+        }
     }
 
     fclose(input_file);
@@ -310,12 +397,14 @@ static Line *add_to_buffer(Buffer *buffer, BufferPos *pos, const char buf[], siz
 
     while (idx < bsize) {
         if (line->length > 0 && ((line->length % LINE_ALLOC) == 0)) {
-            resize_line_text(line, line->length + LINE_ALLOC);
+            if (!resize_line_text(line, line->length + LINE_ALLOC)) {
+                return NULL;
+            }
         }
 
         if (buf[idx] == '\n' && !(eof && idx == (bsize - 1))) {
             line->screen_length = line_screen_length(buffer, *pos, line->length);
-            line->next = new_line();
+            RETURN_IF_NULL(line->next = new_line());
             line->next->prev = line;
             pos->line = line = line->next;
         } else {
@@ -402,12 +491,9 @@ size_t buffer_line_num(Buffer *buffer)
 
 char *get_buffer_as_string(Buffer *buffer)
 {
-    if (buffer == NULL || buffer->lines == NULL) {
-        return NULL;
-    }
-
     size_t bytes = buffer_byte_num(buffer);
-    char *str = alloc(bytes + 1);
+    char *str = malloc(bytes + 1);
+    RETURN_IF_NULL(str);
     char *iter = str;
     Line *line = buffer->lines;
 
@@ -582,7 +668,8 @@ char *get_line_segment(Line *line, size_t start_offset, size_t end_offset)
     end_offset = (end_offset > line->length ? line->length : end_offset);
     size_t bytes_to_copy = end_offset - start_offset;
 
-    char *text = alloc(bytes_to_copy + 1);
+    char *text = malloc(bytes_to_copy + 1);
+    RETURN_IF_NULL(text);
 
     if (bytes_to_copy > 0) {
         memcpy(text, line->text + start_offset, bytes_to_copy);
@@ -607,10 +694,17 @@ Line *clone_line_segment(Buffer *buffer, BufferPos start, BufferPos end)
     end.offset = (end.offset > line->length ? line->length : end.offset);
     size_t bytes_to_copy = end.offset - start.offset;
 
-    Line *clone = alloc(sizeof(Line));
+    Line *clone = malloc(sizeof(Line));
+    RETURN_IF_NULL(clone);
     *clone = *line;
     clone->alloc_num = (bytes_to_copy / LINE_ALLOC) + 1;
-    clone->text = alloc(clone->alloc_num * LINE_ALLOC);
+    clone->text = malloc(clone->alloc_num * LINE_ALLOC);
+
+    if (clone->text == NULL) {
+        free(clone);
+        return NULL;
+    }
+
     clone->length = bytes_to_copy;
     start.col_no = 1;
     clone->screen_length = line_screen_length(buffer, start, end.offset);
@@ -1187,7 +1281,9 @@ Status insert_character(Buffer *buffer, const char *character)
 
     BufferPos *pos = &buffer->pos;
 
-    resize_line_text_if_req(pos->line, pos->line->length + char_len);
+    if (!resize_line_text_if_req(pos->line, pos->line->length + char_len)) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to insert character %s", character);
+    }
 
     if (pos->line->length > 0 && pos->offset < pos->line->length) {
         memmove(pos->line->text + pos->offset + char_len, pos->line->text + pos->offset, pos->line->length - pos->offset);
@@ -1218,7 +1314,9 @@ Status insert_string(Buffer *buffer, char *string, size_t string_length, int adv
 
     BufferPos *pos = &buffer->pos;
 
-    resize_line_text_if_req(pos->line, pos->line->length + string_length);
+    if (!resize_line_text_if_req(pos->line, pos->line->length + string_length)) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to insert string");
+    }
 
     if (pos->line->length > 0 && pos->offset < pos->line->length) {
         memmove(pos->line->text + pos->offset + string_length, pos->line->text + pos->offset, pos->line->length - pos->offset);
@@ -1271,6 +1369,8 @@ Status delete_character(Buffer *buffer)
     line->length -= char_info.byte_length;
     line->screen_length = pos->col_no - 1 + line_screen_length(buffer, *pos, pos->line->length);
 
+    /* TODO Raise error here? Failing to shrink memory doesn't have an adverse effect so
+     * don't raise an error. It does hint that future {m,re}allocs could likely fail however. */
     resize_line_text_if_req(pos->line, pos->line->length);
 
     return STATUS_SUCCESS;
@@ -1278,6 +1378,8 @@ Status delete_character(Buffer *buffer)
 
 Status delete_line(Buffer *buffer, Line *line)
 {
+    Status status = STATUS_SUCCESS;
+
     if (buffer == NULL || line == NULL) {
         return STATUS_SUCCESS;
     }
@@ -1310,13 +1412,13 @@ Status delete_line(Buffer *buffer, Line *line)
         if (line->next != NULL) {
             buffer->lines = line->next;
         } else {
-            reset_buffer(buffer);
+            status = reset_buffer(buffer);
         }    
     }
 
     free_line(line);
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
 Status insert_line(Buffer *buffer)
@@ -1332,6 +1434,10 @@ Status insert_line(Buffer *buffer)
     size_t line_length = pos->line->length - pos->offset;
 
     Line *line = new_sized_line(line_length);
+
+    if (line == NULL) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to insert line");
+    }
 
     if (line_length > 0) {
         memcpy(line->text, pos->line->text + pos->offset, line_length); 
@@ -1395,6 +1501,7 @@ static Status delete_line_segment(Buffer *buffer, BufferPos start, BufferPos end
     line->length -= (end.offset - start.offset);
     line->screen_length = start.col_no - 1 + line_screen_length(buffer, start, line->length);
 
+    /* Don't check for success for reasons mentioned in delete_character */
     resize_line_text_if_req(line, line->length);
 
     return STATUS_SUCCESS;
@@ -1482,6 +1589,10 @@ Status copy_selected_text(Buffer *buffer, TextSelection **text_selection)
 
     *text_selection = new_textselection(buffer, range); 
 
+    if (*text_selection == NULL) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to copy selected text");
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -1533,6 +1644,16 @@ Status insert_textselection(Buffer *buffer, TextSelection *text_selection)
 
     while (line->next != NULL) {
         buf_line->next = clone_line(line); 
+    
+        if (buf_line->next == NULL) {
+            if (buf_line != end_line) {
+                buf_line->next = end_line; 
+                end_line->prev = buf_line;
+            }
+
+            return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to insert all text");
+        }
+
         buf_line->next->prev = buf_line;
         buf_line = buf_line->next;
         buffer->pos.line_no++;

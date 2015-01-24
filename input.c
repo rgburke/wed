@@ -23,6 +23,7 @@
 #include "buffer.h"
 #include "command.h"
 #include "status.h"
+#include "util.h"
 #include "lib/libtermkey/termkey.h"
 
 #define MAX_KEY_STR_SIZE 50
@@ -34,9 +35,7 @@ void edit(Session *sess)
     termkey = termkey_new(0, TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
 
     if (termkey == NULL) {
-        /* TODO Need to add out of memory type error.
-         * Also need to deal with fatal out of memory cases like this. */
-        return;
+        fatal("Unable to initialise termkey instance");
     }
 
     init_display();
@@ -51,10 +50,6 @@ void edit(Session *sess)
 
 void process_input(Session *sess)
 {
-    if (termkey == NULL) {
-        return;
-    }
-
     char keystr[MAX_KEY_STR_SIZE];
     TermKeyResult ret;
     TermKeyKey key;

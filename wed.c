@@ -45,15 +45,22 @@ int main(int argc, char *argv[])
 {
     Session *sess = new_session();
 
+    if (sess == NULL) {
+        fatal("Out of memory - Unable to create Session");
+    }
+
     if (!parse_args(argc, argv, sess)) {
         return 1;
     }
 
     setlocale(LC_ALL, "");
-    init_config();
+
+    if (!STATUS_IS_SUCCESS(init_config())) {
+        fatal("Unable to initialise config");
+    }
 
     if (!init_session(sess, argv, argc)) {
-        return 1;
+        fatal("Unable to initialise session");
     }
 
     edit(sess);

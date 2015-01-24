@@ -27,7 +27,8 @@
 
 Session *new_session(void)
 {
-    Session *sess = alloc(sizeof(Session));
+    Session *sess = malloc(sizeof(Session));
+    RETURN_IF_NULL(sess);
     memset(sess, 0, sizeof(Session));
 
     sess->buffers = NULL;
@@ -53,7 +54,11 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
     }
 
     for (int k = 1; k < buffer_num; k++) {
-        init_fileinfo(&file_info, buffer_paths[k]);
+        if (!init_fileinfo(&file_info, buffer_paths[k])) {
+            add_error(sess, get_error(ERR_OUT_OF_MEMORY, 
+                                      "Out of memory - Unable to determine fileinfo for file %s", 
+                                      buffer_paths[k]));
+        }
 
         if (file_is_directory(file_info)) {
             free_fileinfo(file_info);
@@ -64,7 +69,8 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
         Buffer *buffer = new_buffer(file_info);
 
         if (buffer == NULL) {
-            add_error(sess, get_error(ERR_OUT_OF_MEMORY, "Unable to create buffer for file %s", file_info.file_name));
+            add_error(sess, get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to create buffer for file %s", 
+                                      file_info.file_name));
             continue;
         }
 
@@ -190,13 +196,8 @@ int set_active_buffer(Session *sess, size_t buff_index)
     return 1;
 }
 
-int make_cmd_buffer_active(Session *sess, const char *text)
+Status make_cmd_buffer_active(Session *sess, const char *text)
 {
-    if (sess == NULL || sess->active_buffer == NULL || 
-        sess->cmd_prompt.cmd_buffer == NULL) {
-        return 0;
-    }
-
     sess->cmd_prompt.cmd_buffer->next = sess->active_buffer;
     sess->active_buffer = sess->cmd_prompt.cmd_buffer;
 
@@ -205,10 +206,13 @@ int make_cmd_buffer_active(Session *sess, const char *text)
     }
 
     sess->cmd_prompt.cmd_text = strdupe(text);
-    sess->cmd_prompt.cancelled = 0;
-    clear_buffer(sess->cmd_prompt.cmd_buffer);
+    
+    if (text != NULL && sess->cmd_prompt.cmd_text == NULL) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to set prompt text");
+    }
 
-    return 1;
+    sess->cmd_prompt.cancelled = 0;
+    return clear_buffer(sess->cmd_prompt.cmd_buffer);
 }
 
 int end_cmd_buffer_active(Session *sess)

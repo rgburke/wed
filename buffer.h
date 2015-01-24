@@ -122,8 +122,6 @@ int init_bufferpos(BufferPos *);
 TextSelection *new_textselection(Buffer *, Range);
 void free_textselection(TextSelection *);
 Line *clone_line(Line *line);
-void resize_line_text(Line *, size_t);
-void resize_line_text_if_req(Line *, size_t);
 Status clear_buffer(Buffer *);
 Status load_buffer(Buffer *);
 Status write_buffer(Buffer *);
