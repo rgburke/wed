@@ -33,7 +33,7 @@
 static int resize_line_text_if_req(Line *, size_t);
 static int resize_line_text(Line *, size_t);
 static Status reset_buffer(Buffer *);
-static Line *add_to_buffer(Buffer *, BufferPos *, const char *, size_t, int);
+static int add_to_buffer(Buffer *, BufferPos *, const char *, size_t, int);
 static int is_selection(Direction *);
 static void default_movement_selection_handler(Buffer *, int, Direction *);
 static Status pos_change_real_line(Buffer *, BufferPos *, Direction, int);
@@ -62,6 +62,8 @@ Buffer *new_buffer(FileInfo file_info)
     buffer->line_col_offset = 0;
     buffer->encoding_type = ENC_UTF8;
     init_char_enc_funcs(buffer->encoding_type, &buffer->cef);
+    buffer->line_num = 0;
+    buffer->byte_num = 0;
 
     return buffer;
 }
@@ -78,6 +80,8 @@ Buffer *new_empty_buffer(void)
         free(buffer);
         return NULL;
     }
+
+    buffer->line_num = buffer->byte_num = 1;
 
     return buffer;
 }
@@ -328,6 +332,7 @@ static Status reset_buffer(Buffer *buffer)
     init_bufferpos(&buffer->screen_start);
     buffer->pos.line = buffer->screen_start.line = buffer->lines;
     buffer->line_col_offset = 0;
+    buffer->line_num = buffer->byte_num = 1;
     select_reset(buffer);
 
     return STATUS_SUCCESS;
@@ -336,6 +341,8 @@ static Status reset_buffer(Buffer *buffer)
 /* Loads file into buffer structure */
 Status load_buffer(Buffer *buffer)
 {
+    Status status = STATUS_SUCCESS;
+
     if (!file_exists(buffer->file_info)) {
         /* If the file represented by this buffer doesn't exist
          * then the buffer content is empty */
@@ -345,7 +352,7 @@ Status load_buffer(Buffer *buffer)
             return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to create empty buffer");
         }
 
-        return STATUS_SUCCESS;
+        return status;
     }
 
     FILE *input_file = fopen(buffer->file_info.rel_path, "rb");
@@ -358,39 +365,37 @@ Status load_buffer(Buffer *buffer)
     size_t read;
     BufferPos pos;
     init_bufferpos(&pos);
-    Line *line = pos.line = buffer->lines = new_line();
+    pos.line = buffer->lines = new_line();
 
-    if (line == NULL) {
-        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to populate buffer");
+    if (pos.line == NULL) {
+        status = get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to populate buffer");
+        goto cleanup;
     }
 
+    buffer->line_num = buffer->byte_num = 1;
+
     while ((read = fread(buf, sizeof(char), FILE_BUF_SIZE, input_file)) > 0) {
-        if (read != FILE_BUF_SIZE && ferror(input_file)) {
-            fclose(input_file);
-            return get_error(ERR_UNABLE_TO_READ_FILE, "Unable to read from file %s", buffer->file_info.file_name);
+        if (ferror(input_file)) {
+            status = get_error(ERR_UNABLE_TO_READ_FILE, "Unable to read from file %s", buffer->file_info.file_name);
+            goto cleanup;
         } 
 
-        line = add_to_buffer(buffer, &pos, buf, read, read < FILE_BUF_SIZE);
-
-        if (line == NULL) {
-            fclose(input_file);
-            return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to populate buffer");
+        if (!add_to_buffer(buffer, &pos, buf, read, read < FILE_BUF_SIZE)) {
+            status = get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to populate buffer");
+            goto cleanup;
         }
     }
 
+    buffer->pos.line = buffer->screen_start.line = buffer->lines;
+
+cleanup:
     fclose(input_file);
 
-    line->screen_length = line_screen_length(buffer, pos, line->length);
-
-    if (buffer->lines) {
-        buffer->pos.line = buffer->screen_start.line = buffer->lines;
-    }
-
-    return STATUS_SUCCESS;
+    return status;
 }
 
 /* Used when loading a file into a buffer */
-static Line *add_to_buffer(Buffer *buffer, BufferPos *pos, const char buf[], size_t bsize, int eof)
+static int add_to_buffer(Buffer *buffer, BufferPos *pos, const char buf[], size_t bsize, int eof)
 {
     size_t idx = 0;
     Line *line = pos->line;
@@ -398,23 +403,35 @@ static Line *add_to_buffer(Buffer *buffer, BufferPos *pos, const char buf[], siz
     while (idx < bsize) {
         if (line->length > 0 && ((line->length % LINE_ALLOC) == 0)) {
             if (!resize_line_text(line, line->length + LINE_ALLOC)) {
-                return NULL;
+                return 0;
             }
         }
 
-        if (buf[idx] == '\n' && !(eof && idx == (bsize - 1))) {
+        if (buf[idx] == '\n') {
             line->screen_length = line_screen_length(buffer, *pos, line->length);
-            RETURN_IF_NULL(line->next = new_line());
+
+            if (eof && idx == (bsize - 1)) {
+                return 1;
+            }
+
+            if ((line->next = new_line()) == NULL) {
+                return 0;
+            }
+
+            buffer->byte_num++;
+            buffer->line_num++;
+
             line->next->prev = line;
             pos->line = line = line->next;
         } else {
             line->text[line->length++] = buf[idx];
+            buffer->byte_num++;
         }
 
         idx++;
     }
 
-    return line;
+    return 1;
 }
 
 /* TODO Write to temporary file then move it to the filename we want to write to */
@@ -434,13 +451,11 @@ Status write_buffer(Buffer *buffer)
 
     Line *line = buffer->lines;
 
-    while (line->next != NULL) {
+    while (line != NULL) {
         fwrite(line->text, sizeof(char), line->length, output_file);
         fputc('\n', output_file);
         line = line->next;
     }
-
-    fwrite(line->text, sizeof(char), line->length, output_file);
 
     int fail = ferror(output_file);
 
@@ -453,46 +468,9 @@ Status write_buffer(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
-size_t buffer_byte_num(Buffer *buffer)
-{
-    if (buffer == NULL || buffer->lines == NULL) {
-        return 0;
-    }
-
-    Line *line = buffer->lines;
-    size_t bytes = 0;
-
-    while (line->next != NULL) {
-        bytes += line->length + 1;
-        line = line->next;
-    }
-
-    bytes += line->length;
-
-    return bytes;
-}
-
-size_t buffer_line_num(Buffer *buffer)
-{
-    if (buffer == NULL || buffer->lines == NULL) {
-        return 0;
-    }
-
-    Line *line = buffer->lines;
-    size_t line_num = 1;
-
-    while (line->next != NULL) {
-        line_num++;
-        line = line->next;
-    }
-
-    return line_num;
-}
-
 char *get_buffer_as_string(Buffer *buffer)
 {
-    size_t bytes = buffer_byte_num(buffer);
-    char *str = malloc(bytes + 1);
+    char *str = malloc(buffer->byte_num + 1);
     RETURN_IF_NULL(str);
     char *iter = str;
     Line *line = buffer->lines;
@@ -1062,13 +1040,13 @@ static void update_line_col_offset(Buffer *buffer, BufferPos *pos)
     }
 }
 
-Status pos_to_line_start(Buffer *buffer, int is_select)
+Status pos_to_line_start(Buffer *buffer, BufferPos *pos, int is_select, int is_cursor)
 {
     if (config_bool("linewrap")) {
-        return bpos_to_screen_line_start(buffer, &buffer->pos, is_select, 1);
+        return bpos_to_screen_line_start(buffer, pos, is_select, is_cursor);
     }
 
-    return bpos_to_line_start(buffer, &buffer->pos, is_select, 1);
+    return bpos_to_line_start(buffer, pos, is_select, is_cursor);
 }
 
 static BufferPos to_line_start(BufferPos pos)
@@ -1254,7 +1232,8 @@ Status pos_change_page(Buffer *buffer, Direction direction)
     RETURN_IF_FAIL(status);
 
     if (buffer->screen_start.line != buffer->pos.line) {
-        buffer->screen_start.line = buffer->pos.line;
+        buffer->screen_start = buffer->pos;
+        RETURN_IF_FAIL(bpos_to_screen_line_start(buffer, &buffer->screen_start, 0, 0));
     }
 
     return STATUS_SUCCESS;
@@ -1292,6 +1271,7 @@ Status insert_character(Buffer *buffer, const char *character)
     memcpy(pos->line->text + pos->offset, character, char_len);
     pos->line->length += char_len;
     pos->line->screen_length = pos->col_no - 1 + line_screen_length(buffer, *pos, pos->line->length);
+    buffer->byte_num += char_len;
     RETURN_IF_FAIL(pos_change_char(buffer, pos, DIRECTION_RIGHT, 1));
 
     return STATUS_SUCCESS;
@@ -1325,6 +1305,7 @@ Status insert_string(Buffer *buffer, char *string, size_t string_length, int adv
     memcpy(pos->line->text + pos->offset, string, string_length);
     pos->line->length += string_length;
     pos->line->screen_length = pos->col_no - 1 + line_screen_length(buffer, *pos, pos->line->length);
+    buffer->byte_num += string_length;
 
     if (advance_cursor) {
         size_t end_offset = pos->offset + string_length;
@@ -1368,6 +1349,7 @@ Status delete_character(Buffer *buffer)
 
     line->length -= char_info.byte_length;
     line->screen_length = pos->col_no - 1 + line_screen_length(buffer, *pos, pos->line->length);
+    buffer->byte_num -= char_info.byte_length;
 
     /* TODO Raise error here? Failing to shrink memory doesn't have an adverse effect so
      * don't raise an error. It does hint that future {m,re}allocs could likely fail however. */
@@ -1383,6 +1365,9 @@ Status delete_line(Buffer *buffer, Line *line)
     if (buffer == NULL || line == NULL) {
         return STATUS_SUCCESS;
     }
+
+    buffer->byte_num -= line->length + 1;
+    buffer->line_num--;
 
     if (line->prev != NULL) {
         line->prev->next = line->next;
@@ -1447,6 +1432,7 @@ Status insert_line(Buffer *buffer)
         line->screen_length = line_screen_length(buffer, line_start, line_length);
         pos->line->screen_length = pos->col_no - 1;
         pos->line->length = pos->offset;
+        resize_line_text_if_req(pos->line, pos->line->length);
     }
 
     line->next = pos->line->next;
@@ -1461,6 +1447,8 @@ Status insert_line(Buffer *buffer)
     pos->offset = 0;
     pos->line_no++;
     pos->col_no = 1;
+    buffer->byte_num++;
+    buffer->line_num++;
 
     return STATUS_SUCCESS;
 }
@@ -1500,6 +1488,7 @@ static Status delete_line_segment(Buffer *buffer, BufferPos start, BufferPos end
 
     line->length -= (end.offset - start.offset);
     line->screen_length = start.col_no - 1 + line_screen_length(buffer, start, line->length);
+    buffer->byte_num -= (end.offset - start.offset);
 
     /* Don't check for success for reasons mentioned in delete_character */
     resize_line_text_if_req(line, line->length);
@@ -1657,6 +1646,8 @@ Status insert_textselection(Buffer *buffer, TextSelection *text_selection)
         buf_line->next->prev = buf_line;
         buf_line = buf_line->next;
         buffer->pos.line_no++;
+        buffer->line_num++;
+        buffer->byte_num += buf_line->length + 1;
         line = line->next;
     }
 

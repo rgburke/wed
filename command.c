@@ -178,7 +178,7 @@ static Status bufferpos_to_line_start(Session *sess, Value param, const char *ke
 {
     (void)keystr;
     (void)finished;
-    return pos_to_line_start(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
+    return pos_to_line_start(sess->active_buffer, &sess->active_buffer->pos, param.val.ival & DIRECTION_WITH_SELECT, 1);
 }
 
 static Status bufferpos_to_line_end(Session *sess, Value param, const char *keystr, int *finished)
@@ -342,7 +342,7 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
             return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
         }
 
-        Status status;
+        Status status = STATUS_SUCCESS;
 
         if (strlen(input) == 0) {
             status = get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", 

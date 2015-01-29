@@ -26,7 +26,7 @@
 #include "hashmap.h"
 #include "encoding.h"
 
-#define FILE_BUF_SIZE 512
+#define FILE_BUF_SIZE 1024
 #define LINE_ALLOC 32
 
 #define DIRECTION_OFFSET(d) (((d) & 1) ? -1 : 1)
@@ -102,6 +102,8 @@ struct Buffer {
     HashMap *config; /* Stores config variables */
     CharacterEncodingType encoding_type;
     CharacterEncodingFunctions cef;
+    size_t line_num;
+    size_t byte_num;
 };
 
 typedef struct {
@@ -125,8 +127,6 @@ Line *clone_line(Line *line);
 Status clear_buffer(Buffer *);
 Status load_buffer(Buffer *);
 Status write_buffer(Buffer *);
-size_t buffer_byte_num(Buffer *);
-size_t buffer_line_num(Buffer *);
 char *get_buffer_as_string(Buffer *);
 int buffer_file_exists(Buffer *);
 int has_file_path(Buffer *);
@@ -160,7 +160,7 @@ Status pos_change_char(Buffer *, BufferPos *, Direction, int);
 Status pos_change_multi_char(Buffer *, BufferPos *, Direction, size_t, int);
 Status bpos_to_line_start(Buffer *, BufferPos *, int, int);
 Status bpos_to_screen_line_start(Buffer *, BufferPos *, int, int);
-Status pos_to_line_start(Buffer *, int);
+Status pos_to_line_start(Buffer *, BufferPos *, int, int);
 Status pos_to_line_end(Buffer *, int);
 Status pos_to_next_word(Buffer *, int);
 Status pos_to_prev_word(Buffer *, int);

@@ -28,6 +28,7 @@
 /* TODO make this configurable
  * this is duplicated in encoding.c */
 #define WED_TAB_SIZE 8
+#define STATUS_TEXT_SIZE 512
 
 static WINDOW *menu;
 static WINDOW *status;
@@ -159,12 +160,47 @@ void draw_status(Session *sess)
 {
     Buffer *buffer = sess->active_buffer;
     BufferPos pos = buffer->pos;
+    FileInfo file_info = buffer->file_info;
+    char status_text[STATUS_TEXT_SIZE];
+    int segment_num = 2;
+    size_t max_segment_width = text_x / segment_num;
 
+    werase(status);
     wmove(status, 0, 0);
     wbkgd(status, COLOR_PAIR(STATUS_COLOR_PAIR));
     wattron(status, COLOR_PAIR(STATUS_COLOR_PAIR));
-    wprintw(status, "Line %zu Column %zu", pos.line_no, pos.col_no); 
-    wclrtoeol(status);
+
+    size_t file_info_free = max_segment_width;
+
+    char *file_info_text = " ";
+
+    if (file_exists(file_info) && !can_write_file(file_info)) {
+        file_info_text = " [readonly] ";
+    }
+
+    file_info_free -= (strlen(file_info_text) + 3);
+    
+    if (strlen(file_info.file_name) > file_info_free) {
+        int file_char_num = file_info_free - 3;
+        char file_name_fmt[STATUS_TEXT_SIZE];
+        snprintf(file_name_fmt, STATUS_TEXT_SIZE, " \"%%.%ds...\"%%s", file_char_num);
+        snprintf(status_text, max_segment_width, file_name_fmt, file_info.file_name, file_info_text);
+    } else {
+        snprintf(status_text, max_segment_width, " \"%s\"%s", file_info.file_name, file_info_text);
+    }
+
+    wprintw(status, status_text);
+
+    int pos_size = snprintf(status_text, STATUS_TEXT_SIZE, 
+                            "Length: %zu Lines: %zu | Line: %zu Col: %zu ",
+                            buffer->byte_num, buffer->line_num, pos.line_no, pos.col_no);
+
+    if (pos_size < 0 || (size_t)pos_size > max_segment_width) {
+        snprintf(status_text, max_segment_width, "Line: %zu Col: %zu ", pos.line_no, pos.col_no);
+    }
+
+    mvwprintw(status, 0, text_x - strlen(status_text) - 1, status_text);
+
     wattroff(status, COLOR_PAIR(STATUS_COLOR_PAIR));
     wnoutrefresh(status); 
 }
@@ -178,7 +214,7 @@ static void draw_prompt(Session *sess)
     wattroff(status, COLOR_PAIR(STATUS_COLOR_PAIR));
     wprintw(status, " "); 
 
-    if (buffer_byte_num(sess->cmd_prompt.cmd_buffer) == 0) {
+    if (sess->cmd_prompt.cmd_buffer->byte_num <= 1) {
         wclrtoeol(status);
     }
 
