@@ -21,6 +21,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include "session.h"
 #include "buffer.h"
 #include "util.h"
@@ -358,7 +361,8 @@ Status load_buffer(Buffer *buffer)
     FILE *input_file = fopen(buffer->file_info.rel_path, "rb");
 
     if (input_file == NULL) {
-        return get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open file %s for reading", buffer->file_info.file_name);
+        return get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open file %s for reading - %s", 
+                         buffer->file_info.file_name, strerror(errno));
     } 
 
     char buf[FILE_BUF_SIZE];
@@ -374,9 +378,12 @@ Status load_buffer(Buffer *buffer)
 
     buffer->line_num = buffer->byte_num = 1;
 
-    while ((read = fread(buf, sizeof(char), FILE_BUF_SIZE, input_file)) > 0) {
+    do {
+        read = fread(buf, sizeof(char), FILE_BUF_SIZE, input_file);
+
         if (ferror(input_file)) {
-            status = get_error(ERR_UNABLE_TO_READ_FILE, "Unable to read from file %s", buffer->file_info.file_name);
+            status = get_error(ERR_UNABLE_TO_READ_FILE, "Unable to read from file %s - %s", 
+                               buffer->file_info.file_name, strerror(errno));
             goto cleanup;
         } 
 
@@ -384,7 +391,7 @@ Status load_buffer(Buffer *buffer)
             status = get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to populate buffer");
             goto cleanup;
         }
-    }
+    } while (read == FILE_BUF_SIZE) ;
 
     buffer->pos.line = buffer->screen_start.line = buffer->lines;
 
@@ -434,38 +441,83 @@ static int add_to_buffer(Buffer *buffer, BufferPos *pos, const char buf[], size_
     return 1;
 }
 
-/* TODO Write to temporary file then move it to the filename we want to write to */
 Status write_buffer(Buffer *buffer)
 {
-    if (buffer == NULL || buffer->file_info.rel_path == NULL ||
-        buffer->lines == NULL) {
-        /* TODO Raise error */        
-        return STATUS_SUCCESS;
+    FileInfo *file_info = &buffer->file_info;
+
+    size_t tmp_file_path_len = strlen(file_info->rel_path) + 6 + 1;
+    char *tmp_file_path = malloc(tmp_file_path_len);
+
+    if (tmp_file_path == NULL) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to create temporary file path");
     }
 
-    FILE *output_file = fopen(buffer->file_info.rel_path, "wb");
+    snprintf(tmp_file_path, tmp_file_path_len, "%sXXXXXX", file_info->rel_path);
 
-    if (output_file == NULL) {
-        /* TODO Raise error */        
+    int output_file = mkstemp(tmp_file_path);
+
+    if (output_file == -1) {
+        free(tmp_file_path);
+        return get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open file temporary for writing - %s",
+                         strerror(errno));
     }
 
     Line *line = buffer->lines;
+    Status status = STATUS_SUCCESS;
 
     while (line != NULL) {
-        fwrite(line->text, sizeof(char), line->length, output_file);
-        fputc('\n', output_file);
+        if (line->length > 0) {
+            if (write(output_file, line->text, line->length) <= 0) {
+                status = get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to write to temporary file - %s", 
+                                   strerror(errno));
+                break;
+            }
+        }
+
+        if (write(output_file, "\n", 1) != 1) {
+            status = get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to write to temporary file - %s", 
+                               strerror(errno));
+            break;
+        }
+
         line = line->next;
     }
 
-    int fail = ferror(output_file);
+    close(output_file);
 
-    fclose(output_file);
-
-    if (fail) {
-        /* TODO Raise error */
+    if (!STATUS_IS_SUCCESS(status)) {
+        goto cleanup;
     }
 
-    return STATUS_SUCCESS;
+    struct stat file_stat;
+
+    if (stat(file_info->rel_path, &file_stat) == 0) {
+        if (chmod(tmp_file_path, file_stat.st_mode) == -1) {
+            status = get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to set file permissions - %s", 
+                               strerror(errno));
+            goto cleanup;
+        }
+
+        if (chown(tmp_file_path, file_stat.st_uid, file_stat.st_gid) == -1) {
+            status = get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to set owner - %s",
+                               strerror(errno));
+            goto cleanup;
+        }
+    }
+
+    if (rename(tmp_file_path, file_info->rel_path) == -1) {
+        status = get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to overwrite file %s - %s",
+                           file_info->rel_path, strerror(errno)); 
+    }
+
+cleanup:
+    if (!STATUS_IS_SUCCESS(status)) {
+        remove(tmp_file_path);
+    }
+
+    free(tmp_file_path);
+
+    return status;
 }
 
 char *get_buffer_as_string(Buffer *buffer)

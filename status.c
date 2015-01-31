@@ -30,18 +30,19 @@ typedef struct {
 } ErrorCodeMsg;
 
 static const ErrorCodeMsg default_error_messages[] = {
-    { ERR_FILE_DOESNT_EXIST   , "File doesn't exist"       },
-    { ERR_FILE_IS_DIRECTORY   , "File is a directory"      },
-    { ERR_UNABLE_TO_OPEN_FILE , "Unable to open file"      },
-    { ERR_UNABLE_TO_READ_FILE , "Unable to read from file" },
-    { ERR_INVALID_COMMAND     , "Invalid command"          },
-    { ERR_INVALID_CHARACTER   , "Invalid character"        },
-    { ERR_INVALID_STRING      , "Invalid string"           },
-    { ERR_INVALID_VAR         , "Invalid variable"         },
-    { ERR_INVALID_VAL         , "Invalid value"            },
-    { ERR_INVALID_CONFIG_ENTRY, "Invalid config entry"     },
-    { ERR_INVALID_FILE_PATH   , "Invalid file path"        },
-    { ERR_OUT_OF_MEMORY       , "Out of memory"            }
+    { ERR_FILE_DOESNT_EXIST      , "File doesn't exist"       },
+    { ERR_FILE_IS_DIRECTORY      , "File is a directory"      },
+    { ERR_UNABLE_TO_OPEN_FILE    , "Unable to open file"      },
+    { ERR_UNABLE_TO_READ_FILE    , "Unable to read from file" },
+    { ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to write to file"  },
+    { ERR_INVALID_COMMAND        , "Invalid command"          },
+    { ERR_INVALID_CHARACTER      , "Invalid character"        },
+    { ERR_INVALID_STRING         , "Invalid string"           },
+    { ERR_INVALID_VAR            , "Invalid variable"         },
+    { ERR_INVALID_VAL            , "Invalid value"            },
+    { ERR_INVALID_CONFIG_ENTRY   , "Invalid config entry"     },
+    { ERR_INVALID_FILE_PATH      , "Invalid file path"        },
+    { ERR_OUT_OF_MEMORY          , "Out of memory"            }
 };
 
 Status get_error(ErrorCode error_code, char *format, ...)
