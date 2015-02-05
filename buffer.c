@@ -349,13 +349,7 @@ Status load_buffer(Buffer *buffer)
     if (!file_exists(buffer->file_info)) {
         /* If the file represented by this buffer doesn't exist
          * then the buffer content is empty */
-        buffer->lines = buffer->pos.line = buffer->screen_start.line = new_line();
-
-        if (buffer->lines == NULL) {
-            return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to create empty buffer");
-        }
-
-        return status;
+        return reset_buffer(buffer);
     }
 
     FILE *input_file = fopen(buffer->file_info.rel_path, "rb");
@@ -414,6 +408,7 @@ static int add_to_buffer(Buffer *buffer, BufferPos *pos, const char buf[], size_
             }
         }
 
+        /* TODO Detect and deal with CRLF and CR as well */
         if (buf[idx] == '\n') {
             line->screen_length = line_screen_length(buffer, *pos, line->length);
 
@@ -522,7 +517,21 @@ cleanup:
 
 char *get_buffer_as_string(Buffer *buffer)
 {
-    char *str = malloc(buffer->byte_num + 1);
+    return join_lines(buffer, "\n");
+}
+
+char *join_lines(Buffer *buffer, const char *separator)
+{
+    size_t byte_num = buffer->byte_num;
+    size_t separator_len = strlen(separator);
+
+    if (separator_len == 0) {
+        byte_num -= (buffer->line_num - 1);
+    } else if (separator_len > 1) {
+        byte_num += ((buffer->line_num - 1) * (separator_len - 1));
+    }
+
+    char *str = malloc(byte_num + 1);
     RETURN_IF_NULL(str);
     char *iter = str;
     Line *line = buffer->lines;
@@ -533,7 +542,11 @@ char *get_buffer_as_string(Buffer *buffer)
             iter += line->length;
         }
 
-        *iter++ = '\n';
+        if (separator_len > 0) {
+            memcpy(iter, separator, separator_len);
+            iter += separator_len;
+        }
+
         line = line->next;
     }
 
@@ -545,6 +558,11 @@ char *get_buffer_as_string(Buffer *buffer)
     *iter = '\0';
 
     return str;
+}
+
+int buffer_is_empty(Buffer *buffer)
+{
+    return buffer->line_num == 1 && buffer->byte_num == 1;
 }
 
 int buffer_file_exists(Buffer *buffer)
@@ -1086,7 +1104,11 @@ Status pos_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction
 static void update_line_col_offset(Buffer *buffer, BufferPos *pos)
 {
     if (config_bool("linewrap")) {
-        buffer->line_col_offset = (pos->col_no - 1) % buffer->win_info.width;
+        /* Windowinfo may not be initialised when the error buffer is populated,
+         * but line_col_offset isn't needed in this case anyway. */
+        if (buffer->win_info.width > 0) {
+            buffer->line_col_offset = (pos->col_no - 1) % buffer->win_info.width;
+        }
     } else {
         buffer->line_col_offset = pos->col_no - 1;
     }
@@ -1329,7 +1351,7 @@ Status insert_character(Buffer *buffer, const char *character)
     return STATUS_SUCCESS;
 }
 
-Status insert_string(Buffer *buffer, char *string, size_t string_length, int advance_cursor)
+Status insert_string(Buffer *buffer, const char *string, size_t string_length, int advance_cursor)
 {
     if (string == NULL) {
         return get_error(ERR_INVALID_CHARACTER, "Cannot insert NULL string");

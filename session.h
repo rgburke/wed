@@ -29,7 +29,8 @@
 typedef struct {
     Buffer *buffers; /* Linked list buffers */
     Buffer *active_buffer; /* The buffer currently being edited */
-    ErrorQueue error_queue; /* Errors are added to this queue to be processed */
+    Buffer *error_buffer;
+    Buffer *msg_buffer;
     HashMap *keymap; /* Maps keyboard inputs to commands */
     TextSelection *clipboard; /* Stores copied and cut text */
     HashMap *config; /* Stores config variables */
@@ -57,5 +58,10 @@ void set_clipboard(Session *, TextSelection *);
 void exclude_command_type(Session *, CommandType);
 void enable_command_type(Session *, CommandType);
 int command_type_excluded(Session *, CommandType);
+int has_errors(Session *);
+void clear_errors(Session *);
+int add_msg(Session *, const char *);
+int has_msgs(Session *);
+void clear_msgs(Session *);
 
 #endif

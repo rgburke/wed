@@ -328,8 +328,10 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
     (void)param;
     (void)keystr;
     (void)finished;
+    Buffer *buffer = sess->active_buffer;
+    Status status = STATUS_SUCCESS;
 
-    if (!has_file_path(sess->active_buffer)) {
+    if (!has_file_path(buffer)) {
         cmd_input_prompt(sess, "Save As");
 
         if (sess->cmd_prompt.cancelled) {
@@ -342,14 +344,12 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
             return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
         }
 
-        Status status = STATUS_SUCCESS;
-
         if (strlen(input) == 0) {
             status = get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", 
                                input == NULL ? "NULL" : "");
         }
 
-        if (!set_buffer_file_path(sess->active_buffer, input)) {
+        if (!set_buffer_file_path(buffer, input)) {
             status = get_error(ERR_INVALID_FILE_PATH, "Out of memory - Unable to set buffer file path");
         }
 
@@ -357,7 +357,16 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
         RETURN_IF_FAIL(status);
     }
 
-    return write_buffer(sess->active_buffer);
+    status = write_buffer(buffer);
+    RETURN_IF_FAIL(status);
+
+    refresh_file_attributes(&buffer->file_info);
+
+    char msg[MAX_MSG_SIZE];
+    snprintf(msg, MAX_MSG_SIZE, "Save successful: %zu lines, %zu bytes written", buffer->line_num, buffer->byte_num);
+    add_msg(sess, msg);
+
+    return status;
 }
 
 static Status finished_processing_input(Session *sess, Value param, const char *keystr, int *finished)

@@ -46,5 +46,6 @@ int check_can_read_file(FileInfo *);
 int can_write_file(FileInfo);
 int check_can_write_file(FileInfo *);
 int set_file_path(FileInfo *, const char *);
+int refresh_file_attributes(FileInfo *);
 
 #endif

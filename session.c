@@ -16,6 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include "wed.h"
 #include <stdio.h>
 #include <string.h>
 #include "session.h"
@@ -33,6 +34,8 @@ Session *new_session(void)
 
     sess->buffers = NULL;
     sess->active_buffer = NULL;
+    sess->error_buffer = NULL;
+    sess->msg_buffer = NULL;
     sess->keymap = NULL;
     sess->clipboard = NULL;
     sess->config = NULL;
@@ -100,6 +103,14 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
+    if ((sess->error_buffer = new_empty_buffer()) == NULL) {
+        return 0;
+    }
+
+    if ((sess->msg_buffer = new_empty_buffer()) == NULL) {
+        return 0;
+    }
+
     set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", "0");
     set_config_session(sess);
     add_error(sess, init_session_config(sess));
@@ -122,12 +133,13 @@ void free_session(Session *sess)
         buffer = tmp;
     }
 
-    free_error_queue(&sess->error_queue);
     free_keymap(sess);
     free_textselection(sess->clipboard);
     free_config(sess->config);
     free_buffer(sess->cmd_prompt.cmd_buffer);
     free(sess->cmd_prompt.cmd_text);
+    free_buffer(sess->error_buffer);
+    free_buffer(sess->msg_buffer);
 
     free(sess);
 }
@@ -284,15 +296,6 @@ int remove_buffer(Session *sess, Buffer *to_remove)
     return 1;
 }
 
-int add_error(Session *sess, Status error)
-{
-    if (sess == NULL || STATUS_IS_SUCCESS(error)) {
-        return 0;
-    }
-
-    return error_queue_add(&sess->error_queue, error);
-}
-
 void set_clipboard(Session *sess, TextSelection *clipboard)
 {
     if (sess->clipboard != NULL) {
@@ -315,4 +318,62 @@ void enable_command_type(Session *sess, CommandType cmd_type)
 int command_type_excluded(Session *sess, CommandType cmd_type)
 {
     return sess->exclude_cmd_types & cmd_type;
+}
+
+int add_error(Session *sess, Status error)
+{
+    if (STATUS_IS_SUCCESS(error)) {
+        return 0;
+    }
+
+    Buffer *error_buffer = sess->error_buffer;
+    char error_msg[MAX_ERROR_MSG_SIZE];
+
+    snprintf(error_msg, MAX_ERROR_MSG_SIZE, "Error %d: %s", error.error_code, error.msg);    
+    free_status(error);
+
+    if (!bufferpos_at_buffer_start(error_buffer->pos)) {
+        insert_line(error_buffer);
+    }
+
+    insert_string(error_buffer, error_msg, strnlen(error_msg, MAX_ERROR_MSG_SIZE), 1);
+
+    return 1;
+}
+
+int has_errors(Session *sess)
+{
+    return !buffer_is_empty(sess->error_buffer);
+}
+
+void clear_errors(Session *sess)
+{
+    clear_buffer(sess->error_buffer);
+}
+
+int add_msg(Session *sess, const char *msg)
+{
+    if (msg == NULL) {
+        return 0; 
+    }
+
+    Buffer *msg_buffer = sess->msg_buffer;
+
+    if (!bufferpos_at_buffer_start(msg_buffer->pos)) {
+        insert_line(msg_buffer);
+    }
+
+    insert_string(msg_buffer, msg, strnlen(msg, MAX_MSG_SIZE), 1);
+
+    return 1;
+}
+
+int has_msgs(Session *sess)
+{
+    return !buffer_is_empty(sess->msg_buffer);
+}
+
+void clear_msgs(Session *sess)
+{
+    clear_buffer(sess->msg_buffer);
 }

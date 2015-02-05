@@ -24,14 +24,15 @@
 
 #define RETURN_IF_NULL(ptr) if ((ptr) == NULL) { return NULL; }
 #define STATUS_ERROR(ecode, emsg, emliteral) (Status)\
-                    { .error_code = (ecode), .error_msg = (emsg), .error_msg_literal = (emliteral) }
+                    { .error_code = (ecode), .msg = (emsg), .msg_literal = (emliteral) }
 #define STATUS_SUCCESS STATUS_ERROR(ERR_NONE, NULL, 0)
 #define STATUS_IS_SUCCESS(status) ((status).error_code == ERR_NONE)
 #define RETURN_IF_FAIL(status) { Status _wed_status = (status);\
                                if (!STATUS_IS_SUCCESS(_wed_status)) return _wed_status; }
 
-#define ERROR_QUEUE_MAX_SIZE 10
+#define STATUS_QUEUE_MAX_SIZE 10
 #define MAX_ERROR_MSG_SIZE 1024
+#define MAX_MSG_SIZE 1024
 
 typedef enum {
     ERR_NONE,
@@ -54,25 +55,12 @@ typedef enum {
  * error is NULL when successful. */
 typedef struct {
     ErrorCode error_code;
-    char *error_msg;
-    int error_msg_literal;
+    char *msg;
+    int msg_literal;
 } Status;
 
-/* Queue structure for storing multiple errors */
-typedef struct {
-    Status errors[ERROR_QUEUE_MAX_SIZE];
-    int start;
-    int count;
-} ErrorQueue;
-
 Status get_error(ErrorCode, char *, ...);
-int error_queue_full(ErrorQueue *);
-int error_queue_empty(ErrorQueue *);
-int error_queue_add(ErrorQueue *, Status);
-Status error_queue_remove(ErrorQueue *);
-void free_error_queue(ErrorQueue *);
-void free_error(Status);
-char *get_error_msg(Status);
+void free_status(Status);
 
 #endif
 

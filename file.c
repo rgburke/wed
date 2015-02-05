@@ -167,3 +167,10 @@ int set_file_path(FileInfo *file_info, const char *file_path)
     return 1;
 }
 
+int refresh_file_attributes(FileInfo *file_info)
+{
+    return (check_file_exists(file_info) + 
+            check_can_read_file(file_info) +
+            check_can_write_file(file_info)) == 3;
+}
+

@@ -30,6 +30,11 @@
 #define WED_TAB_SIZE 8
 #define STATUS_TEXT_SIZE 512
 
+#define MENU_COLOR_PAIR 1
+#define TAB_COLOR_PAIR 2
+#define STATUS_COLOR_PAIR 3
+#define ERROR_COLOR_PAIR 4
+
 static WINDOW *menu;
 static WINDOW *status;
 static WINDOW *text;
@@ -40,6 +45,9 @@ static size_t text_x;
 static void draw_prompt(Session *);
 static void draw_menu(Session *);
 static void draw_status(Session *);
+static size_t draw_status_file_info(Session *, size_t);
+static size_t draw_status_pos_info(Session *, size_t);
+static void draw_status_general_info(Session *, size_t, size_t);
 static void draw_buffer(Buffer *, int);
 static size_t draw_line(Buffer *, BufferPos, int, int, Range, int, WindowInfo);
 static void position_cursor(Buffer *, int);
@@ -58,6 +66,7 @@ void init_display(void)
         init_pair(MENU_COLOR_PAIR, COLOR_BLUE, COLOR_WHITE);
         init_pair(TAB_COLOR_PAIR, COLOR_BLUE, COLOR_WHITE);
         init_pair(STATUS_COLOR_PAIR, COLOR_YELLOW, COLOR_BLUE);
+        init_pair(ERROR_COLOR_PAIR, COLOR_WHITE, COLOR_RED);
     }
 
     raw();
@@ -94,6 +103,7 @@ void init_all_window_info(Session *sess)
         buffer = buffer->next;
     }
 
+    init_window_info(&sess->error_buffer->win_info);
     init_window_info(&sess->cmd_prompt.cmd_buffer->win_info);
     sess->cmd_prompt.cmd_buffer->win_info.height = 1;
     sess->cmd_prompt.cmd_buffer->win_info.win_index = WIN_STATUS;
@@ -117,7 +127,12 @@ void update_display(Session *sess)
     int line_wrap = config_bool("linewrap");
     WINDOW *draw_win = windows[buffer->win_info.win_index];
 
-    werase(draw_win);
+    if (line_wrap) {
+        vertical_scroll_linewrap(buffer);
+    } else {
+        vertical_scroll(buffer);
+        horizontal_scroll(buffer);
+    }
 
     draw_menu(sess);
 
@@ -127,13 +142,7 @@ void update_display(Session *sess)
         draw_status(sess);
     }
 
-    if (line_wrap) {
-        vertical_scroll_linewrap(buffer);
-    } else {
-        vertical_scroll(buffer);
-        horizontal_scroll(buffer);
-    }
-
+    werase(draw_win);
     draw_buffer(buffer, line_wrap);
 
     position_cursor(buffer, line_wrap);
@@ -154,15 +163,14 @@ void draw_menu(Session *sess)
     wnoutrefresh(menu); 
 }
 
-/* TODO There's a lot more this function could show.
- * The layout needs to be considered. */
 void draw_status(Session *sess)
 {
-    Buffer *buffer = sess->active_buffer;
-    BufferPos pos = buffer->pos;
-    FileInfo file_info = buffer->file_info;
-    char status_text[STATUS_TEXT_SIZE];
     int segment_num = 2;
+
+    if (has_msgs(sess)) {
+        segment_num = 3;
+    }
+
     size_t max_segment_width = text_x / segment_num;
 
     werase(status);
@@ -170,39 +178,165 @@ void draw_status(Session *sess)
     wbkgd(status, COLOR_PAIR(STATUS_COLOR_PAIR));
     wattron(status, COLOR_PAIR(STATUS_COLOR_PAIR));
 
+    size_t file_info_size = draw_status_file_info(sess, max_segment_width);
+    size_t file_pos_size = draw_status_pos_info(sess, max_segment_width);
+
+    if (segment_num == 3) {
+        size_t available_space = text_x - file_info_size - file_pos_size - 1;
+        draw_status_general_info(sess, file_info_size, available_space);
+    }
+
+    wattroff(status, COLOR_PAIR(STATUS_COLOR_PAIR));
+    wnoutrefresh(status); 
+}
+
+static size_t draw_status_file_info(Session *sess, size_t max_segment_width)
+{
+    char status_text[STATUS_TEXT_SIZE];
     size_t file_info_free = max_segment_width;
+    FileInfo file_info = sess->active_buffer->file_info;
 
     char *file_info_text = " ";
 
-    if (file_exists(file_info) && !can_write_file(file_info)) {
+    if (!file_exists(file_info)) {
+        file_info_text = " [new] ";
+    } else if (!can_write_file(file_info)) {
         file_info_text = " [readonly] ";
     }
 
     file_info_free -= (strlen(file_info_text) + 3);
+    size_t file_info_size;
     
     if (strlen(file_info.file_name) > file_info_free) {
         int file_char_num = file_info_free - 3;
         char file_name_fmt[STATUS_TEXT_SIZE];
         snprintf(file_name_fmt, STATUS_TEXT_SIZE, " \"%%.%ds...\"%%s", file_char_num);
-        snprintf(status_text, max_segment_width, file_name_fmt, file_info.file_name, file_info_text);
+        file_info_size = snprintf(status_text, max_segment_width, file_name_fmt, file_info.file_name, file_info_text);
     } else {
-        snprintf(status_text, max_segment_width, " \"%s\"%s", file_info.file_name, file_info_text);
+        file_info_size = snprintf(status_text, max_segment_width, " \"%s\"%s", file_info.file_name, file_info_text);
     }
 
     wprintw(status, status_text);
 
-    int pos_size = snprintf(status_text, STATUS_TEXT_SIZE, 
-                            "Length: %zu Lines: %zu | Line: %zu Col: %zu ",
-                            buffer->byte_num, buffer->line_num, pos.line_no, pos.col_no);
+    return file_info_size;
+}
 
-    if (pos_size < 0 || (size_t)pos_size > max_segment_width) {
-        snprintf(status_text, max_segment_width, "Line: %zu Col: %zu ", pos.line_no, pos.col_no);
+static size_t draw_status_pos_info(Session *sess, size_t max_segment_width)
+{
+    char status_text[STATUS_TEXT_SIZE];
+    Buffer *buffer = sess->active_buffer;
+    BufferPos pos = buffer->pos;
+    BufferPos screen_start = buffer->screen_start;
+    WindowInfo win_info = buffer->win_info;
+
+    char rel_pos[5];
+    memset(rel_pos, 0, sizeof(rel_pos));
+
+    size_t lines_above = screen_start.line_no - 1;
+    size_t lines_below;
+
+    if ((screen_start.line_no + win_info.height - 1) >= buffer->line_num) {
+        lines_below = 0; 
+    } else {
+        lines_below = buffer->line_num - (screen_start.line_no + win_info.height - 1);
+    }
+
+    if (lines_below == 0) {
+        if (lines_above == 0) {
+            strcpy(rel_pos, "All");
+        } else {
+            strcpy(rel_pos, "Bot");
+        }
+    } else if (lines_above == 0) {
+        strcpy(rel_pos, "Top");
+    } else {
+        double pos_pct = (int)((lines_above / (double)(lines_above + lines_below)) * 100);
+        snprintf(rel_pos, 5, "%2d%%%%", (int)pos_pct);
+    }
+
+    int pos_info_size = snprintf(status_text, STATUS_TEXT_SIZE, 
+                                 "Length: %zu Lines: %zu | Line: %zu Col: %zu | %s ",
+                                 buffer->byte_num, buffer->line_num, pos.line_no, pos.col_no,
+                                 rel_pos);
+
+    if (pos_info_size < 0 || (size_t)pos_info_size > max_segment_width) {
+        pos_info_size = snprintf(status_text, max_segment_width, 
+                                 "Line: %zu Col: %zu ", pos.line_no, pos.col_no);
+    }
+
+    if (pos_info_size < 0 || (size_t)pos_info_size > max_segment_width) {
+        pos_info_size = snprintf(status_text, max_segment_width, 
+                                 "L:%zu C:%zu ", pos.line_no, pos.col_no);
     }
 
     mvwprintw(status, 0, text_x - strlen(status_text) - 1, status_text);
 
-    wattroff(status, COLOR_PAIR(STATUS_COLOR_PAIR));
-    wnoutrefresh(status); 
+    return pos_info_size;
+}
+
+static void draw_status_general_info(Session *sess, size_t file_info_size, size_t available_space)
+{
+    char status_text[STATUS_TEXT_SIZE];
+    available_space -= 3;
+    mvwprintw(status, 0, file_info_size - 1, " | ");
+    char *msg = join_lines(sess->msg_buffer, ". ");
+
+    if (msg != NULL) {
+        size_t msg_length = strlen(msg);
+
+        if (msg_length > available_space) {
+            char *fmt = "%%.%ds... (F12 view full) |";
+            char msg_fmt[STATUS_TEXT_SIZE];
+            msg_length = available_space - strlen(fmt) + 5;
+            snprintf(msg_fmt, STATUS_TEXT_SIZE, fmt, msg_length);
+            snprintf(status_text, available_space, msg_fmt, msg);
+        } else {
+            snprintf(status_text, available_space, "%s", msg); 
+        }
+
+        mvwprintw(status, 0, file_info_size - 1 + 3, status_text);
+    }
+
+    clear_msgs(sess);
+}
+
+void draw_errors(Session *sess)
+{
+    Buffer *error_buffer = sess->error_buffer;
+    Line *line = error_buffer->lines;
+    size_t screen_lines = 0;
+    WindowInfo *win_info = &error_buffer->win_info;
+
+    while (line != NULL) {
+        screen_lines += line_screen_height(*win_info, line);
+        line = line->next;
+    }
+    
+    size_t curr_height = win_info->height - win_info->start_y;
+    size_t diff;
+
+    if (curr_height > screen_lines) {
+        diff = curr_height - screen_lines;
+        win_info->start_y += diff;
+        win_info->height -= diff;
+    } else if (curr_height < screen_lines) {
+        diff = screen_lines - curr_height;
+        win_info->start_y -= diff;
+        win_info->height += diff;
+    }
+
+    wattron(text, COLOR_PAIR(ERROR_COLOR_PAIR));
+    draw_buffer(error_buffer, 1);
+    wattroff(text, COLOR_PAIR(ERROR_COLOR_PAIR));
+    wnoutrefresh(text);
+
+    wmove(status, 0, 0);
+    werase(status);
+    wbkgd(status, COLOR_PAIR(0));
+    wprintw(status, "Press any key to continue");
+    wnoutrefresh(status);
+
+    doupdate();
 }
 
 static void draw_prompt(Session *sess)

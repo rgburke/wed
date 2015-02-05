@@ -62,16 +62,6 @@ Status get_error(ErrorCode error_code, char *format, ...)
     return STATUS_ERROR(error_code, error_msg, 0);
 }
 
-int error_queue_full(ErrorQueue *error_queue)
-{
-    return error_queue->count == ERROR_QUEUE_MAX_SIZE; 
-}
-
-int error_queue_empty(ErrorQueue *error_queue)
-{
-    return error_queue->count == 0;
-}
-
 static char *get_default_error_message(ErrorCode error_code)
 {
     size_t error_msg_num = sizeof(default_error_messages) / sizeof(ErrorCodeMsg);
@@ -85,58 +75,10 @@ static char *get_default_error_message(ErrorCode error_code)
     return "Unknown error occured";
 }
 
-int error_queue_add(ErrorQueue *error_queue, Status status)
+void free_status(Status status)
 {
-    if (STATUS_IS_SUCCESS(status) || error_queue_full(error_queue)) {
-        return 0;
-    } 
-
-    int index = (error_queue->start + error_queue->count++) % ERROR_QUEUE_MAX_SIZE;
-    error_queue->errors[index] = status;
-
-    return 1;
-}
-
-Status error_queue_remove(ErrorQueue *error_queue)
-{
-    if (error_queue_empty(error_queue)) {
-        return STATUS_SUCCESS;
-    }
-
-    Status error = error_queue->errors[error_queue->start++];
-    error_queue->start %= ERROR_QUEUE_MAX_SIZE; 
-    error_queue->count--;
-
-    return error;
-}
-
-void free_error_queue(ErrorQueue *error_queue)
-{
-    if (error_queue == NULL) {
-        return;
-    }
-
-    Status error;
-
-    while (!error_queue_empty(error_queue)) {
-        error = error_queue_remove(error_queue);
-        free_error(error);
+    if (!status.msg_literal && status.msg != NULL) {
+        free(status.msg);
     }
 }
 
-void free_error(Status error)
-{
-    if (!STATUS_IS_SUCCESS(error) && !error.error_msg_literal) {
-        free(error.error_msg);
-    }
-}
-
-char *get_error_msg(Status error) {
-    if (STATUS_IS_SUCCESS(error)) {
-        return NULL;
-    }
-
-    char *error_msg = malloc(MAX_ERROR_MSG_SIZE);
-    snprintf(error_msg, MAX_ERROR_MSG_SIZE, "Error %d: %s", error.error_code, error.error_msg);    
-    return error_msg;
-}

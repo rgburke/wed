@@ -28,6 +28,8 @@
 
 #define MAX_KEY_STR_SIZE 50
 
+static void handle_error(Session *);
+
 static TermKey *termkey = NULL;
 
 void edit(Session *sess)
@@ -40,6 +42,7 @@ void edit(Session *sess)
 
     init_display();
     init_all_window_info(sess);
+    handle_error(sess);
     update_display(sess);
 
     process_input(sess);
@@ -61,7 +64,20 @@ void process_input(Session *sess)
         if (ret == TERMKEY_RES_KEY) {
             termkey_strfkey(termkey, keystr, sizeof(keystr), &key, TERMKEY_FORMAT_VIM);
             add_error(sess, do_command(sess, keystr, &finished));
+            handle_error(sess);
             update_display(sess);
         }
     }
+}
+
+static void handle_error(Session *sess)
+{
+    if (!has_errors(sess)) {
+        return;
+    }
+
+    TermKeyKey key;
+    draw_errors(sess);
+    termkey_waitkey(termkey, &key);
+    clear_errors(sess);
 }

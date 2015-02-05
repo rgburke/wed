@@ -22,10 +22,6 @@
 #include "session.h"
 #include "buffer.h"
 
-#define MENU_COLOR_PAIR 1
-#define TAB_COLOR_PAIR 2
-#define STATUS_COLOR_PAIR 3
-
 typedef enum {
     WIN_MENU,
     WIN_TEXT,
@@ -37,6 +33,7 @@ void end_display(void);
 void init_all_window_info(Session *);
 void init_window_info(WindowInfo *);
 void update_display(Session *);
+void draw_errors(Session *);
 size_t screen_col_no(WindowInfo, BufferPos);
 size_t line_screen_length(Buffer *, BufferPos, size_t);
 size_t line_screen_height(WindowInfo, Line *);

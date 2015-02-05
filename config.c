@@ -198,6 +198,7 @@ Status load_config(Session *sess, char *config_file_path)
     Status status = STATUS_SUCCESS;
     size_t line_no = 0;
     char *line, *var, *val;
+    int success = 1;
 
     while (!feof(config_file)) {
         line = get_config_line(config_file);
@@ -226,14 +227,20 @@ Status load_config(Session *sess, char *config_file_path)
 
         if (!STATUS_IS_SUCCESS(status)) {
             Status error = get_error(ERR_INVALID_CONFIG_ENTRY, "%s on line %zu: %s", 
-                                     config_file_path, line_no, status.error_msg);
-            free_error(status);
-            status = error;
-            break;
+                                     config_file_path, line_no, status.msg);
+            free_status(status);
+            add_error(sess, error);
+            success = 0;
         }
     }
 
     fclose(config_file);
+
+    if (!success) {
+        status = get_error(ERR_INVALID_CONFIG_ENTRY, 
+                           "Config file %s contains invalid entries",
+                           config_file_path);
+    }
 
     return status;
 }
