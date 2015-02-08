@@ -135,6 +135,7 @@ void update_display(Session *sess)
     }
 
     draw_menu(sess);
+    werase(draw_win);
 
     if (cmd_buffer_active(sess)) {
         draw_prompt(sess);
@@ -142,7 +143,6 @@ void update_display(Session *sess)
         draw_status(sess);
     }
 
-    werase(draw_win);
     draw_buffer(buffer, line_wrap);
 
     position_cursor(buffer, line_wrap);
@@ -347,10 +347,6 @@ static void draw_prompt(Session *sess)
     wprintw(status, "%s:", sess->cmd_prompt.cmd_text); 
     wattroff(status, COLOR_PAIR(STATUS_COLOR_PAIR));
     wprintw(status, " "); 
-
-    if (sess->cmd_prompt.cmd_buffer->byte_num <= 1) {
-        wclrtoeol(status);
-    }
 
     size_t prompt_size = strlen(sess->cmd_prompt.cmd_text) + 2;
     WindowInfo *win_info = &sess->cmd_prompt.cmd_buffer->win_info;
