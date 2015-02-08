@@ -17,9 +17,11 @@
  */
 
 #define _XOPEN_SOURCE
+#include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
 #include <wchar.h>
+#include <ctype.h>
 #include "buffer.h"
 
 #include "unicode.c"
@@ -67,36 +69,49 @@ static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos
     if (utf8_is_valid_character(ch, pos.offset, pos.line->length, &char_info->byte_length)) {
         char_info->is_valid = 1;
     } else {
-        char_info->screen_length = 1;
-        return 1;
+        char_info->byte_length = 1;
+
+        while (((pos.offset + char_info->byte_length) < pos.line->length) && 
+               (*(ch + char_info->byte_length) & 0xC0) == 0x80) {
+            char_info->byte_length++;
+        }
     }
 
-    const uchar *next;
-    size_t next_byte_length;
+    if (char_info->is_valid) {
+        const uchar *next;
+        size_t next_byte_length;
 
-    while (pos.offset + char_info->byte_length < pos.line->length) {
-        next = ch + char_info->byte_length;
+        while (pos.offset + char_info->byte_length < pos.line->length) {
+            next = ch + char_info->byte_length;
 
-        if (!utf8_is_valid_character(next, pos.offset + char_info->byte_length, pos.line->length, &next_byte_length)) {
-            break;
-        }
-           
-        if (utf8_is_combining_char(utf8_code_point(next, next_byte_length))) {
-            char_info->byte_length += next_byte_length;
-        } else {
-            break;
+            if (!utf8_is_valid_character(next, pos.offset + char_info->byte_length, pos.line->length, &next_byte_length)) {
+                break;
+            }
+
+            if (utf8_is_combining_char(utf8_code_point(next, next_byte_length))) {
+                char_info->byte_length += next_byte_length;
+            } else {
+                break;
+            }
         }
     }
 
     if (cip & CIP_SCREEN_LENGTH) {
-        if (*ch == '\t') {
+        char_info->is_printable = 1;
+
+        if (!char_info->is_valid) {
+            char_info->screen_length = 1;
+        } else if (*ch == '\t') {
             char_info->screen_length = WED_TAB_SIZE - ((pos.col_no - 1) % WED_TAB_SIZE);
+        } else if (*ch < 128 && !isprint(*ch)) {
+            char_info->screen_length = 2;
+            char_info->is_printable = 0;
         } else {
             uint code_point = utf8_code_point(ch, char_info->byte_length);    
             int screen_length = wcwidth(code_point);
 
             if (screen_length < 0) {
-                /* TODO Unprintable */
+                char_info->screen_length = 1;
             } else {
                 char_info->screen_length = screen_length;
             }

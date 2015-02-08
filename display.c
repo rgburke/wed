@@ -421,12 +421,14 @@ static size_t draw_line(Buffer *buffer, BufferPos draw_pos, int y, int is_select
     size_t scr_line_num = 0;
     size_t start_col = draw_pos.col_no;
     size_t window_width = win_info.start_x + win_info.width;
+    char nonprint_draw[3] = "^ ";
+    uchar nonprint_char;
 
     while (draw_pos.offset < line->length && scr_line_num < win_info.height) {
         wmove(draw_win, win_info.start_y + y++, win_info.start_x);
         scr_line_num++;
 
-        for (size_t k = win_info.start_x; k < window_width && draw_pos.offset < line->length; k++) {
+        for (size_t k = win_info.start_x; k < window_width && draw_pos.offset < line->length;) {
             if (is_selection && bufferpos_in_range(select_range, draw_pos)) {
                 wattron(draw_win, A_REVERSE);
             } else {
@@ -434,10 +436,39 @@ static size_t draw_line(Buffer *buffer, BufferPos draw_pos, int y, int is_select
             }
 
             buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, draw_pos);
-            waddnstr(draw_win, line->text + draw_pos.offset, char_info.byte_length);
+
+            if (!char_info.is_valid) {
+                waddstr(draw_win, "\xEF\xBF\xBD");
+            } else if (!char_info.is_printable) {
+                nonprint_char = *(line->text + draw_pos.offset);
+
+                if (nonprint_char == 127) {
+                    nonprint_draw[1] = '?';
+                } else {
+                    nonprint_draw[1] = *(line->text + draw_pos.offset) + 64;
+                }
+
+                if (k == window_width - 1) {
+                    waddnstr(draw_win, nonprint_draw, 1);
+
+                    if (scr_line_num < win_info.height) {
+                        wmove(draw_win, win_info.start_y + y++, win_info.start_x);
+                        scr_line_num++;
+                        waddnstr(draw_win, nonprint_draw + 1, 1);
+                        /* TODO add draw_char function to handle drawing characters */
+                        /* The below assumes Two's Complement */
+                        k = -1;
+                    }
+                } else {
+                    waddstr(draw_win, nonprint_draw);
+                }
+            } else {
+                waddnstr(draw_win, line->text + draw_pos.offset, char_info.byte_length);
+            }
 
             draw_pos.col_no += char_info.screen_length;
             draw_pos.offset += char_info.byte_length;
+            k += char_info.screen_length;
         }
 
         if (!line_wrap) {

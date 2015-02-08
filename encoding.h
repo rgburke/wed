@@ -38,6 +38,7 @@ typedef struct {
     int is_valid;
     size_t byte_length;
     size_t screen_length;
+    int is_printable;
 } CharInfo;
 
 typedef struct {

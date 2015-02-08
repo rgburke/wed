@@ -1068,8 +1068,14 @@ Status pos_change_char(Buffer *buffer, BufferPos *pos, Direction direction, int 
                 BufferPos line_start = to_line_start(*pos);
                 pos->col_no = line_screen_length(buffer, line_start, pos->offset) + 1;
             } else {
-                buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
-                pos->col_no -= char_info.screen_length;
+                BufferPos tmp = *pos;
+
+                for (size_t k = 0; k < byte_offset; k += char_info.byte_length) {
+                    tmp.offset += k;
+                    buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, tmp);
+                    tmp.col_no += char_info.screen_length;
+                    pos->col_no -= char_info.screen_length;
+                }
             }
         } else {
             buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
