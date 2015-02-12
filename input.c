@@ -16,6 +16,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#define _GNU_SOURCE
+#include "wed.h"
+#include <poll.h>
+#include <signal.h>
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
 #include <ncurses.h>
 #include "input.h"
 #include "session.h"
@@ -28,17 +35,44 @@
 
 #define MAX_KEY_STR_SIZE 50
 
+static void handle_keypress(Session *, TermKeyKey *, char *, int *);
 static void handle_error(Session *);
 
 static TermKey *termkey = NULL;
+static struct pollfd fd;
+static int volatile window_resize_required = 0;
+static sigset_t sig_set, old_set;
+
+static void sigwinch_handler(int signal)
+{
+    (void)signal;
+    window_resize_required = 1;
+}
 
 void edit(Session *sess)
 {
-    termkey = termkey_new(0, TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
+    termkey = termkey_new(STDIN_FILENO, TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
 
     if (termkey == NULL) {
         fatal("Unable to initialise termkey instance");
     }
+
+    fd.fd = STDIN_FILENO;
+    fd.events = POLLIN;
+
+    struct sigaction sig_action;
+    memset(&sig_action, 0, sizeof(sig_action));
+    sig_action.sa_handler = sigwinch_handler;
+
+    if (sigaction(SIGWINCH, &sig_action, NULL) == -1) {
+        termkey_destroy(termkey);
+        fatal("Unable to set SIGWINCH signal handler");
+    }
+
+    sigemptyset(&sig_set);
+    sigemptyset(&old_set);
+    sigaddset(&sig_set, SIGWINCH);
+    sigprocmask(SIG_BLOCK, &sig_set, NULL);
 
     init_display();
     init_all_window_info(sess);
@@ -56,18 +90,53 @@ void process_input(Session *sess)
     char keystr[MAX_KEY_STR_SIZE];
     TermKeyResult ret;
     TermKeyKey key;
+    int poll_res;
     int finished = 0;
+    struct timespec *timeout = NULL;
+    struct timespec esc_timeout;
+    memset(&esc_timeout, 0, sizeof(struct timespec));
 
     while (!finished) {
-        ret = termkey_waitkey(termkey, &key);
+        poll_res = ppoll(&fd, 1, timeout, &old_set);
 
-        if (ret == TERMKEY_RES_KEY) {
-            termkey_strfkey(termkey, keystr, sizeof(keystr), &key, TERMKEY_FORMAT_VIM);
-            add_error(sess, do_command(sess, keystr, &finished));
-            handle_error(sess);
-            update_display(sess);
+        if (poll_res == -1) {
+            if (errno == EINTR) {
+                /* TODO Need to add SIGTERM handler for a graceful exit */
+                if (window_resize_required) {
+                    resize_display(sess);
+                    window_resize_required = 0;
+                    continue;
+                }
+            }
+            /* TODO Handle general failure of ppoll */
+        } else if (poll_res == 0) {
+            if (termkey_getkey_force(termkey, &key) == TERMKEY_RES_KEY) {
+                handle_keypress(sess, &key, keystr, &finished);
+                timeout = NULL;
+            }
+        } else if (poll_res > 0) {
+            if (fd.revents & (POLLIN|POLLHUP|POLLERR)) {
+                termkey_advisereadable(termkey);
+            }
+
+            while ((ret = termkey_getkey(termkey, &key)) == TERMKEY_RES_KEY) {
+                handle_keypress(sess, &key, keystr, &finished);
+            }
+
+            if (ret == TERMKEY_RES_AGAIN) {
+                timeout = &esc_timeout;
+                timeout->tv_nsec = termkey_get_waittime(termkey) * 1000;
+            } 
         }
     }
+}
+
+static void handle_keypress(Session *sess, TermKeyKey *key, char *keystr, int *finished)
+{
+    termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE, key, TERMKEY_FORMAT_VIM);
+    add_error(sess, do_command(sess, keystr, finished));
+    handle_error(sess);
+    update_display(sess);
 }
 
 static void handle_error(Session *sess)

@@ -17,6 +17,8 @@
  */
 
 #include <string.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 #include <ncurses.h>
 #include "display.h"
 #include "session.h"
@@ -84,6 +86,26 @@ void init_display(void)
     windows[2] = status = newwin(1, COLS, LINES - 1, 0);
 
     refresh();
+}
+
+void resize_display(Session *sess)
+{
+    struct winsize win_size;
+
+    if (ioctl(STDIN_FILENO, TIOCGWINSZ, &win_size) == -1) {
+        /* TODO handle */
+    }
+
+    text_y = win_size.ws_row - 2;
+    text_x = win_size.ws_col;
+
+    resizeterm(win_size.ws_row, win_size.ws_col);
+    wresize(menu, 1, text_x); 
+    wresize(text, text_y, text_x);
+    wresize(status, 1, text_x);
+
+    init_all_window_info(sess);
+    update_display(sess);
 }
 
 void end_display(void)

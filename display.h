@@ -29,6 +29,7 @@ typedef enum {
 } DrawWindow;
 
 void init_display(void);
+void resize_display(Session *);
 void end_display(void);
 void init_all_window_info(Session *);
 void init_window_info(WindowInfo *);
