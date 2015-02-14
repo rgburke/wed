@@ -23,7 +23,7 @@
 
 void fatal(const char *);
 
-int roundup_div(int, int);
+int roundup_div(size_t, size_t);
 int sign(int);
 
 size_t utf8_char_num(const char *);

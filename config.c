@@ -48,7 +48,8 @@ static int (*conversion_functions[])(char *, Value *) = {
 };
 
 static const ConfigVariableDescriptor default_config[] = {
-    { "linewrap", "lw", BOOL_VAL_STRUCT(1), NULL, NULL }
+    { "linewrap", "lw", BOOL_VAL_STRUCT(1), NULL, NULL },
+    { "lineno", "ln", BOOL_VAL_STRUCT(1), NULL, NULL }
 };
 
 void set_config_session(Session *sess)

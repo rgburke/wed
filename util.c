@@ -27,7 +27,7 @@ void fatal(const char *error_msg)
     exit(1);
 }
 
-int roundup_div(int dividend, int divisor)
+int roundup_div(size_t dividend, size_t divisor)
 {
     if (divisor == 0) {
         return 0;

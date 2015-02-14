@@ -938,9 +938,15 @@ static Status pos_change_screen_line(Buffer *buffer, BufferPos *pos, Direction d
     Status status;
 
     while (cols > 0 && cols <= col_num) {
-        buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
+        if (direction == DIRECTION_DOWN) {
+            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
+            status = pos_change_char(buffer, pos, pos_direction, 0);
+        } else {
+            status = pos_change_char(buffer, pos, pos_direction, 0);
+            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
+        }
+
         cols -= char_info.screen_length;
-        status = pos_change_char(buffer, pos, pos_direction, 0);
 
         if (!STATUS_IS_SUCCESS(status)) {
             return status;

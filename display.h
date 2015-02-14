@@ -22,12 +22,6 @@
 #include "session.h"
 #include "buffer.h"
 
-typedef enum {
-    WIN_MENU,
-    WIN_TEXT,
-    WIN_STATUS
-} DrawWindow;
-
 void init_display(void);
 void resize_display(Session *);
 void end_display(void);

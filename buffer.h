@@ -21,6 +21,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include "shared.h"
 #include "status.h"
 #include "file.h"
 #include "hashmap.h"
@@ -86,7 +87,8 @@ typedef struct {
     size_t width;
     size_t start_y;
     size_t start_x;
-    size_t win_index;
+    size_t line_no_width;
+    DrawWindow draw_window;
 } WindowInfo;
 
 /* The in memory representation of a file */

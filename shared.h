@@ -26,4 +26,10 @@ typedef enum {
     CMDT_EXIT = 1 << 3
 } CommandType;
 
+typedef enum {
+    WIN_MENU,
+    WIN_TEXT,
+    WIN_STATUS
+} DrawWindow;
+
 #endif
