@@ -32,29 +32,12 @@ Session *new_session(void)
     RETURN_IF_NULL(sess);
     memset(sess, 0, sizeof(Session));
 
-    sess->buffers = NULL;
-    sess->active_buffer = NULL;
-    sess->error_buffer = NULL;
-    sess->msg_buffer = NULL;
-    sess->keymap = NULL;
-    sess->clipboard = NULL;
-    sess->config = NULL;
-    sess->cmd_prompt.cmd_buffer = NULL;
-    sess->cmd_prompt.cmd_text = NULL;
-    sess->cmd_prompt.cancelled = 0;
-    sess->exclude_cmd_types = 0;
-
     return sess;
 }
 
 int init_session(Session *sess, char *buffer_paths[], int buffer_num)
 {
     FileInfo file_info;
-
-    /* Limited to one file for the moment */
-    if (buffer_num > 2) {
-        buffer_num = 2;
-    }
 
     for (int k = 1; k < buffer_num; k++) {
         if (!init_fileinfo(&file_info, buffer_paths[k])) {
@@ -87,7 +70,7 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
         add_buffer(sess, buffer);
     }
 
-    if (get_buffer_num(sess) == 0) {
+    if (sess->buffer_num == 0) {
         add_buffer(sess, new_empty_buffer()); 
     }
 
@@ -146,9 +129,11 @@ void free_session(Session *sess)
 
 int add_buffer(Session *sess, Buffer *buffer)
 {
-    if (sess == NULL || buffer == NULL) {
+    if (buffer == NULL) {
         return 0;
     }
+
+    sess->buffer_num++;
 
     if (sess->buffers == NULL) {
         sess->buffers = buffer;
@@ -169,41 +154,85 @@ int add_buffer(Session *sess, Buffer *buffer)
     return 1;
 }
 
-size_t get_buffer_num(Session *sess)
+int set_active_buffer(Session *sess, size_t buffer_index)
 {
-    if (sess == NULL || sess->buffers == NULL) {
+    if (sess->buffers == NULL || buffer_index >= sess->buffer_num) {
         return 0;
     }
 
     Buffer *buffer = sess->buffers;
-    size_t buffer_num = 1;
+    size_t iter = 0;
 
-    while ((buffer = buffer->next) != NULL) {
-        buffer_num++;
-    }
-
-    return buffer_num;
-}
-
-int set_active_buffer(Session *sess, size_t buff_index)
-{
-    if (sess == NULL || sess->buffers == NULL) {
-        return 0;
-    }
-
-    size_t buffer_num = get_buffer_num(sess);
-
-    if (buff_index >= buffer_num) {
-        return 0;
-    }
-
-    Buffer *buffer = sess->buffers;
-
-    while (buff_index-- != 0) {
+    while (iter < buffer_index) {
          buffer = buffer->next;
+         iter++;
     }
 
     sess->active_buffer = buffer;
+    sess->active_buffer_index = buffer_index;
+
+    return 1;
+}
+
+Buffer *get_buffer(Session *sess, size_t buffer_index)
+{
+    if (sess->buffers == NULL || buffer_index >= sess->buffer_num) {
+        return NULL;
+    }
+
+    Buffer *buffer = sess->buffers;
+
+    while (buffer_index-- != 0) {
+        buffer = buffer->next;    
+    }
+
+    return buffer;
+}
+
+int remove_buffer(Session *sess, Buffer *to_remove)
+{
+    if (sess->buffers == NULL || to_remove == NULL) {
+        return 0;
+    }
+
+    Buffer *buffer = sess->buffers;
+    Buffer *prev = NULL;
+    size_t buffer_index = 0;
+
+    while (buffer != NULL && to_remove != buffer) {
+        prev = buffer;    
+        buffer = buffer->next;
+        buffer_index++;
+    }
+
+    if (buffer == NULL) {
+        return 0;
+    }
+
+    if (prev != NULL) {
+        if (buffer->next != NULL) {
+            prev->next = buffer->next; 
+        } else {
+            prev->next = NULL;
+
+            if (sess->active_buffer_index == buffer_index) {
+                sess->active_buffer_index--;
+            }
+        }
+    } else if (sess->active_buffer == buffer) {
+        if (buffer->next != NULL) {
+            sess->active_buffer = buffer->next;
+        } else {
+            sess->buffers = new_empty_buffer();
+            sess->active_buffer = sess->buffers;
+        } 
+    }
+
+    if (sess->buffer_num > 1) {
+        sess->buffer_num--;
+    }
+
+    free_buffer(buffer);
 
     return 1;
 }
@@ -229,7 +258,7 @@ Status make_cmd_buffer_active(Session *sess, const char *text)
 
 int end_cmd_buffer_active(Session *sess)
 {
-    if (sess == NULL || sess->active_buffer == NULL || 
+    if (sess->active_buffer == NULL || 
         sess->cmd_prompt.cmd_buffer == NULL) {
         return 0;
     }
@@ -241,7 +270,7 @@ int end_cmd_buffer_active(Session *sess)
 
 int cmd_buffer_active(Session *sess)
 {
-    if (sess == NULL || sess->active_buffer == NULL || 
+    if (sess->active_buffer == NULL || 
         sess->cmd_prompt.cmd_buffer == NULL) {
         return 0;
     }
@@ -252,48 +281,6 @@ int cmd_buffer_active(Session *sess)
 char *get_cmd_buffer_text(Session *sess)
 {
     return get_buffer_as_string(sess->cmd_prompt.cmd_buffer);
-}
-
-int remove_buffer(Session *sess, Buffer *to_remove)
-{
-    if (sess == NULL || sess->buffers == NULL || to_remove == NULL) {
-        return 0;
-    }
-
-    Buffer *buffer = sess->buffers;
-    Buffer *prev = NULL;
-
-    while (buffer != NULL && to_remove != buffer) {
-        prev = buffer;    
-        buffer = buffer->next;
-    }
-
-    if (buffer == NULL) {
-        return 0;
-    }
-
-    if (prev != NULL) {
-        if (buffer->next != NULL) {
-            prev->next = buffer->next; 
-        } else {
-            prev->next = NULL;
-        }
-    }
-
-    if (sess->active_buffer == buffer) {
-        if (buffer->next != NULL) {
-            sess->active_buffer = buffer->next;
-        } else if (prev != NULL) {
-            sess->active_buffer = prev;
-        } else {
-            sess->buffers = new_empty_buffer();
-            sess->active_buffer = sess->buffers;
-        } 
-    }
-
-    free_buffer(buffer);
-
-    return 1;
 }
 
 void set_clipboard(Session *sess, TextSelection *clipboard)

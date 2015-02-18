@@ -40,19 +40,22 @@ typedef struct {
         int cancelled; /* Did the user quit the last prompt */
     } cmd_prompt; 
     CommandType exclude_cmd_types; /* Types of commands that shouldn't run */
+    size_t buffer_num;
+    size_t active_buffer_index;
+    size_t menu_first_buffer_index;
 } Session;
 
 Session *new_session(void);
 int init_session(Session *, char **, int);
 void free_session(Session *);
 int add_buffer(Session *, Buffer *);
-size_t get_buffer_num(Session *);
 int set_active_buffer(Session *, size_t);
+Buffer *get_buffer(Session *, size_t);
+int remove_buffer(Session *, Buffer *);
 Status make_cmd_buffer_active(Session *, const char *);
 int end_cmd_buffer_active(Session *);
 int cmd_buffer_active(Session *);
 char *get_cmd_buffer_text(Session *);
-int remove_buffer(Session *, Buffer *);
 int add_error(Session *, Status);
 void set_clipboard(Session *, TextSelection *);
 void exclude_command_type(Session *, CommandType);

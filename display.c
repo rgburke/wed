@@ -31,13 +31,15 @@
  * this is duplicated in encoding.c */
 #define WED_TAB_SIZE 8
 #define STATUS_TEXT_SIZE 512
+#define MAX_MENU_BUFFER_WIDTH 30
 
 typedef enum {
     CP_MENU = 1,
     CP_STATUS,
     CP_ERROR,
     CP_LINE_NO,
-    CP_BUFFER_END
+    CP_BUFFER_END,
+    CP_ACTIVE_BUFFER
 } COLOUR_PAIRS;
 
 static WINDOW *menu;
@@ -74,6 +76,7 @@ void init_display(void)
         init_pair(CP_ERROR, COLOR_WHITE, COLOR_RED);
         init_pair(CP_LINE_NO, COLOR_YELLOW, -1);
         init_pair(CP_BUFFER_END, COLOR_BLUE, -1);
+        init_pair(CP_ACTIVE_BUFFER, COLOR_BLUE, -1);
     }
 
     raw();
@@ -182,15 +185,75 @@ void update_display(Session *sess)
     doupdate();
 }
 
+/* TODO draw_menu and draw_status* need to consider file names with 
+ * UTF-8 characters when calculating the screen space they will take.
+ * i.e. use wsprintf instead of snprintf */
 /* Draw top menu */
-/* TODO Show other buffers with numbers and colors */
 void draw_menu(Session *sess)
 {
-    Buffer *buffer = sess->active_buffer;
+    const char *tab_fmt = " %zu %s ";
+    char buffer_display[MAX_MENU_BUFFER_WIDTH];
+    Buffer *buffer;
+    size_t total_used_space = 0;
+    size_t used_space = 0;
+
+    if (sess->active_buffer_index < sess->menu_first_buffer_index) {
+        sess->menu_first_buffer_index = sess->active_buffer_index;
+    } else {
+        buffer = sess->active_buffer;
+        size_t start_index = sess->active_buffer_index;
+
+        while (1) {
+            used_space = snprintf(buffer_display, MAX_MENU_BUFFER_WIDTH, tab_fmt, start_index + 1, buffer->file_info.file_name);
+            used_space = (used_space > MAX_MENU_BUFFER_WIDTH ? MAX_MENU_BUFFER_WIDTH : used_space);
+
+            if ((total_used_space + used_space > text_x) ||
+                start_index == 0 || 
+                start_index == sess->menu_first_buffer_index) {
+                break;
+            }
+
+            total_used_space += used_space;
+            buffer = get_buffer(sess, --start_index);
+        }
+
+        if (total_used_space + used_space > text_x) {
+            sess->menu_first_buffer_index = start_index + 1;
+        }  
+
+        total_used_space = 0;
+        used_space = 0;
+    }
+
+    buffer = get_buffer(sess, sess->menu_first_buffer_index);
+
+    werase(menu);
     wbkgd(menu, COLOR_PAIR(CP_MENU));
     wattron(menu, COLOR_PAIR(CP_MENU));
-    mvwprintw(menu, 0, 0, " %s", buffer->file_info.file_name); 
-    wclrtoeol(menu);
+
+    for (size_t buffer_index = sess->menu_first_buffer_index; 
+         buffer_index < sess->buffer_num;
+         buffer_index++) {
+
+        used_space = snprintf(buffer_display, MAX_MENU_BUFFER_WIDTH, tab_fmt, buffer_index + 1, buffer->file_info.file_name);
+        used_space = (used_space > MAX_MENU_BUFFER_WIDTH ? MAX_MENU_BUFFER_WIDTH : used_space);
+
+        if (total_used_space + used_space > text_x) {
+            break;
+        }
+
+        if (buffer_index == sess->active_buffer_index) {
+            wattron(menu, COLOR_PAIR(CP_ACTIVE_BUFFER));
+            mvwprintw(menu, 0, total_used_space, buffer_display); 
+            wattroff(menu, COLOR_PAIR(CP_ACTIVE_BUFFER));
+        } else {
+            mvwprintw(menu, 0, total_used_space, buffer_display); 
+        }
+
+        total_used_space += used_space;
+        buffer = buffer->next;
+    }
+
     wattroff(menu, COLOR_PAIR(CP_MENU));
     wnoutrefresh(menu); 
 }

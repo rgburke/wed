@@ -50,6 +50,7 @@ static Status buffer_copy_selected_text(Session *, Value, const char *, int *);
 static Status buffer_cut_selected_text(Session *, Value, const char *, int *);
 static Status buffer_paste_text(Session *, Value, const char *, int *);
 static Status buffer_save_file(Session *, Value, const char *, int *);
+static Status session_change_tab(Session *, Value, const char *, int *);
 static Status finished_processing_input(Session *, Value, const char *, int *);
 
 static Status cmd_input_prompt(Session *, const char *);
@@ -95,6 +96,8 @@ static const Command commands[] = {
     { "<C-x>"       , buffer_cut_selected_text , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-v>"       , buffer_paste_text        , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-s>"       , buffer_save_file         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<M-C-Right>" , session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
+    { "<M-C-Left>"  , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
     { "<Escape>"    , finished_processing_input, INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
 };
 
@@ -367,6 +370,32 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
     add_msg(sess, msg);
 
     return status;
+}
+
+static Status session_change_tab(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)keystr;
+    (void)finished;
+
+    if (sess->buffer_num < 2) {
+        return STATUS_SUCCESS;
+    }
+
+    size_t new_active_buffer_index;
+
+    if (param.val.ival == DIRECTION_RIGHT) {
+        new_active_buffer_index = (sess->active_buffer_index + 1) % sess->buffer_num;
+    } else {
+        if (sess->active_buffer_index == 0) {
+            new_active_buffer_index = sess->buffer_num - 1; 
+        } else {
+            new_active_buffer_index = sess->active_buffer_index - 1;
+        }
+    }
+
+    set_active_buffer(sess, new_active_buffer_index);
+
+    return STATUS_SUCCESS;
 }
 
 static Status finished_processing_input(Session *sess, Value param, const char *keystr, int *finished)
