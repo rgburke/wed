@@ -66,5 +66,7 @@ void clear_errors(Session *);
 int add_msg(Session *, const char *);
 int has_msgs(Session *);
 void clear_msgs(Session *);
+Status add_new_buffer(Session *, const char *);
+Status get_buffer_index(Session *, const char *, int *);
 
 #endif

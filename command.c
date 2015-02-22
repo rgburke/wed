@@ -16,6 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include "wed.h"
 #include <stdlib.h>
 #include <ncurses.h>
 #include <string.h>
@@ -50,6 +51,7 @@ static Status buffer_copy_selected_text(Session *, Value, const char *, int *);
 static Status buffer_cut_selected_text(Session *, Value, const char *, int *);
 static Status buffer_paste_text(Session *, Value, const char *, int *);
 static Status buffer_save_file(Session *, Value, const char *, int *);
+static Status session_open_file(Session *, Value, const char *, int *);
 static Status session_change_tab(Session *, Value, const char *, int *);
 static Status finished_processing_input(Session *, Value, const char *, int *);
 
@@ -96,8 +98,11 @@ static const Command commands[] = {
     { "<C-x>"       , buffer_cut_selected_text , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-v>"       , buffer_paste_text        , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-s>"       , buffer_save_file         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<C-o>"       , session_open_file        , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<M-C-Right>" , session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
+    { "<M-Right>"   , session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
     { "<M-C-Left>"  , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
+    { "<M-Left>"    , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
     { "<Escape>"    , finished_processing_input, INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
 };
 
@@ -333,43 +338,85 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
     (void)finished;
     Buffer *buffer = sess->active_buffer;
     Status status = STATUS_SUCCESS;
+    int file_exists = has_file_path(buffer);
+    char *file_path;
 
-    if (!has_file_path(buffer)) {
+    if (!file_exists) {
         cmd_input_prompt(sess, "Save As");
 
         if (sess->cmd_prompt.cancelled) {
             return STATUS_SUCCESS;
         }
 
-        char *input = get_cmd_buffer_text(sess);
+        file_path = get_cmd_buffer_text(sess);
 
-        if (input == NULL) {
+        if (file_path == NULL) {
             return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
-        }
-
-        if (strlen(input) == 0) {
-            status = get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", 
-                               input == NULL ? "NULL" : "");
-        }
-
-        if (!set_buffer_file_path(buffer, input)) {
-            status = get_error(ERR_INVALID_FILE_PATH, "Out of memory - Unable to set buffer file path");
-        }
-
-        free(input);
-        RETURN_IF_FAIL(status);
+        } else if (strnlen(file_path, 1) == 0) {
+            free(file_path);
+            return get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", file_path);
+        } 
+    } else {
+        file_path = buffer->file_info.abs_path;
     }
 
-    status = write_buffer(buffer);
+    status = write_buffer(buffer, file_path);
     RETURN_IF_FAIL(status);
 
-    refresh_file_attributes(&buffer->file_info);
+    if (!file_exists) {
+        status = init_fileinfo(&buffer->file_info, file_path);
+        free(file_path);
+        RETURN_IF_FAIL(status);
+    } else {
+        refresh_file_attributes(&buffer->file_info);
+    }
 
     char msg[MAX_MSG_SIZE];
     snprintf(msg, MAX_MSG_SIZE, "Save successful: %zu lines, %zu bytes written", buffer->line_num, buffer->byte_num);
     add_msg(sess, msg);
 
     return status;
+}
+
+static Status session_open_file(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    cmd_input_prompt(sess, "Open");
+
+    if (sess->cmd_prompt.cancelled) {
+        return STATUS_SUCCESS;
+    }
+
+    Status status;
+    int buffer_index;
+
+    char *input = get_cmd_buffer_text(sess);
+
+    if (input == NULL) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+    } else if (strnlen(input, 1) == 0) {
+        status = get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", input);
+    } else {
+        status = get_buffer_index(sess, input, &buffer_index);
+
+        if (STATUS_IS_SUCCESS(status) && buffer_index == -1) {
+            status = add_new_buffer(sess, input); 
+
+            if (STATUS_IS_SUCCESS(status)) {
+                buffer_index = sess->buffer_num - 1;
+            }
+        }
+    }
+
+    free(input);
+    RETURN_IF_FAIL(status);
+
+    set_active_buffer(sess, buffer_index);
+
+    return STATUS_SUCCESS;
 }
 
 static Status session_change_tab(Session *sess, Value param, const char *keystr, int *finished)

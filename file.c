@@ -16,44 +16,73 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#define _XOPEN_SOURCE 500
 #include "wed.h"
+#include <limits.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
 #include <libgen.h>
+#include <errno.h>
 #include "file.h"
 #include "util.h"
+#include "status.h"
 
-int init_fileinfo(FileInfo *file_info, char *path)
+Status init_fileinfo(FileInfo *file_info, const char *path)
 {
     file_info->rel_path = strdupe(path);
 
     if (file_info->rel_path == NULL) {
-        return 0;
+        return get_error(ERR_OUT_OF_MEMORY, 
+                         "Out of memory - Unable to determine"
+                         " fileinfo for file %s", 
+                         path);
     }
 
     file_info->file_name = basename(file_info->rel_path);
+    file_info->abs_path = NULL;
     file_info->file_attrs = FATTR_NONE;
 
-    struct stat file_stat;
-
-    if (stat(path, &file_stat) == 0) {
-        file_info->file_attrs |= FATTR_EXISTS;
+    if (stat(path, &file_info->file_stat) != 0) {
+        return STATUS_SUCCESS;
     }
 
-    if (file_info->file_attrs & FATTR_EXISTS) {
-        if (S_ISDIR(file_stat.st_mode)) {
-            file_info->file_attrs |= FATTR_DIR;
-            return 1;
-        }
+    file_info->file_attrs |= FATTR_EXISTS;
 
-        check_can_read_file(file_info);
-        check_can_write_file(file_info);
-    } 
+    if (S_ISDIR(file_info->file_stat.st_mode)) {
+        file_info->file_attrs |= FATTR_DIR;
+        return STATUS_SUCCESS;
+    } else if (!S_ISREG(file_info->file_stat.st_mode)) {
+        file_info->file_attrs |= FATTR_SPECIAL;
+        return STATUS_SUCCESS;
+    }
 
-    return 1;
+    file_info->abs_path = malloc(PATH_MAX + 1);
+
+    if (file_info->abs_path == NULL) {
+        free(file_info->rel_path);
+        return get_error(ERR_OUT_OF_MEMORY, 
+                         "Out of memory - Unable to determine"
+                         " fileinfo for file %s", 
+                         path);
+    }
+
+    if (realpath(file_info->rel_path, file_info->abs_path) == NULL) {
+        free(file_info->rel_path);
+        free(file_info->abs_path);
+        return get_error(ERR_UNABLE_TO_GET_ABS_PATH,
+                         "Unable to determine absolute path"
+                         " for file %s - %s", path,
+                         strerror(errno));
+    }
+     
+    check_can_read_file(file_info);
+    check_can_write_file(file_info);
+
+    return STATUS_SUCCESS;
 }
 
 /* For when a buffer represented a file which doesn't exist yet. */
@@ -63,9 +92,8 @@ int init_empty_fileinfo(FileInfo *file_info)
         return 0;
     }
 
-    file_info->rel_path = NULL;
+    memset(file_info, 0, sizeof(FileInfo));
     file_info->file_name = "No Name";
-    file_info->file_attrs = FATTR_NONE;
 
     return 1;
 }
@@ -73,11 +101,17 @@ int init_empty_fileinfo(FileInfo *file_info)
 void free_fileinfo(FileInfo file_info)
 {
     free(file_info.rel_path);
+    free(file_info.abs_path);
 }
 
 int file_is_directory(FileInfo file_info)
 {
     return file_info.file_attrs & FATTR_DIR;
+}
+
+int file_is_special(FileInfo file_info)
+{
+    return file_info.file_attrs & FATTR_SPECIAL;
 }
 
 int file_exists(FileInfo file_info)
@@ -146,31 +180,28 @@ int check_can_write_file(FileInfo *file_info)
     return can_write;
 }
 
-int set_file_path(FileInfo *file_info, const char *file_path)
-{
-    if (file_info == NULL || file_path == NULL) {
-        return 0;
-    }
-
-    if (file_info->rel_path != NULL) {
-        free(file_info->rel_path);
-    }
-
-    file_info->rel_path = strdupe(file_path);
-
-    if (file_info->rel_path == NULL) {
-        return 0;
-    }
-
-    file_info->file_name = basename(file_info->rel_path);
-
-    return 1;
-}
-
 int refresh_file_attributes(FileInfo *file_info)
 {
     return (check_file_exists(file_info) + 
             check_can_read_file(file_info) +
-            check_can_write_file(file_info)) == 3;
+            check_can_write_file(file_info) + 
+            stat(file_info->abs_path, &file_info->file_stat) != 0) == 4;
+}
+
+int file_info_equal(FileInfo f1, FileInfo f2)
+{
+    int f1_exists = f1.file_attrs & FATTR_EXISTS;
+    int f2_exists = f2.file_attrs & FATTR_EXISTS;
+    
+    if (!f1_exists && !f2_exists) {
+        /* As the paths are not canonical 
+         * this is not a true test of path equality. */
+        return strcmp(f1.rel_path, f2.rel_path) == 0;
+    } else if (!(f1_exists && f2_exists)) {
+        return 0;
+    }
+
+    return f1.file_stat.st_dev == f2.file_stat.st_dev &&
+           f1.file_stat.st_ino == f2.file_stat.st_ino;
 }
 

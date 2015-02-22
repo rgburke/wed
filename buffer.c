@@ -68,6 +68,8 @@ Buffer *new_buffer(FileInfo file_info)
     buffer->line_num = 0;
     buffer->byte_num = 0;
 
+    init_window_info(&buffer->win_info);
+
     return buffer;
 }
 
@@ -436,18 +438,18 @@ static int add_to_buffer(Buffer *buffer, BufferPos *pos, const char buf[], size_
     return 1;
 }
 
-Status write_buffer(Buffer *buffer)
+Status write_buffer(Buffer *buffer, const char *file_path)
 {
     FileInfo *file_info = &buffer->file_info;
 
-    size_t tmp_file_path_len = strlen(file_info->rel_path) + 6 + 1;
+    size_t tmp_file_path_len = strlen(file_path) + 6 + 1;
     char *tmp_file_path = malloc(tmp_file_path_len);
 
     if (tmp_file_path == NULL) {
         return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to create temporary file path");
     }
 
-    snprintf(tmp_file_path, tmp_file_path_len, "%sXXXXXX", file_info->rel_path);
+    snprintf(tmp_file_path, tmp_file_path_len, "%sXXXXXX", file_path);
 
     int output_file = mkstemp(tmp_file_path);
 
@@ -486,7 +488,7 @@ Status write_buffer(Buffer *buffer)
 
     struct stat file_stat;
 
-    if (stat(file_info->rel_path, &file_stat) == 0) {
+    if (stat(file_path, &file_stat) == 0) {
         if (chmod(tmp_file_path, file_stat.st_mode) == -1) {
             status = get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to set file permissions - %s", 
                                strerror(errno));
@@ -500,7 +502,7 @@ Status write_buffer(Buffer *buffer)
         }
     }
 
-    if (rename(tmp_file_path, file_info->rel_path) == -1) {
+    if (rename(tmp_file_path, file_path) == -1) {
         status = get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to overwrite file %s - %s",
                            file_info->rel_path, strerror(errno)); 
     }
@@ -573,15 +575,6 @@ int buffer_file_exists(Buffer *buffer)
 int has_file_path(Buffer *buffer)
 {
     return buffer->file_info.rel_path != NULL;
-}
-
-int set_buffer_file_path(Buffer *buffer, const char *file_path)
-{
-    if (file_path == NULL) {
-        return 0;
-    }
-
-    return set_file_path(&buffer->file_info, file_path);
 }
 
 Line *get_line_from_offset(Line *line, Direction direction, size_t offset)

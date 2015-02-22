@@ -37,37 +37,8 @@ Session *new_session(void)
 
 int init_session(Session *sess, char *buffer_paths[], int buffer_num)
 {
-    FileInfo file_info;
-
     for (int k = 1; k < buffer_num; k++) {
-        if (!init_fileinfo(&file_info, buffer_paths[k])) {
-            add_error(sess, get_error(ERR_OUT_OF_MEMORY, 
-                                      "Out of memory - Unable to determine fileinfo for file %s", 
-                                      buffer_paths[k]));
-        }
-
-        if (file_is_directory(file_info)) {
-            free_fileinfo(file_info);
-            add_error(sess, get_error(ERR_FILE_IS_DIRECTORY, "%s is a directory", file_info.file_name));
-            continue;
-        }
-
-        Buffer *buffer = new_buffer(file_info);
-
-        if (buffer == NULL) {
-            add_error(sess, get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to create buffer for file %s", 
-                                      file_info.file_name));
-            continue;
-        }
-
-        Status load_status = load_buffer(buffer);
-
-        if (add_error(sess, load_status)) {
-            free_buffer(buffer);
-            continue;
-        }
-
-        add_buffer(sess, buffer);
+        add_error(sess, add_new_buffer(sess, buffer_paths[k]));
     }
 
     if (sess->buffer_num == 0) {
@@ -363,4 +334,77 @@ int has_msgs(Session *sess)
 void clear_msgs(Session *sess)
 {
     clear_buffer(sess->msg_buffer);
+}
+
+Status add_new_buffer(Session *sess, const char *file_path)
+{
+    if (file_path == NULL || strnlen(file_path, 1) == 0) {
+        return get_error(ERR_INVALID_FILE_PATH, "Invalid file path - \"%s\"", file_path);
+    }
+
+    FileInfo file_info;
+    Buffer *buffer = NULL;
+    Status status;
+
+    RETURN_IF_FAIL(init_fileinfo(&file_info, file_path));
+
+    if (file_is_directory(file_info)) {
+        status = get_error(ERR_FILE_IS_DIRECTORY, "%s is a directory", file_info.file_name);
+        goto cleanup;
+    } else if (file_is_special(file_info)) {
+        status = get_error(ERR_FILE_IS_SPECIAL, "%s is not a regular file", file_info.file_name);
+        goto cleanup;
+    }
+
+    buffer = new_buffer(file_info);
+
+    if (buffer == NULL) {
+        status = get_error(ERR_OUT_OF_MEMORY, 
+                           "Out of memory - Unable to "
+                           "create buffer for file %s", 
+                           file_info.file_name);
+        goto cleanup;
+    }
+
+    status = load_buffer(buffer);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        goto cleanup;
+    }
+
+    add_buffer(sess, buffer);
+
+    return STATUS_SUCCESS;
+
+cleanup:
+    free_fileinfo(file_info);
+    free_buffer(buffer);
+
+    return status;
+}
+
+Status get_buffer_index(Session *sess, const char *file_path, int *buffer_index_ptr)
+{
+    if (file_path == NULL || strnlen(file_path, 1) == 0 || buffer_index_ptr == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    FileInfo file_info;
+    RETURN_IF_FAIL(init_fileinfo(&file_info, file_path));
+
+    Buffer *buffer = sess->buffers;
+    *buffer_index_ptr = -1;
+    int buffer_index = 0;
+
+    while (buffer != NULL) {
+        if (file_info_equal(buffer->file_info, file_info)) {
+            *buffer_index_ptr = buffer_index; 
+            break;
+        } 
+
+        buffer = buffer->next;
+        buffer_index++;
+    }
+
+    return STATUS_SUCCESS;
 }

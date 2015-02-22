@@ -46,8 +46,8 @@ static WINDOW *menu;
 static WINDOW *status;
 static WINDOW *text;
 static WINDOW *windows[WINDOW_NUM];
-static size_t text_y;
-static size_t text_x;
+static size_t text_y = 0;
+static size_t text_x = 0;
 
 static void draw_prompt(Session *);
 static void draw_menu(Session *);

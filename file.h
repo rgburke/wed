@@ -19,33 +19,41 @@
 #ifndef WED_FILE_H
 #define WED_FILE_H
 
+#include "wed.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include "status.h"
 
 typedef enum {
-    FATTR_NONE,
-    FATTR_EXISTS,
-    FATTR_DIR,
-    FATTR_READABLE = 1 << 2,
-    FATTR_WRITABLE = 1 << 3
+    FATTR_NONE = 0,
+    FATTR_EXISTS = 1 << 0,
+    FATTR_DIR = 1 << 1,
+    FATTR_SPECIAL = 1 << 2,
+    FATTR_READABLE = 1 << 3,
+    FATTR_WRITABLE = 1 << 4
 } FileAttributes; 
 
 typedef struct {
     char *rel_path; /* The path entered by the user */
     char *file_name; /* The file name part of rel_path */
+    char *abs_path; /* The absolute path (only if file exists) */
+    struct stat file_stat;
     FileAttributes file_attrs;
 } FileInfo;
 
-int init_fileinfo(FileInfo *, char *);
+Status init_fileinfo(FileInfo *, const char *);
 int init_empty_fileinfo(FileInfo *);
 void free_fileinfo(FileInfo);
 int file_is_directory(FileInfo);
+int file_is_special(FileInfo);
 int file_exists(FileInfo);
 int check_file_exists(FileInfo *);
 int can_read_file(FileInfo);
 int check_can_read_file(FileInfo *);
 int can_write_file(FileInfo);
 int check_can_write_file(FileInfo *);
-int set_file_path(FileInfo *, const char *);
 int refresh_file_attributes(FileInfo *);
+int file_info_equal(FileInfo, FileInfo);
 
 #endif

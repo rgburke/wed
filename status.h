@@ -38,6 +38,7 @@ typedef enum {
     ERR_NONE,
     ERR_FILE_DOESNT_EXIST,
     ERR_FILE_IS_DIRECTORY,
+    ERR_FILE_IS_SPECIAL,
     ERR_UNABLE_TO_OPEN_FILE,
     ERR_UNABLE_TO_READ_FILE,
     ERR_UNABLE_TO_WRITE_TO_FILE,
@@ -48,7 +49,8 @@ typedef enum {
     ERR_INVALID_VAL,
     ERR_INVALID_CONFIG_ENTRY,
     ERR_INVALID_FILE_PATH,
-    ERR_OUT_OF_MEMORY
+    ERR_OUT_OF_MEMORY,
+    ERR_UNABLE_TO_GET_ABS_PATH
 } ErrorCode;
 
 /* Used to determine the success of an action.
