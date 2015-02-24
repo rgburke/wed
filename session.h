@@ -43,6 +43,7 @@ typedef struct {
     size_t buffer_num;
     size_t active_buffer_index;
     size_t menu_first_buffer_index;
+    size_t empty_buffer_num;
 } Session;
 
 Session *new_session(void);
@@ -67,6 +68,7 @@ int add_msg(Session *, const char *);
 int has_msgs(Session *);
 void clear_msgs(Session *);
 Status add_new_buffer(Session *, const char *);
+Status add_new_empty_buffer(Session *);
 Status get_buffer_index(Session *, const char *, int *);
 
 #endif

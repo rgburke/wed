@@ -52,6 +52,7 @@ static Status buffer_cut_selected_text(Session *, Value, const char *, int *);
 static Status buffer_paste_text(Session *, Value, const char *, int *);
 static Status buffer_save_file(Session *, Value, const char *, int *);
 static Status session_open_file(Session *, Value, const char *, int *);
+static Status session_add_empty_buffer(Session *, Value, const char *, int *);
 static Status session_change_tab(Session *, Value, const char *, int *);
 static Status finished_processing_input(Session *, Value, const char *, int *);
 
@@ -99,6 +100,7 @@ static const Command commands[] = {
     { "<C-v>"       , buffer_paste_text        , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-s>"       , buffer_save_file         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-o>"       , session_open_file        , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<C-n>"       , session_add_empty_buffer , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
     { "<M-C-Right>" , session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
     { "<M-Right>"   , session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
     { "<M-C-Left>"  , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
@@ -336,12 +338,14 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
     (void)param;
     (void)keystr;
     (void)finished;
+
     Buffer *buffer = sess->active_buffer;
     Status status = STATUS_SUCCESS;
-    int file_exists = has_file_path(buffer);
+    int file_path_exists = has_file_path(buffer->file_info);
+    int file_exists_on_disk = file_exists(buffer->file_info);
     char *file_path;
 
-    if (!file_exists) {
+    if (!file_path_exists) {
         cmd_input_prompt(sess, "Save As");
 
         if (sess->cmd_prompt.cancelled) {
@@ -356,16 +360,31 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
             free(file_path);
             return get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", file_path);
         } 
-    } else {
+    } else if (file_exists_on_disk) {
         file_path = buffer->file_info.abs_path;
+    } else {
+        file_path = buffer->file_info.rel_path;
     }
 
     status = write_buffer(buffer, file_path);
-    RETURN_IF_FAIL(status);
+    
+    if (!STATUS_IS_SUCCESS(status)) {
+        if (!file_path_exists) {
+            free(file_path);
+        }
 
-    if (!file_exists) {
+        return status;
+    }
+
+    if (!file_path_exists || !file_exists_on_disk) {
+        FileInfo tmp = buffer->file_info;
         status = init_fileinfo(&buffer->file_info, file_path);
-        free(file_path);
+        free_fileinfo(tmp);
+
+        if (!file_path_exists) {
+            free(file_path);
+        }
+
         RETURN_IF_FAIL(status);
     } else {
         refresh_file_attributes(&buffer->file_info);
@@ -415,6 +434,18 @@ static Status session_open_file(Session *sess, Value param, const char *keystr, 
     RETURN_IF_FAIL(status);
 
     set_active_buffer(sess, buffer_index);
+
+    return STATUS_SUCCESS;
+}
+
+static Status session_add_empty_buffer(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    RETURN_IF_FAIL(add_new_empty_buffer(sess));
+    set_active_buffer(sess, sess->buffer_num - 1);
 
     return STATUS_SUCCESS;
 }

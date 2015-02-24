@@ -43,11 +43,12 @@ typedef struct {
 } FileInfo;
 
 Status init_fileinfo(FileInfo *, const char *);
-int init_empty_fileinfo(FileInfo *);
+int init_empty_fileinfo(FileInfo *, const char *);
 void free_fileinfo(FileInfo);
 int file_is_directory(FileInfo);
 int file_is_special(FileInfo);
 int file_exists(FileInfo);
+int has_file_path(FileInfo);
 int check_file_exists(FileInfo *);
 int can_read_file(FileInfo);
 int check_can_read_file(FileInfo *);

@@ -117,7 +117,7 @@ typedef struct {
 } TextSelection;
 
 Buffer *new_buffer(FileInfo);
-Buffer *new_empty_buffer(void);
+Buffer *new_empty_buffer(const char *);
 void free_buffer(Buffer *);
 Line *new_line(void);
 Line *new_sized_line(size_t);
@@ -133,7 +133,6 @@ char *get_buffer_as_string(Buffer *);
 char *join_lines(Buffer *, const char *);
 int buffer_is_empty(Buffer *);
 int buffer_file_exists(Buffer *);
-int has_file_path(Buffer *);
 Line *get_line_from_offset(Line *, Direction, size_t);
 int bufferpos_compare(BufferPos, BufferPos);
 BufferPos bufferpos_min(BufferPos, BufferPos);

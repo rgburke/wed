@@ -26,6 +26,8 @@
 #include "command.h"
 #include "config.h"
 
+#define MAX_EMPTY_BUFFER_NAME_SIZE 20
+
 Session *new_session(void)
 {
     Session *sess = malloc(sizeof(Session));
@@ -42,7 +44,7 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
     }
 
     if (sess->buffer_num == 0) {
-        add_buffer(sess, new_empty_buffer()); 
+        add_new_empty_buffer(sess);
     }
 
     if (!set_active_buffer(sess, 0)) {
@@ -53,15 +55,15 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
-    if ((sess->cmd_prompt.cmd_buffer = new_empty_buffer()) == NULL) {
+    if ((sess->cmd_prompt.cmd_buffer = new_empty_buffer("commands")) == NULL) {
         return 0;
     }
 
-    if ((sess->error_buffer = new_empty_buffer()) == NULL) {
+    if ((sess->error_buffer = new_empty_buffer("errors")) == NULL) {
         return 0;
     }
 
-    if ((sess->msg_buffer = new_empty_buffer()) == NULL) {
+    if ((sess->msg_buffer = new_empty_buffer("messages")) == NULL) {
         return 0;
     }
 
@@ -194,7 +196,7 @@ int remove_buffer(Session *sess, Buffer *to_remove)
         if (buffer->next != NULL) {
             sess->active_buffer = buffer->next;
         } else {
-            sess->buffers = new_empty_buffer();
+            add_new_empty_buffer(sess);
             sess->active_buffer = sess->buffers;
         } 
     }
@@ -381,6 +383,24 @@ cleanup:
     free_buffer(buffer);
 
     return status;
+}
+
+Status add_new_empty_buffer(Session *sess)
+{
+    char empty_buf_name[MAX_EMPTY_BUFFER_NAME_SIZE];
+    snprintf(empty_buf_name, MAX_EMPTY_BUFFER_NAME_SIZE, "[new %zu]", ++sess->empty_buffer_num);
+
+    Buffer *buffer = new_empty_buffer(empty_buf_name);
+
+    if (buffer == NULL) {
+        return get_error(ERR_OUT_OF_MEMORY, 
+                         "Out of memory - Unable to "
+                         "create empty buffer");
+    }   
+
+    add_buffer(sess, buffer);
+
+    return STATUS_SUCCESS;
 }
 
 Status get_buffer_index(Session *sess, const char *file_path, int *buffer_index_ptr)

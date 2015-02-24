@@ -73,10 +73,14 @@ Buffer *new_buffer(FileInfo file_info)
     return buffer;
 }
 
-Buffer *new_empty_buffer(void)
+Buffer *new_empty_buffer(const char *file_name)
 {
     FileInfo file_info;
-    init_empty_fileinfo(&file_info);
+
+    if (!init_empty_fileinfo(&file_info, file_name)) {
+        return NULL;
+    }
+
     Buffer *buffer = new_buffer(file_info); 
     RETURN_IF_NULL(buffer);
     buffer->lines = buffer->pos.line = buffer->screen_start.line = new_line();
@@ -570,11 +574,6 @@ int buffer_is_empty(Buffer *buffer)
 int buffer_file_exists(Buffer *buffer)
 {
     return file_exists(buffer->file_info);
-}
-
-int has_file_path(Buffer *buffer)
-{
-    return buffer->file_info.rel_path != NULL;
 }
 
 Line *get_line_from_offset(Line *line, Direction direction, size_t offset)

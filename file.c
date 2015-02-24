@@ -86,22 +86,33 @@ Status init_fileinfo(FileInfo *file_info, const char *path)
 }
 
 /* For when a buffer represented a file which doesn't exist yet. */
-int init_empty_fileinfo(FileInfo *file_info)
+int init_empty_fileinfo(FileInfo *file_info, const char *file_name)
 {
-    if (file_info == NULL) {
+    if (file_info == NULL || file_name == NULL) {
         return 0;
     }
 
     memset(file_info, 0, sizeof(FileInfo));
-    file_info->file_name = "No Name";
+
+    file_info->file_name = strdupe(file_name);
+
+    if (file_info->file_name == NULL) {
+        return 0;
+    }
 
     return 1;
 }
 
 void free_fileinfo(FileInfo file_info)
 {
-    free(file_info.rel_path);
-    free(file_info.abs_path);
+    if (file_exists(file_info)) {
+        free(file_info.rel_path);
+        free(file_info.abs_path);
+    } else if (has_file_path(file_info)) {
+        free(file_info.rel_path);
+    } else {
+        free(file_info.file_name);
+    }
 }
 
 int file_is_directory(FileInfo file_info)
@@ -117,6 +128,11 @@ int file_is_special(FileInfo file_info)
 int file_exists(FileInfo file_info)
 {
     return file_info.file_attrs & FATTR_EXISTS;
+}
+
+int has_file_path(FileInfo file_info)
+{
+    return file_info.rel_path != NULL;
 }
 
 int check_file_exists(FileInfo *file_info)
@@ -194,6 +210,9 @@ int file_info_equal(FileInfo f1, FileInfo f2)
     int f2_exists = f2.file_attrs & FATTR_EXISTS;
     
     if (!f1_exists && !f2_exists) {
+        if (f1.rel_path == NULL || f2.rel_path == NULL) {
+            return 0;
+        }
         /* As the paths are not canonical 
          * this is not a true test of path equality. */
         return strcmp(f1.rel_path, f2.rel_path) == 0;
