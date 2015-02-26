@@ -106,6 +106,7 @@ struct Buffer {
     CharacterEncodingFunctions cef;
     size_t line_num;
     size_t byte_num;
+    int is_dirty;
 };
 
 typedef struct {

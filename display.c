@@ -439,11 +439,11 @@ static void draw_prompt(Session *sess)
     wmove(status, 0, 0);
     wbkgd(status, COLOR_PAIR(0));
     wattron(status, COLOR_PAIR(CP_STATUS));
-    wprintw(status, "%s:", sess->cmd_prompt.cmd_text); 
+    wprintw(status, sess->cmd_prompt.cmd_text); 
     wattroff(status, COLOR_PAIR(CP_STATUS));
     wprintw(status, " "); 
 
-    size_t prompt_size = strlen(sess->cmd_prompt.cmd_text) + 2;
+    size_t prompt_size = strlen(sess->cmd_prompt.cmd_text) + 1;
     WindowInfo *win_info = &sess->cmd_prompt.cmd_buffer->win_info;
     win_info->start_x = prompt_size;
     win_info->width = text_x - prompt_size;

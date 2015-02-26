@@ -185,8 +185,13 @@ int remove_buffer(Session *sess, Buffer *to_remove)
     if (prev != NULL) {
         if (buffer->next != NULL) {
             prev->next = buffer->next; 
+
+            if (sess->active_buffer_index == buffer_index) {
+                sess->active_buffer = buffer->next;
+            }
         } else {
             prev->next = NULL;
+            sess->active_buffer = prev;
 
             if (sess->active_buffer_index == buffer_index) {
                 sess->active_buffer_index--;
@@ -194,16 +199,15 @@ int remove_buffer(Session *sess, Buffer *to_remove)
         }
     } else if (sess->active_buffer == buffer) {
         if (buffer->next != NULL) {
-            sess->active_buffer = buffer->next;
-        } else {
-            add_new_empty_buffer(sess);
+            sess->buffers = buffer->next;
             sess->active_buffer = sess->buffers;
+        } else {
+            sess->buffers = NULL;
+            sess->active_buffer = NULL;
         } 
     }
 
-    if (sess->buffer_num > 1) {
-        sess->buffer_num--;
-    }
+    sess->buffer_num--;
 
     free_buffer(buffer);
 

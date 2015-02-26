@@ -51,6 +51,8 @@ Buffer *new_buffer(FileInfo file_info)
     Buffer *buffer = malloc(sizeof(Buffer));
     RETURN_IF_NULL(buffer);
 
+    memset(buffer, 0, sizeof(Buffer));
+
     if ((buffer->config = new_hashmap()) == NULL) {
         free(buffer);
         return NULL;
@@ -60,14 +62,8 @@ Buffer *new_buffer(FileInfo file_info)
     init_bufferpos(&buffer->pos);
     init_bufferpos(&buffer->screen_start);
     init_bufferpos(&buffer->select_start);
-    buffer->lines = NULL;
-    buffer->next = NULL;
-    buffer->line_col_offset = 0;
     buffer->encoding_type = ENC_UTF8;
     init_char_enc_funcs(buffer->encoding_type, &buffer->cef);
-    buffer->line_num = 0;
-    buffer->byte_num = 0;
-
     init_window_info(&buffer->win_info);
 
     return buffer;
@@ -512,7 +508,9 @@ Status write_buffer(Buffer *buffer, const char *file_path)
     }
 
 cleanup:
-    if (!STATUS_IS_SUCCESS(status)) {
+    if (STATUS_IS_SUCCESS(status)) {
+        buffer->is_dirty = 0;
+    } else {
         remove(tmp_file_path);
     }
 
@@ -1350,6 +1348,7 @@ Status insert_character(Buffer *buffer, const char *character)
     pos->line->length += char_len;
     pos->line->screen_length = pos->col_no - 1 + line_screen_length(buffer, *pos, pos->line->length);
     buffer->byte_num += char_len;
+    buffer->is_dirty = 1;
     RETURN_IF_FAIL(pos_change_char(buffer, pos, DIRECTION_RIGHT, 1));
 
     return STATUS_SUCCESS;
@@ -1384,6 +1383,7 @@ Status insert_string(Buffer *buffer, const char *string, size_t string_length, i
     pos->line->length += string_length;
     pos->line->screen_length = pos->col_no - 1 + line_screen_length(buffer, *pos, pos->line->length);
     buffer->byte_num += string_length;
+    buffer->is_dirty = 1;
 
     if (advance_cursor) {
         size_t end_offset = pos->offset + string_length;
@@ -1428,6 +1428,7 @@ Status delete_character(Buffer *buffer)
     line->length -= char_info.byte_length;
     line->screen_length = pos->col_no - 1 + line_screen_length(buffer, *pos, pos->line->length);
     buffer->byte_num -= char_info.byte_length;
+    buffer->is_dirty = 1;
 
     /* TODO Raise error here? Failing to shrink memory doesn't have an adverse effect so
      * don't raise an error. It does hint that future {m,re}allocs could likely fail however. */
@@ -1446,6 +1447,7 @@ Status delete_line(Buffer *buffer, Line *line)
 
     buffer->byte_num -= line->length + 1;
     buffer->line_num--;
+    buffer->is_dirty = 1;
 
     if (line->prev != NULL) {
         line->prev->next = line->next;
@@ -1527,6 +1529,7 @@ Status insert_line(Buffer *buffer)
     pos->col_no = 1;
     buffer->byte_num++;
     buffer->line_num++;
+    buffer->is_dirty = 1;
 
     return STATUS_SUCCESS;
 }
@@ -1567,6 +1570,7 @@ static Status delete_line_segment(Buffer *buffer, BufferPos start, BufferPos end
     line->length -= (end.offset - start.offset);
     line->screen_length = start.col_no - 1 + line_screen_length(buffer, start, line->length);
     buffer->byte_num -= (end.offset - start.offset);
+    buffer->is_dirty = 1;
 
     /* Don't check for success for reasons mentioned in delete_character */
     resize_line_text_if_req(line, line->length);

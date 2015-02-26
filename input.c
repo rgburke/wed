@@ -136,7 +136,10 @@ static void handle_keypress(Session *sess, TermKeyKey *key, char *keystr, int *f
     termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE, key, TERMKEY_FORMAT_VIM);
     add_error(sess, do_command(sess, keystr, finished));
     handle_error(sess);
-    update_display(sess);
+
+    if (!*finished) {
+        update_display(sess);
+    }
 }
 
 static void handle_error(Session *sess)

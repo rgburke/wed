@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <ncurses.h>
 #include <string.h>
+#include <strings.h>
 #include "shared.h"
 #include "status.h"
 #include "command.h"
@@ -54,7 +55,9 @@ static Status buffer_save_file(Session *, Value, const char *, int *);
 static Status session_open_file(Session *, Value, const char *, int *);
 static Status session_add_empty_buffer(Session *, Value, const char *, int *);
 static Status session_change_tab(Session *, Value, const char *, int *);
+static Status session_close_buffer(Session *, Value, const char *, int *);
 static Status finished_processing_input(Session *, Value, const char *, int *);
+static Status session_end(Session *, Value, const char *, int *);
 
 static Status cmd_input_prompt(Session *, const char *);
 static Status cancel_cmd_input_prompt(Session *, Value, const char *, int *);
@@ -105,7 +108,8 @@ static const Command commands[] = {
     { "<M-Right>"   , session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
     { "<M-C-Left>"  , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
     { "<M-Left>"    , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
-    { "<Escape>"    , finished_processing_input, INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
+    { "<C-w>"       , session_close_buffer     , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
+    { "<Escape>"    , session_end              , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
 };
 
 int init_keymap(Session *sess)
@@ -346,7 +350,7 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
     char *file_path;
 
     if (!file_path_exists) {
-        cmd_input_prompt(sess, "Save As");
+        cmd_input_prompt(sess, "Save As:");
 
         if (sess->cmd_prompt.cancelled) {
             return STATUS_SUCCESS;
@@ -403,7 +407,7 @@ static Status session_open_file(Session *sess, Value param, const char *keystr, 
     (void)keystr;
     (void)finished;
 
-    cmd_input_prompt(sess, "Open");
+    cmd_input_prompt(sess, "Open:");
 
     if (sess->cmd_prompt.cancelled) {
         return STATUS_SUCCESS;
@@ -476,11 +480,67 @@ static Status session_change_tab(Session *sess, Value param, const char *keystr,
     return STATUS_SUCCESS;
 }
 
+static Status session_close_buffer(Session *sess, Value param, const char *keystr, int *finished)
+{
+    int allow_no_buffers = param.val.ival;
+    Buffer *buffer = sess->active_buffer;
+
+    if (buffer->is_dirty) {
+        char prompt_text[50];
+        char *fmt = "Save changes to %.*s (Y/n)?";
+        snprintf(prompt_text, sizeof(prompt_text), fmt, 
+                 sizeof(prompt_text) - strlen(fmt) + 3, buffer->file_info.file_name);
+
+        cmd_input_prompt(sess, prompt_text); 
+
+        if (sess->cmd_prompt.cancelled) {
+            return STATUS_SUCCESS;
+        }
+
+        char *input = get_cmd_buffer_text(sess);
+        Status status = STATUS_SUCCESS;
+
+        if (input == NULL) {
+            status = get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+        } else if (strnlen(input, 1) == 0 || strncasecmp(input, "y", 1) == 0) {
+            status = buffer_save_file(sess, INT_VAL(0), keystr, finished);
+        }
+
+        free(input);
+        RETURN_IF_FAIL(status);
+    }
+
+    remove_buffer(sess, buffer);
+
+    if (sess->buffer_num == 0 && !allow_no_buffers) {
+        return session_add_empty_buffer(sess, INT_VAL(0), keystr, finished); 
+    }
+
+    return STATUS_SUCCESS;
+}
+
 static Status finished_processing_input(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)sess;
     (void)param;
     (void)keystr;
+
+    *finished = 1;
+
+    return STATUS_SUCCESS;
+}
+
+static Status session_end(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+
+    while (sess->buffer_num > 0) {
+        RETURN_IF_FAIL(session_close_buffer(sess, INT_VAL(1), keystr, finished));
+
+        if (sess->cmd_prompt.cancelled) {
+            return STATUS_SUCCESS;
+        }
+    }  
 
     *finished = 1;
 
@@ -499,7 +559,7 @@ static Status cmd_input_prompt(Session *sess, const char *prompt_text)
 
     enable_command_type(sess, CMDT_CMD_INPUT);
     update_command_function(sess, "<Enter>", buffer_insert_line);
-    update_command_function(sess, "<Escape>", finished_processing_input);
+    update_command_function(sess, "<Escape>", session_end);
     end_cmd_buffer_active(sess);
 
     return STATUS_SUCCESS;
