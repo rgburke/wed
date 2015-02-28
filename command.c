@@ -46,6 +46,8 @@ static Status bufferpos_change_page(Session *, Value, const char *, int *);
 static Status buffer_insert_char(Session *, Value, const char *, int *);
 static Status buffer_delete_char(Session *, Value, const char *, int *);
 static Status buffer_backspace(Session *, Value, const char *, int *);
+static Status buffer_delete_word(Session *, Value, const char *, int *);
+static Status buffer_delete_prev_word(Session *, Value, const char *, int *);
 static Status buffer_insert_line(Session *, Value, const char *, int *);
 static Status buffer_select_all_text(Session *, Value, const char *, int *);
 static Status buffer_copy_selected_text(Session *, Value, const char *, int *);
@@ -64,52 +66,54 @@ static Status cancel_cmd_input_prompt(Session *, Value, const char *, int *);
 static int update_command_function(Session *, const char *, CommandHandler);
 
 static const Command commands[] = {
-    { "<Up>"        , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP)                           , CMDT_BUFFER_MOVE },
-    { "<Down>"      , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN)                         , CMDT_BUFFER_MOVE },
-    { "<Right>"     , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_BUFFER_MOVE },
-    { "<Left>"      , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_BUFFER_MOVE },
-    { "<Home>"      , bufferpos_to_line_start  , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
-    { "<End>"       , bufferpos_to_line_end    , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
-    { "<C-Right>"   , bufferpos_to_next_word   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
-    { "<C-Left>"    , bufferpos_to_prev_word   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
-    { "<C-Home>"    , bufferpos_to_buffer_start, INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
-    { "<C-End>"     , bufferpos_to_buffer_end  , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
-    { "<PageUp>"    , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP)                           , CMDT_BUFFER_MOVE },
-    { "<PageDown>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN)                         , CMDT_BUFFER_MOVE },
-    { "<S-Up>"      , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP    | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
-    { "<S-Down>"    , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN  | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
-    { "<S-Right>"   , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
-    { "<S-Left>"    , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT  | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
-    { "<S-Home>"    , bufferpos_to_line_start  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
-    { "<S-End>"     , bufferpos_to_line_end    , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
-    { "<C-S-Right>" , bufferpos_to_next_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
-    { "<C-S-Left>"  , bufferpos_to_prev_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
-    { "<C-S-Home>"  , bufferpos_to_buffer_start, INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
-    { "<C-S-End>"   , bufferpos_to_buffer_end  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
-    { "<S-PageUp>"  , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP   | DIRECTION_WITH_SELECT) , CMDT_BUFFER_MOVE },
-    { "<S-PageDown>", bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) , CMDT_BUFFER_MOVE },
-    { "<Space>"     , buffer_insert_char       , STR_VAL_STRUCT(" ")                                    , CMDT_BUFFER_MOD  }, 
-    { "<Tab>"       , buffer_insert_char       , STR_VAL_STRUCT("\t")                                   , CMDT_BUFFER_MOD  }, 
-    { "<KPDiv>"     , buffer_insert_char       , STR_VAL_STRUCT("/")                                    , CMDT_BUFFER_MOD  }, 
-    { "<KPMult>"    , buffer_insert_char       , STR_VAL_STRUCT("*")                                    , CMDT_BUFFER_MOD  }, 
-    { "<KPMinus>"   , buffer_insert_char       , STR_VAL_STRUCT("-")                                    , CMDT_BUFFER_MOD  }, 
-    { "<KPPlus>"    , buffer_insert_char       , STR_VAL_STRUCT("+")                                    , CMDT_BUFFER_MOD  }, 
-    { "<Delete>"    , buffer_delete_char       , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
-    { "<Backspace>" , buffer_backspace         , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
-    { "<Enter>"     , buffer_insert_line       , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
-    { "<C-a>"       , buffer_select_all_text   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
-    { "<C-c>"       , buffer_copy_selected_text, INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
-    { "<C-x>"       , buffer_cut_selected_text , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
-    { "<C-v>"       , buffer_paste_text        , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
-    { "<C-s>"       , buffer_save_file         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
-    { "<C-o>"       , session_open_file        , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
-    { "<C-n>"       , session_add_empty_buffer , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
-    { "<M-C-Right>" , session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
-    { "<M-Right>"   , session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
-    { "<M-C-Left>"  , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
-    { "<M-Left>"    , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
-    { "<C-w>"       , session_close_buffer     , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
-    { "<Escape>"    , session_end              , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
+    { "<Up>"         , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP)                           , CMDT_BUFFER_MOVE },
+    { "<Down>"       , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN)                         , CMDT_BUFFER_MOVE },
+    { "<Right>"      , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_BUFFER_MOVE },
+    { "<Left>"       , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_BUFFER_MOVE },
+    { "<Home>"       , bufferpos_to_line_start  , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<End>"        , bufferpos_to_line_end    , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<C-Right>"    , bufferpos_to_next_word   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<C-Left>"     , bufferpos_to_prev_word   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<C-Home>"     , bufferpos_to_buffer_start, INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<C-End>"      , bufferpos_to_buffer_end  , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
+    { "<PageUp>"     , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP)                           , CMDT_BUFFER_MOVE },
+    { "<PageDown>"   , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN)                         , CMDT_BUFFER_MOVE },
+    { "<S-Up>"       , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_UP    | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
+    { "<S-Down>"     , bufferpos_change_line    , INT_VAL_STRUCT(DIRECTION_DOWN  | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
+    { "<S-Right>"    , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
+    { "<S-Left>"     , bufferpos_change_char    , INT_VAL_STRUCT(DIRECTION_LEFT  | DIRECTION_WITH_SELECT), CMDT_BUFFER_MOVE },
+    { "<S-Home>"     , bufferpos_to_line_start  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<S-End>"      , bufferpos_to_line_end    , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<C-S-Right>"  , bufferpos_to_next_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<C-S-Left>"   , bufferpos_to_prev_word   , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<C-S-Home>"   , bufferpos_to_buffer_start, INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<C-S-End>"    , bufferpos_to_buffer_end  , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
+    { "<S-PageUp>"   , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_UP   | DIRECTION_WITH_SELECT) , CMDT_BUFFER_MOVE },
+    { "<S-PageDown>" , bufferpos_change_page    , INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) , CMDT_BUFFER_MOVE },
+    { "<Space>"      , buffer_insert_char       , STR_VAL_STRUCT(" ")                                    , CMDT_BUFFER_MOD  }, 
+    { "<Tab>"        , buffer_insert_char       , STR_VAL_STRUCT("\t")                                   , CMDT_BUFFER_MOD  }, 
+    { "<KPDiv>"      , buffer_insert_char       , STR_VAL_STRUCT("/")                                    , CMDT_BUFFER_MOD  }, 
+    { "<KPMult>"     , buffer_insert_char       , STR_VAL_STRUCT("*")                                    , CMDT_BUFFER_MOD  }, 
+    { "<KPMinus>"    , buffer_insert_char       , STR_VAL_STRUCT("-")                                    , CMDT_BUFFER_MOD  }, 
+    { "<KPPlus>"     , buffer_insert_char       , STR_VAL_STRUCT("+")                                    , CMDT_BUFFER_MOD  }, 
+    { "<Delete>"     , buffer_delete_char       , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<Backspace>"  , buffer_backspace         , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-Delete>"   , buffer_delete_word       , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<M-Backspace>", buffer_delete_prev_word  , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<Enter>"      , buffer_insert_line       , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-a>"        , buffer_select_all_text   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-c>"        , buffer_copy_selected_text, INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-x>"        , buffer_cut_selected_text , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-v>"        , buffer_paste_text        , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-s>"        , buffer_save_file         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<C-o>"        , session_open_file        , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<C-n>"        , session_add_empty_buffer , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
+    { "<M-C-Right>"  , session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
+    { "<M-Right>"    , session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
+    { "<M-C-Left>"   , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
+    { "<M-Left>"     , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
+    { "<C-w>"        , session_close_buffer     , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
+    { "<Escape>"     , session_end              , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
 };
 
 int init_keymap(Session *sess)
@@ -268,6 +272,22 @@ static Status buffer_backspace(Session *sess, Value param, const char *keystr, i
     }
 
     return delete_character(sess->active_buffer);
+}
+
+static Status buffer_delete_word(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+    return delete_word(sess->active_buffer);
+}
+
+static Status buffer_delete_prev_word(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+    return delete_prev_word(sess->active_buffer);
 }
 
 static Status buffer_insert_line(Session *sess, Value param, const char *keystr, int *finished)

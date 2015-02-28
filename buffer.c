@@ -662,7 +662,7 @@ CharacterClass character_class(Buffer *buffer, BufferPos pos)
     buffer->cef.char_info(&char_info, CIP_DEFAULT, pos);
 
     if (char_info.byte_length == 1) {
-        char character = *(pos.line->text + pos.offset);
+        char character = *(pos_offset_character(buffer, pos, DIRECTION_NONE, 0));
 
         if (isspace(character)) {
             return CCLASS_WHITESPACE;
@@ -676,13 +676,11 @@ CharacterClass character_class(Buffer *buffer, BufferPos pos)
 
 const char *pos_character(Buffer *buffer)
 {
-    return pos_offset_character(buffer, DIRECTION_NONE, 0);
+    return pos_offset_character(buffer, buffer->pos, DIRECTION_NONE, 0);
 }
 
-const char *pos_offset_character(Buffer *buffer, Direction direction, size_t offset)
+const char *pos_offset_character(Buffer *buffer, BufferPos pos, Direction direction, size_t offset)
 {
-    BufferPos pos = buffer->pos;
-
     if (!STATUS_IS_SUCCESS(pos_change_multi_char(buffer, &pos, direction, offset, 0))) {
         return "";
     }
@@ -1202,6 +1200,16 @@ Status pos_to_next_word(Buffer *buffer, int is_select)
     BufferPos *pos = &buffer->pos;
     Status status;
 
+    if (is_select) {
+        while (character_class(buffer, *pos) == CCLASS_WHITESPACE) {
+            RETURN_IF_FAIL(pos_change_char(buffer, pos, direction, 1));
+
+            if (bufferpos_at_line_start(buffer->pos)) {
+                return STATUS_SUCCESS;
+            }
+        }
+    }
+
     CharacterClass start_class = character_class(buffer, *pos);
 
     do {
@@ -1210,12 +1218,12 @@ Status pos_to_next_word(Buffer *buffer, int is_select)
     } while (!bufferpos_at_buffer_end(buffer->pos) &&
              start_class == character_class(buffer, *pos));
 
-    while (!bufferpos_at_buffer_extreme(buffer->pos) &&
-           character_class(buffer, *pos) == CCLASS_WHITESPACE) {
+    if (is_select) {
+        return STATUS_SUCCESS;
+    }
 
-        if (bufferpos_at_line_end(buffer->pos)) {
-            break;
-        }
+    while (!bufferpos_at_line_end(buffer->pos) &&
+           character_class(buffer, *pos) == CCLASS_WHITESPACE) {
 
         status = pos_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
@@ -1235,13 +1243,16 @@ Status pos_to_prev_word(Buffer *buffer, int is_select)
     do {
         status = pos_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
-    } while (!bufferpos_at_buffer_start(buffer->pos) &&
-             character_class(buffer, *pos) == CCLASS_WHITESPACE);
+
+        if (bufferpos_at_line_end(buffer->pos)) {
+            return STATUS_SUCCESS;
+        }
+    } while (character_class(buffer, *pos) == CCLASS_WHITESPACE);
 
     CharacterClass start_class = character_class(buffer, *pos);
     BufferPos look_ahead = buffer->pos;
 
-    while (!bufferpos_at_buffer_start(buffer->pos)) {
+    while (!bufferpos_at_line_start(buffer->pos)) {
         RETURN_IF_FAIL(pos_change_char(buffer, &look_ahead, DIRECTION_LEFT, 0));
 
         if (start_class != character_class(buffer, look_ahead)) {
@@ -1737,4 +1748,48 @@ Status insert_textselection(Buffer *buffer, TextSelection *text_selection)
     end_line->prev = buf_line;
 
     return insert_string(buffer, line->text, line->length, 1);
+}
+
+Status delete_word(Buffer *buffer)
+{
+    Range range;
+
+    if (get_selection_range(buffer, &range)) {
+        return delete_range(buffer, range);
+    }
+
+    if (bufferpos_at_buffer_end(buffer->pos)) {
+        return STATUS_SUCCESS;
+    }
+
+    BufferPos select_start = buffer->pos;
+    RETURN_IF_FAIL(pos_to_next_word(buffer, 0));
+    buffer->select_start = select_start;
+
+    get_selection_range(buffer, &range);
+    RETURN_IF_FAIL(delete_range(buffer, range));
+
+    return STATUS_SUCCESS;
+}
+
+Status delete_prev_word(Buffer *buffer)
+{
+    Range range;
+
+    if (get_selection_range(buffer, &range)) {
+        return delete_range(buffer, range);
+    }
+
+    if (bufferpos_at_buffer_start(buffer->pos)) {
+        return STATUS_SUCCESS;
+    }
+
+    BufferPos select_start = buffer->pos;
+    RETURN_IF_FAIL(pos_to_prev_word(buffer, 0));
+    buffer->select_start = select_start;
+
+    get_selection_range(buffer, &range);
+    RETURN_IF_FAIL(delete_range(buffer, range));
+
+    return STATUS_SUCCESS;
 }

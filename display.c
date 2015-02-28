@@ -301,14 +301,23 @@ static size_t draw_status_file_info(Session *sess, size_t max_segment_width)
 
     file_info_free -= (strlen(file_info_text) + 3);
     size_t file_info_size;
+    char *file_path = NULL;
+
+    if (file_exists(file_info)) {
+        file_path = file_info.abs_path;
+    } else if (has_file_path(file_info)) {
+        file_path = file_info.rel_path;
+    }
+
+    if (file_path == NULL || strlen(file_path) > file_info_free) {
+        file_path = file_info.file_name;
+    }
     
-    if (strlen(file_info.file_name) > file_info_free) {
+    if (strlen(file_path) > file_info_free) {
         int file_char_num = file_info_free - 3;
-        char file_name_fmt[STATUS_TEXT_SIZE];
-        snprintf(file_name_fmt, STATUS_TEXT_SIZE, " \"%%.%ds...\"%%s", file_char_num);
-        file_info_size = snprintf(status_text, max_segment_width, file_name_fmt, file_info.file_name, file_info_text);
+        file_info_size = snprintf(status_text, max_segment_width, " \"%.*s...\"%s", file_char_num, file_path, file_info_text);
     } else {
-        file_info_size = snprintf(status_text, max_segment_width, " \"%s\"%s", file_info.file_name, file_info_text);
+        file_info_size = snprintf(status_text, max_segment_width, " \"%s\"%s", file_path, file_info_text);
     }
 
     wprintw(status, status_text);

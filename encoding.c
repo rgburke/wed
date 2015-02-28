@@ -64,7 +64,13 @@ static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos
     }
 
     memset(char_info, 0, sizeof(CharInfo));
-    const uchar *ch = (const uchar *)(pos.line->text + pos.offset);
+    const uchar *ch;
+
+    if (pos.offset == pos.line->length) {
+        ch = (const uchar *)" ";
+    } else {
+        ch = (const uchar *)(pos.line->text + pos.offset);
+    }
 
     if (utf8_is_valid_character(ch, pos.offset, pos.line->length, &char_info->byte_length)) {
         char_info->is_valid = 1;

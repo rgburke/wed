@@ -143,7 +143,7 @@ int bufferpos_in_range(Range, BufferPos);
 size_t range_length(Buffer *, Range);
 CharacterClass character_class(Buffer *, BufferPos);
 const char *pos_character(Buffer *);
-const char *pos_offset_character(Buffer *, Direction, size_t);
+const char *pos_offset_character(Buffer *, BufferPos, Direction, size_t);
 char *get_line_segment(Line *, size_t, size_t);
 Line *clone_line_segment(Buffer *, BufferPos, BufferPos);
 int bufferpos_at_line_start(BufferPos);
@@ -183,5 +183,7 @@ Status select_all_text(Buffer *);
 Status copy_selected_text(Buffer *, TextSelection **);
 Status cut_selected_text(Buffer *, TextSelection **);
 Status insert_textselection(Buffer *, TextSelection *);
+Status delete_word(Buffer *);
+Status delete_prev_word(Buffer *);
 
 #endif
