@@ -26,7 +26,7 @@
 #include "util.h"
 #include "config.h"
 
-#define WINDOW_NUM 3
+#define WINDOW_NUM 4
 /* TODO make this configurable
  * this is duplicated in encoding.c */
 #define WED_TAB_SIZE 8
@@ -45,6 +45,7 @@ typedef enum {
 static WINDOW *menu;
 static WINDOW *status;
 static WINDOW *text;
+static WINDOW *lineno;
 static WINDOW *windows[WINDOW_NUM];
 static size_t text_y = 0;
 static size_t text_x = 0;
@@ -92,6 +93,7 @@ void init_display(void)
     windows[0] = menu = newwin(1, COLS, 0, 0); 
     windows[1] = text = newwin(text_y, text_x, 1, 0);
     windows[2] = status = newwin(1, COLS, LINES - 1, 0);
+    windows[3] = lineno = newwin(0, 0, 1, 0);
 
     refresh();
 }
@@ -467,6 +469,10 @@ static void draw_buffer(Buffer *buffer, int line_wrap)
     BufferPos draw_pos = buffer->screen_start;
     WINDOW *draw_win = windows[buffer->win_info.draw_window];
 
+    if (buffer->win_info.line_no_width > 0) {
+        werase(lineno);
+    }
+
     while (line_count < line_num && draw_pos.line != NULL) {
         line_count += draw_line(buffer, draw_pos, line_count, is_selection, 
                                 select_range, line_wrap, buffer->win_info);
@@ -478,6 +484,10 @@ static void draw_buffer(Buffer *buffer, int line_wrap)
             draw_pos.offset = 0;
             draw_pos.col_no = 1;
         }
+    }
+
+    if (buffer->win_info.line_no_width > 0) {
+        wnoutrefresh(lineno);
     }
 
     wstandend(draw_win);
@@ -495,13 +505,12 @@ static size_t draw_line(Buffer *buffer, BufferPos draw_pos, int y, int is_select
                         Range select_range, int line_wrap, WindowInfo win_info)
 {
     Line *line = draw_pos.line;
-    WINDOW *draw_win = windows[win_info.draw_window];
 
     if (win_info.line_no_width > 0 && draw_pos.offset == 0) {
-        wmove(draw_win, win_info.start_y + y, win_info.start_x - win_info.line_no_width);
-        wattron(draw_win, COLOR_PAIR(CP_LINE_NO));
-        wprintw(draw_win, "%*zu ", ((int)win_info.line_no_width - 1), draw_pos.line_no);
-        wattroff(draw_win, COLOR_PAIR(CP_LINE_NO));
+        wmove(lineno, win_info.start_y + y, 0);
+        wattron(lineno, COLOR_PAIR(CP_LINE_NO));
+        wprintw(lineno, "%*zu ", ((int)win_info.line_no_width - 1), draw_pos.line_no);
+        wattroff(lineno, COLOR_PAIR(CP_LINE_NO));
     }
 
     if (line->length == 0) {
@@ -529,6 +538,7 @@ static size_t draw_line(Buffer *buffer, BufferPos draw_pos, int y, int is_select
         }
     }
 
+    WINDOW *draw_win = windows[win_info.draw_window];
     size_t scr_line_num = 0;
     size_t start_col = draw_pos.col_no;
     size_t window_width = win_info.start_x + win_info.width;
@@ -788,7 +798,7 @@ static size_t update_line_no_width(Buffer *buffer, int line_wrap)
 {
     BufferPos screen_start = buffer->screen_start;
     WindowInfo *win_info = &buffer->win_info;
-    char str[50];
+    char lineno_str[50];
 
     size_t max_line_no;
 
@@ -813,7 +823,7 @@ static size_t update_line_no_width(Buffer *buffer, int line_wrap)
     size_t line_no_width;
 
     if (max_line_no > 0) {
-        line_no_width = snprintf(str, sizeof(str), "%zu ", max_line_no);
+        line_no_width = snprintf(lineno_str, sizeof(lineno_str), "%zu ", max_line_no);
     } else {
         line_no_width = 0;
     }
@@ -822,18 +832,28 @@ static size_t update_line_no_width(Buffer *buffer, int line_wrap)
 
     if (line_no_width > win_info->line_no_width) {
         diff = line_no_width - win_info->line_no_width;
-        win_info->start_x += diff;
         win_info->width -= diff;
         win_info->line_no_width = line_no_width;
     } else if (line_no_width < win_info->line_no_width) {
         diff = win_info->line_no_width - line_no_width;
-        win_info->start_x -= diff;
         win_info->width += diff;
         win_info->line_no_width = line_no_width;
     }
 
-    if (diff > 0 && line_wrap) {
-        vertical_scroll_linewrap(buffer);
+    int lineno_x, lineno_y;
+    getmaxyx(lineno, lineno_y, lineno_x);
+    (void)lineno_y;
+
+    if (diff > 0 || line_no_width != (size_t)lineno_x) {
+        if (line_wrap) {
+            vertical_scroll_linewrap(buffer);
+        }
+
+        wresize(text, text_y, text_x - line_no_width);
+        mvwin(text, 1, line_no_width);
+
+        werase(lineno);
+        wresize(lineno, text_y, line_no_width);
     }
 
     return line_no_width;
