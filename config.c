@@ -21,6 +21,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <limits.h>
+#include <errno.h>
 #include "config.h"
 #include "variable.h"
 #include "hashmap.h"
@@ -41,15 +43,20 @@ static int populate_default_config(HashMap *);
 static char *get_config_line(FILE *);
 static int process_config_line(char *, char **, char **);
 static int get_bool_value(char *, Value *);
+static int get_int_value(char *, Value *);
+static const ConfigVariableDescriptor *get_variable(char *);
 static Status set_config_var(HashMap *, char *, char *);
+static int tabwidth_validator(Value);
 
 static int (*conversion_functions[])(char *, Value *) = {
-    get_bool_value
+    get_bool_value,
+    get_int_value
 };
 
 static const ConfigVariableDescriptor default_config[] = {
-    { "linewrap", "lw", BOOL_VAL_STRUCT(1), NULL, NULL },
-    { "lineno", "ln", BOOL_VAL_STRUCT(1), NULL, NULL }
+    { "linewrap", "lw", BOOL_VAL_STRUCT(1), NULL              , NULL },
+    { "lineno"  , "ln", BOOL_VAL_STRUCT(1), NULL              , NULL },
+    { "tabwidth", "tw", INT_VAL_STRUCT(8) , tabwidth_validator, NULL }
 };
 
 void set_config_session(Session *sess)
@@ -166,7 +173,7 @@ static int populate_default_config(HashMap *config)
     size_t var_num = sizeof(default_config) / sizeof(ConfigVariableDescriptor);
     ConfigVariableDescriptor *clone;
 
-    for (size_t k = 0; k < var_num; k++, clone++) {
+    for (size_t k = 0; k < var_num; k++) {
         clone = malloc(sizeof(ConfigVariableDescriptor));
 
         if (clone == NULL) {
@@ -357,6 +364,28 @@ static int get_bool_value(char *svalue, Value *value)
     return 1;
 }
 
+static int get_int_value(char *svalue, Value *value)
+{
+    if (svalue == NULL || value == NULL) {
+        return 0;
+    }
+
+    value->type = VAL_TYPE_INT;
+    char *end_ptr;
+
+    long val = strtol(svalue, &end_ptr, 10);
+
+    if ((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN)) ||
+        (errno != 0 && val == 0) || end_ptr == svalue) {
+        return 0;
+    }
+
+    value->val.ival = val;
+
+    return 1;
+}
+
+
 Status set_session_var(Session *sess, char *var_name, char *val)
 {
     return set_config_var(sess->config, var_name, val);
@@ -392,13 +421,13 @@ static Status set_config_var(HashMap *config, char *var_name, char *val)
     Value value;
     
     if (!conversion_functions[var->default_value.type](val, &value)) {
-        return get_error(ERR_INVALID_VAL, "Invalid value \"%s\" for variable %s", value, var_name);
+        return get_error(ERR_INVALID_VAL, "Invalid value \"%s\" for variable %s", val, var_name);
     }
 
     if (var->custom_validator != NULL) {
         if (!var->custom_validator(value)) {
             /* TODO It would be useful to know why the value isn't valid */
-            return get_error(ERR_INVALID_VAL, "Invalid value \"%s\" for variable %s", value, var_name);
+            return get_error(ERR_INVALID_VAL, "Invalid value \"%s\" for variable %s", val, var_name);
         }
     }
 
@@ -414,15 +443,26 @@ static Status set_config_var(HashMap *config, char *var_name, char *val)
     return STATUS_SUCCESS;
 }
 
-int config_bool(char *var_name)
+static const ConfigVariableDescriptor *get_variable(char *var_name)
 {
     Buffer *buffer = curr_sess->active_buffer;
 
-    ConfigVariableDescriptor *var = hashmap_get(buffer->config, var_name);
+    ConfigVariableDescriptor *var = NULL;
+   
+    if (buffer != NULL) {
+        var = hashmap_get(buffer->config, var_name);
+    }
 
     if (var == NULL) {
         var = hashmap_get(curr_sess->config, var_name);
     }
+
+    return var;
+}
+
+int config_bool(char *var_name)
+{
+    const ConfigVariableDescriptor *var = get_variable(var_name);
 
     if (var == NULL || var->default_value.type != VAL_TYPE_BOOL) {
         /* TODO Add error to session error queue */
@@ -430,5 +470,22 @@ int config_bool(char *var_name)
     }
 
     return var->default_value.val.ival;
+}
+
+long config_int(char *var_name)
+{
+    const ConfigVariableDescriptor *var = get_variable(var_name);
+
+    if (var == NULL || var->default_value.type != VAL_TYPE_INT) {
+        /* TODO Add error to session error queue */
+        return 0;
+    }
+
+    return var->default_value.val.ival;
+}
+
+static int tabwidth_validator(Value value)
+{
+    return !(value.val.ival < 1 || value.val.ival > 8);
 }
 

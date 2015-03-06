@@ -27,9 +27,6 @@
 #include "config.h"
 
 #define WINDOW_NUM 4
-/* TODO make this configurable
- * this is duplicated in encoding.c */
-#define WED_TAB_SIZE 8
 #define STATUS_TEXT_SIZE 512
 #define MAX_MENU_BUFFER_WIDTH 30
 
@@ -58,6 +55,7 @@ static size_t draw_status_pos_info(Session *, size_t);
 static void draw_status_general_info(Session *, size_t, size_t);
 static void draw_buffer(Buffer *, int);
 static size_t draw_line(Buffer *, BufferPos, int, int, Range, int, WindowInfo);
+static void draw_char(CharInfo, BufferPos, WINDOW *, size_t, int);
 static void position_cursor(Buffer *, int);
 static void vertical_scroll(Buffer *);
 static void vertical_scroll_linewrap(Buffer *);
@@ -85,7 +83,7 @@ void init_display(void)
     nl();
     keypad(stdscr, TRUE);
     curs_set(1);
-    set_tabsize(WED_TAB_SIZE);
+    set_tabsize(config_int("tabwidth"));
 
     text_y = LINES - 2;
     text_x = COLS;
@@ -524,16 +522,24 @@ static size_t draw_line(Buffer *buffer, BufferPos draw_pos, int y, int is_select
             return 1;
         }
 
-        size_t col_no = 1;
+        size_t col_no = draw_pos.col_no;
         draw_pos.offset = 0;
+        draw_pos.col_no = 1;
 
-        while (col_no < draw_pos.col_no && draw_pos.offset < line->length) {
-            buffer->cef.char_info(&char_info, CIP_DEFAULT, draw_pos);
+        while (draw_pos.col_no < col_no && draw_pos.offset < line->length) {
+            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, draw_pos);
+
+            /* TODO Also handle unprintable characters when horizontally scrolling */
+            if (draw_pos.col_no + char_info.screen_length > col_no) {
+                draw_pos.col_no = col_no;
+                break;
+            }
+
             draw_pos.offset += char_info.byte_length;
-            col_no++;
+            draw_pos.col_no += char_info.screen_length;
         }
 
-        if (col_no < draw_pos.col_no) {
+        if (draw_pos.col_no < col_no) {
             return 1;
         }
     }
@@ -542,14 +548,15 @@ static size_t draw_line(Buffer *buffer, BufferPos draw_pos, int y, int is_select
     size_t scr_line_num = 0;
     size_t start_col = draw_pos.col_no;
     size_t window_width = win_info.start_x + win_info.width;
-    char nonprint_draw[3] = "^ ";
-    uchar nonprint_char;
+    size_t window_height = win_info.start_y + win_info.height;
+    size_t screen_length = 0;
 
-    while (draw_pos.offset < line->length && scr_line_num < win_info.height) {
-        wmove(draw_win, win_info.start_y + y++, win_info.start_x);
-        scr_line_num++;
+    while (draw_pos.offset < line->length && scr_line_num < window_height) {
+        wmove(draw_win, win_info.start_y + y + scr_line_num, win_info.start_x);
 
-        for (size_t k = win_info.start_x; k < window_width && draw_pos.offset < line->length;) {
+        for (screen_length += win_info.start_x; 
+             screen_length < window_width && draw_pos.offset < line->length;) {
+
             if (is_selection && bufferpos_in_range(select_range, draw_pos)) {
                 wattron(draw_win, A_REVERSE);
             } else {
@@ -558,42 +565,20 @@ static size_t draw_line(Buffer *buffer, BufferPos draw_pos, int y, int is_select
 
             buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, draw_pos);
 
-            if (!char_info.is_valid) {
-                waddstr(draw_win, "\xEF\xBF\xBD");
-            } else if (!char_info.is_printable) {
-                nonprint_char = *(line->text + draw_pos.offset);
-
-                if (nonprint_char == 127) {
-                    nonprint_draw[1] = '?';
-                } else {
-                    nonprint_draw[1] = *(line->text + draw_pos.offset) + 64;
-                }
-
-                if (k == window_width - 1) {
-                    waddnstr(draw_win, nonprint_draw, 1);
-
-                    if (scr_line_num < win_info.height && line_wrap) {
-                        wmove(draw_win, win_info.start_y + y++, win_info.start_x);
-                        scr_line_num++;
-                        waddnstr(draw_win, nonprint_draw + 1, 1);
-                        /* TODO add draw_char function to handle drawing characters */
-                        k = win_info.start_x - 1;
-                    }
-                } else {
-                    waddstr(draw_win, nonprint_draw);
-                }
-            } else {
-                waddnstr(draw_win, line->text + draw_pos.offset, char_info.byte_length);
-            }
+            draw_char(char_info, draw_pos, draw_win, window_width, line_wrap);
 
             draw_pos.col_no += char_info.screen_length;
             draw_pos.offset += char_info.byte_length;
-            k += char_info.screen_length;
+            screen_length += char_info.screen_length;
         }
+
+        scr_line_num++;
 
         if (!line_wrap) {
             break;
         }
+
+        screen_length -= window_width;
     }
 
     if (scr_line_num < screen_height_from_screen_length(win_info, line->screen_length - (start_col - 1))) {
@@ -601,6 +586,32 @@ static size_t draw_line(Buffer *buffer, BufferPos draw_pos, int y, int is_select
     }
 
     return scr_line_num;
+}
+
+static void draw_char(CharInfo char_info, BufferPos draw_pos, WINDOW *draw_win, size_t window_width, int line_wrap)
+{
+    uchar character = *(draw_pos.line->text + draw_pos.offset);
+    size_t remaining = window_width - ((draw_pos.col_no - 1) % window_width);
+
+    if (!char_info.is_valid) {
+        waddstr(draw_win, "\xEF\xBF\xBD");
+    } else if (!char_info.is_printable) {
+        char nonprint_draw[] = "^ ";
+
+        if (character == 127) {
+            nonprint_draw[1] = '?';
+        } else {
+            nonprint_draw[1] = character + 64;
+        }
+
+        waddnstr(draw_win, nonprint_draw, line_wrap ? 2 : remaining);
+    } else if (character == '\t') {
+        for (size_t k = 0; k < char_info.screen_length && (line_wrap || k < remaining); k++) {
+            waddstr(draw_win, " ");
+        }
+    } else {
+        waddnstr(draw_win, draw_pos.line->text + draw_pos.offset, char_info.byte_length);
+    }
 }
 
 static void position_cursor(Buffer *buffer, int line_wrap)

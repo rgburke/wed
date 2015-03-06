@@ -23,11 +23,9 @@
 #include <wchar.h>
 #include <ctype.h>
 #include "buffer.h"
+#include "config.h"
 
 #include "unicode.c"
-
-/* TODO make this configurable */
-#define WED_TAB_SIZE 8
 
 static int utf8_char_info(CharInfo *, CharInfoProperties, BufferPos);
 static size_t utf8_previous_char_offset(const char *, size_t);
@@ -108,7 +106,8 @@ static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos
         if (!char_info->is_valid) {
             char_info->screen_length = 1;
         } else if (*ch == '\t') {
-            char_info->screen_length = WED_TAB_SIZE - ((pos.col_no - 1) % WED_TAB_SIZE);
+            size_t tabwidth = config_int("tabwidth");
+            char_info->screen_length = tabwidth - ((pos.col_no - 1) % tabwidth);
         } else if (*ch < 128 && !isprint(*ch)) {
             char_info->screen_length = 2;
             char_info->is_printable = 0;

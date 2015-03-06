@@ -32,7 +32,7 @@ typedef enum {
 typedef struct {
     ValueType type;
     union {
-        int ival;
+        long ival;
         double fval;
         char *sval;
     } val;

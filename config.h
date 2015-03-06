@@ -42,5 +42,6 @@ Status load_config(Session *, char *);
 Status set_session_var(Session *, char *, char *);
 Status set_buffer_var(Buffer *, char *, char *);
 int config_bool(char *);
+long config_int(char *);
 
 #endif

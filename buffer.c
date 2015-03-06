@@ -1204,7 +1204,8 @@ Status pos_to_next_word(Buffer *buffer, int is_select)
         while (character_class(buffer, *pos) == CCLASS_WHITESPACE) {
             RETURN_IF_FAIL(pos_change_char(buffer, pos, direction, 1));
 
-            if (bufferpos_at_line_start(buffer->pos)) {
+            if (bufferpos_at_line_start(buffer->pos) ||
+                bufferpos_at_buffer_end(buffer->pos)) {
                 return STATUS_SUCCESS;
             }
         }
@@ -1244,7 +1245,8 @@ Status pos_to_prev_word(Buffer *buffer, int is_select)
         status = pos_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
 
-        if (bufferpos_at_line_end(buffer->pos)) {
+        if (bufferpos_at_line_end(buffer->pos) ||
+            bufferpos_at_buffer_start(buffer->pos)) {
             return STATUS_SUCCESS;
         }
     } while (character_class(buffer, *pos) == CCLASS_WHITESPACE);

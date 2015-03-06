@@ -39,6 +39,25 @@ Session *new_session(void)
 
 int init_session(Session *sess, char *buffer_paths[], int buffer_num)
 {
+    if ((sess->error_buffer = new_empty_buffer("errors")) == NULL) {
+        return 0;
+    }
+
+    if ((sess->cmd_prompt.cmd_buffer = new_empty_buffer("commands")) == NULL) {
+        return 0;
+    }
+
+    if ((sess->msg_buffer = new_empty_buffer("messages")) == NULL) {
+        return 0;
+    }
+
+    if (!init_keymap(sess)) {
+        return 0;
+    }
+
+    set_config_session(sess);
+    add_error(sess, init_session_config(sess));
+
     for (int k = 1; k < buffer_num; k++) {
         add_error(sess, add_new_buffer(sess, buffer_paths[k]));
     }
@@ -51,25 +70,7 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
-    if (!init_keymap(sess)) {
-        return 0;
-    }
-
-    if ((sess->cmd_prompt.cmd_buffer = new_empty_buffer("commands")) == NULL) {
-        return 0;
-    }
-
-    if ((sess->error_buffer = new_empty_buffer("errors")) == NULL) {
-        return 0;
-    }
-
-    if ((sess->msg_buffer = new_empty_buffer("messages")) == NULL) {
-        return 0;
-    }
-
     set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", "0");
-    set_config_session(sess);
-    add_error(sess, init_session_config(sess));
 
     return 1;
 }

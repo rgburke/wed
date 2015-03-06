@@ -553,6 +553,7 @@ static Status finished_processing_input(Session *sess, Value param, const char *
 static Status session_end(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)param;
+    sess->cmd_prompt.cancelled = 0;
 
     while (sess->buffer_num > 0) {
         RETURN_IF_FAIL(session_close_buffer(sess, INT_VAL(1), keystr, finished));
