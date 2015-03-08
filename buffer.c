@@ -16,7 +16,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "wed.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -662,7 +661,7 @@ CharacterClass character_class(Buffer *buffer, BufferPos pos)
     buffer->cef.char_info(&char_info, CIP_DEFAULT, pos);
 
     if (char_info.byte_length == 1) {
-        char character = *(pos_offset_character(buffer, pos, DIRECTION_NONE, 0));
+        uchar character = *(pos_offset_character(buffer, pos, DIRECTION_NONE, 0));
 
         if (isspace(character)) {
             return CCLASS_WHITESPACE;

@@ -16,9 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#define _GNU_SOURCE
-#include "wed.h"
-#include <poll.h>
+#include <sys/select.h>
 #include <signal.h>
 #include <errno.h>
 #include <string.h>
@@ -39,7 +37,6 @@ static void handle_keypress(Session *, TermKeyKey *, char *, int *);
 static void handle_error(Session *);
 
 static TermKey *termkey = NULL;
-static struct pollfd fd;
 static int volatile window_resize_required = 0;
 static sigset_t sig_set, old_set;
 
@@ -56,9 +53,6 @@ void edit(Session *sess)
     if (termkey == NULL) {
         fatal("Unable to initialise termkey instance");
     }
-
-    fd.fd = STDIN_FILENO;
-    fd.events = POLLIN;
 
     struct sigaction sig_action;
     memset(&sig_action, 0, sizeof(sig_action));
@@ -90,16 +84,20 @@ void process_input(Session *sess)
     char keystr[MAX_KEY_STR_SIZE];
     TermKeyResult ret;
     TermKeyKey key;
-    int poll_res;
+    int pselect_res;
     int finished = 0;
     struct timespec *timeout = NULL;
     struct timespec esc_timeout;
     memset(&esc_timeout, 0, sizeof(struct timespec));
+    fd_set fds;
 
     while (!finished) {
-        poll_res = ppoll(&fd, 1, timeout, &old_set);
+		FD_ZERO(&fds);
+		FD_SET(STDIN_FILENO, &fds);
 
-        if (poll_res == -1) {
+        pselect_res = pselect(1, &fds, NULL, NULL, timeout, &old_set);
+
+        if (pselect_res == -1) {
             if (errno == EINTR) {
                 /* TODO Need to add SIGTERM handler for a graceful exit */
                 if (window_resize_required) {
@@ -108,14 +106,14 @@ void process_input(Session *sess)
                     continue;
                 }
             }
-            /* TODO Handle general failure of ppoll */
-        } else if (poll_res == 0) {
+            /* TODO Handle general failure of pselect */
+        } else if (pselect_res == 0) {
             if (termkey_getkey_force(termkey, &key) == TERMKEY_RES_KEY) {
                 handle_keypress(sess, &key, keystr, &finished);
                 timeout = NULL;
             }
-        } else if (poll_res > 0) {
-            if (fd.revents & (POLLIN|POLLHUP|POLLERR)) {
+        } else if (pselect_res > 0) {
+            if (FD_ISSET(STDIN_FILENO, &fds)) {
                 termkey_advisereadable(termkey);
             }
 

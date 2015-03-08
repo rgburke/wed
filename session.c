@@ -16,7 +16,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "wed.h"
 #include <stdio.h>
 #include <string.h>
 #include "session.h"
@@ -430,6 +429,8 @@ Status get_buffer_index(Session *sess, const char *file_path, int *buffer_index_
         buffer = buffer->next;
         buffer_index++;
     }
+
+    free_fileinfo(file_info);
 
     return STATUS_SUCCESS;
 }

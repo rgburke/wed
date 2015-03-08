@@ -399,6 +399,7 @@ static void draw_status_general_info(Session *sess, size_t file_info_size, size_
         }
 
         mvwprintw(status, 0, file_info_size - 1 + 3, status_text);
+        free(msg);
     }
 
     clear_msgs(sess);
@@ -839,7 +840,7 @@ static size_t update_line_no_width(Buffer *buffer, int line_wrap)
         line_no_width = 0;
     }
 
-    size_t diff;
+    size_t diff = 0;
 
     if (line_no_width > win_info->line_no_width) {
         diff = line_no_width - win_info->line_no_width;

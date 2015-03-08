@@ -16,8 +16,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#define _XOPEN_SOURCE 500
-#include "wed.h"
 #include <limits.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -198,10 +196,10 @@ int check_can_write_file(FileInfo *file_info)
 
 int refresh_file_attributes(FileInfo *file_info)
 {
-    return (check_file_exists(file_info) + 
-            check_can_read_file(file_info) +
-            check_can_write_file(file_info) + 
-            stat(file_info->abs_path, &file_info->file_stat) != 0) == 4;
+    return (check_file_exists(file_info) &
+            check_can_read_file(file_info) &
+            check_can_write_file(file_info) &
+            (stat(file_info->abs_path, &file_info->file_stat) != 0));
 }
 
 int file_info_equal(FileInfo f1, FileInfo f2)

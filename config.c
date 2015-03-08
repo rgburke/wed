@@ -16,7 +16,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "wed.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -286,7 +285,7 @@ static int process_config_line(char *line, char **var, char **val)
     while (*c) {
         if (*c == '#' || *c == ';') {
             return 0;
-        } else if (!isspace(*c)) {
+        } else if (!isspace((uchar)*c)) {
             break;
         }
 
@@ -300,7 +299,7 @@ static int process_config_line(char *line, char **var, char **val)
     }
 
     while (*c) {
-        if (isspace(*c)) {
+        if (isspace((uchar)*c)) {
             *c++ = '\0';
             continue;
         } else if (*c == '=') {
@@ -316,7 +315,7 @@ static int process_config_line(char *line, char **var, char **val)
         *c++ = '\0';
     }
 
-    while (*c && isspace(*c)) {
+    while (*c && isspace((uchar)*c)) {
         c++;
     }
 
@@ -329,7 +328,7 @@ static int process_config_line(char *line, char **var, char **val)
     char *last_space = NULL;
    
     while (*(++c)) {
-        if (isspace(*c)) {
+        if (isspace((uchar)*c)) {
             if (last_space == NULL) {
                 last_space = c;
             }

@@ -19,7 +19,6 @@
 #ifndef WED_FILE_H
 #define WED_FILE_H
 
-#include "wed.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
