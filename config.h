@@ -19,17 +19,22 @@
 #ifndef WED_CONFIG_H
 #define WED_CONFIG_H
 
-#include "variable.h"
+#include "value.h"
 #include "status.h"
 #include "hashmap.h"
 #include "session.h"
 #include "buffer.h"
 
+typedef enum {
+    CL_SESSION,
+    CL_BUFFER
+} ConfigLevel;
+
 typedef struct {
     char *name;
     char *short_name;  
     Value default_value;
-    int (*custom_validator)(Value);
+    Status (*custom_validator)(Value);
     Status (*on_change_event)(Session *, Value, Value);
 } ConfigVariableDescriptor;
 
@@ -39,8 +44,9 @@ void end_config(void);
 Status init_session_config(Session *);
 void free_config(HashMap *);
 Status load_config(Session *, char *);
-Status set_session_var(Session *, char *, char *);
-Status set_buffer_var(Buffer *, char *, char *);
+Status set_var(Session *, ConfigLevel, char *, Value);
+Status set_session_var(Session *, char *, Value);
+Status set_buffer_var(Buffer *, char *, Value);
 int config_bool(char *);
 long config_int(char *);
 

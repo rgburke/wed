@@ -69,7 +69,7 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
-    set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", "0");
+    set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", INT_VAL(0));
 
     return 1;
 }

@@ -22,7 +22,7 @@
 #include "shared.h"
 #include "status.h"
 #include "session.h"
-#include "variable.h"
+#include "value.h"
 
 typedef Status (*CommandHandler)(Session *, Value, const char *, int *);
 

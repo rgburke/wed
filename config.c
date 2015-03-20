@@ -23,15 +23,20 @@
 #include <limits.h>
 #include <errno.h>
 #include "config.h"
-#include "variable.h"
+#include "value.h"
 #include "hashmap.h"
 #include "util.h"
 #include "command.h"
 #include "buffer.h"
+#include "config_parse_util.h"
+#include "config_parse.h"
 
 #define CFG_LINE_ALLOC 512
 #define CFG_FILE_NAME "wedrc"
 #define CFG_SYSTEM_DIR "/etc"
+
+#define CFG_TABWIDTH_MIN 1
+#define CFG_TABWIDTH_MAX 8
 
 static Session *curr_sess = NULL;
 static HashMap *config_vars = NULL;
@@ -39,18 +44,9 @@ static HashMap *config_vars = NULL;
 static int is_valid_var(const char *);
 static ConfigVariableDescriptor *clone_config_var_descriptor(const char *);
 static int populate_default_config(HashMap *);
-static char *get_config_line(FILE *);
-static int process_config_line(char *, char **, char **);
-static int get_bool_value(char *, Value *);
-static int get_int_value(char *, Value *);
 static const ConfigVariableDescriptor *get_variable(char *);
-static Status set_config_var(HashMap *, char *, char *);
-static int tabwidth_validator(Value);
-
-static int (*conversion_functions[])(char *, Value *) = {
-    get_bool_value,
-    get_int_value
-};
+static Status set_config_var(HashMap *, char *, Value);
+static Status tabwidth_validator(Value);
 
 static const ConfigVariableDescriptor default_config[] = {
     { "linewrap", "lw", BOOL_VAL_STRUCT(1), NULL              , NULL },
@@ -199,205 +195,44 @@ Status load_config(Session *sess, char *config_file_path)
     FILE *config_file = fopen(config_file_path, "rb");
 
     if (config_file == NULL) {
-        return get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open file %s for reading", config_file_path);
+        return get_error(ERR_UNABLE_TO_OPEN_FILE, 
+                         "Unable to open file %s for reading", config_file_path);
     } 
 
-    Status status = STATUS_SUCCESS;
-    size_t line_no = 0;
-    char *line, *var, *val;
-    int success = 1;
+    reset_lexer(config_file);
 
-    while (!feof(config_file)) {
-        line = get_config_line(config_file);
+    int parse_status = yyparse(sess, CL_SESSION, config_file_path);
 
-        if (line == NULL) {
-            status = get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to read config file %s", config_file_path);
-            break;
-        }
-
-        if (ferror(config_file)) {
-            free(line);
-            status = get_error(ERR_UNABLE_TO_READ_FILE, "Unable to read file %s", config_file_path);
-            break;
-        } 
-
-        line_no++;
-
-        if (!process_config_line(line, &var, &val)) {
-            free(line);
-            continue;
-        }
-
-        status = set_session_var(sess, var, val);
-
-        free(line);
-
-        if (!STATUS_IS_SUCCESS(status)) {
-            Status error = get_error(ERR_INVALID_CONFIG_ENTRY, "%s on line %zu: %s", 
-                                     config_file_path, line_no, status.msg);
-            free_status(status);
-            add_error(sess, error);
-            success = 0;
-        }
+    if (parse_status != 0) {
+        return get_error(ERR_FAILED_TO_PARSE_CONFIG_FILE, 
+                         "Failed to fully parse config file %s", config_file_path);
     }
 
-    fclose(config_file);
-
-    if (!success) {
-        status = get_error(ERR_INVALID_CONFIG_ENTRY, 
-                           "Config file %s contains invalid entries",
-                           config_file_path);
-    }
-
-    return status;
+    return STATUS_SUCCESS;
 }
 
-static char *get_config_line(FILE *file)
+Status set_var(Session *sess, ConfigLevel config_level, char *var_name, Value value)
 {
-    size_t allocated = CFG_LINE_ALLOC;
-    char *line = malloc(allocated);
-    RETURN_IF_NULL(line);
-    size_t line_size = 0;
-    char *iter = line;
-    int c;
-
-    while ((c = fgetc(file)) != EOF) {
-        if (line_size++ == allocated) {
-            line = realloc(line, allocated *= 2); 
-            iter = line + line_size - 1;
-        }
-        if (c == '\n') {
-            break;
-        }
-
-        *iter++ = c;
+    if (config_level == CL_SESSION) {
+        return set_session_var(sess, var_name, value);
     }
 
-    *iter = '\0';
-
-    return line;
+    return set_buffer_var(sess->active_buffer, var_name, value);
 }
 
-static int process_config_line(char *line, char **var, char **val)
+Status set_session_var(Session *sess, char *var_name, Value value)
 {
-    char *c = line;
-
-    while (*c) {
-        if (*c == '#' || *c == ';') {
-            return 0;
-        } else if (!isspace((uchar)*c)) {
-            break;
-        }
-
-        c++;
-    }
-
-    if (*c) {
-        *var = c;
-    } else {
-        return 0;
-    }
-
-    while (*c) {
-        if (isspace((uchar)*c)) {
-            *c++ = '\0';
-            continue;
-        } else if (*c == '=') {
-            break; 
-        }
-
-        c++;
-    }
-
-    if (!(*c && *c == '=')) {
-        return 0;
-    } else {
-        *c++ = '\0';
-    }
-
-    while (*c && isspace((uchar)*c)) {
-        c++;
-    }
-
-    if (*c) {
-        *val = c;
-    } else {
-        return 0;
-    }
-
-    char *last_space = NULL;
-   
-    while (*(++c)) {
-        if (isspace((uchar)*c)) {
-            if (last_space == NULL) {
-                last_space = c;
-            }
-        } else {
-            last_space = NULL;
-        }
-    } 
-
-    if (last_space != NULL) {
-        *last_space = '\0';
-    }
-
-    return 1;
+    return set_config_var(sess->config, var_name, value);
 }
 
-static int get_bool_value(char *svalue, Value *value)
+Status set_buffer_var(Buffer *buffer, char *var_name, Value value)
 {
-    if (svalue == NULL || value == NULL) {
-        return 0;
-    }
-
-    value->type = VAL_TYPE_BOOL;
-
-    if (strncmp(svalue, "true", 5) == 0 || strncmp(svalue, "1", 2) == 0) {
-        value->val.ival = 1;
-    } else if (strncmp(svalue, "false", 6) == 0 || strncmp(svalue, "0", 2) == 0) {
-        value->val.ival = 0;
-    } else {
-        return 0;
-    }
-
-    return 1;
+    return set_config_var(buffer->config, var_name, value);
 }
 
-static int get_int_value(char *svalue, Value *value)
+static Status set_config_var(HashMap *config, char *var_name, Value value)
 {
-    if (svalue == NULL || value == NULL) {
-        return 0;
-    }
-
-    value->type = VAL_TYPE_INT;
-    char *end_ptr;
-
-    long val = strtol(svalue, &end_ptr, 10);
-
-    if ((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN)) ||
-        (errno != 0 && val == 0) || end_ptr == svalue) {
-        return 0;
-    }
-
-    value->val.ival = val;
-
-    return 1;
-}
-
-
-Status set_session_var(Session *sess, char *var_name, char *val)
-{
-    return set_config_var(sess->config, var_name, val);
-}
-
-Status set_buffer_var(Buffer *buffer, char *var_name, char *val)
-{
-    return set_config_var(buffer->config, var_name, val);
-}
-
-static Status set_config_var(HashMap *config, char *var_name, char *val)
-{
-    if (config == NULL || var_name == NULL || val == NULL) {
+    if (config == NULL || var_name == NULL) {
         return get_error(ERR_INVALID_VAR, "Invalid entry");
     }
 
@@ -406,40 +241,45 @@ static Status set_config_var(HashMap *config, char *var_name, char *val)
     }
 
     ConfigVariableDescriptor *var = hashmap_get(config, var_name);
+    int existing_var = (var != NULL);
 
-    if (var == NULL) {
+    if (!existing_var) {
         var = clone_config_var_descriptor(var_name);
 
         if (var == NULL) {
             return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to set config value");
         }
-
-        hashmap_set(config, var_name, var);
     }
 
-    Value value;
-    
-    if (!conversion_functions[var->default_value.type](val, &value)) {
-        return get_error(ERR_INVALID_VAL, "Invalid value \"%s\" for variable %s", val, var_name);
+    if (var->default_value.type != value.type) {
+        if (var->default_value.type == VAL_TYPE_BOOL && value.type == VAL_TYPE_INT) {
+            value.type = VAL_TYPE_BOOL; 
+        } else {
+            return get_error(ERR_INVALID_VAL, "Variable %s must have value of type %s", 
+                             var_name, get_value_type(var->default_value));
+        }
     }
 
     if (var->custom_validator != NULL) {
-        if (!var->custom_validator(value)) {
-            /* TODO It would be useful to know why the value isn't valid */
-            return get_error(ERR_INVALID_VAL, "Invalid value \"%s\" for variable %s", val, var_name);
-        }
+        RETURN_IF_FAIL(var->custom_validator(value));
     }
 
     Value old_value = var->default_value;
     var->default_value = value; 
 
+    if (!existing_var) {
+        hashmap_set(config, var_name, var);
+    }
+
+    Status status = STATUS_SUCCESS;
+
     if (var->on_change_event != NULL) {
-        return var->on_change_event(curr_sess, old_value, value);
+        status = var->on_change_event(curr_sess, old_value, value);
     }
 
     free_value(old_value);
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
 static const ConfigVariableDescriptor *get_variable(char *var_name)
@@ -483,8 +323,13 @@ long config_int(char *var_name)
     return var->default_value.val.ival;
 }
 
-static int tabwidth_validator(Value value)
+static Status tabwidth_validator(Value value)
 {
-    return !(value.val.ival < 1 || value.val.ival > 8);
+    if (value.val.ival < CFG_TABWIDTH_MIN || value.val.ival > CFG_TABWIDTH_MAX) {
+        return get_error(ERR_INVALID_TABWIDTH, "tabwidth value must be in range %d - %d inclusive",
+                         CFG_TABWIDTH_MIN, CFG_TABWIDTH_MAX);
+    }
+
+    return STATUS_SUCCESS;
 }
 

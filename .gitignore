@@ -9,3 +9,6 @@ wed
 demo
 demo-async
 demo-glib
+config_parse.c
+config_parse.h
+config_scan.c

@@ -26,7 +26,7 @@
 #include "session.h"
 #include "display.h"
 #include "buffer.h"
-#include "variable.h"
+#include "value.h"
 #include "hashmap.h"
 #include "util.h"
 #include "input.h"

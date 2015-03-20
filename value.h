@@ -45,6 +45,7 @@ typedef struct {
 #define STR_VAL(svalue)  (Value) STR_VAL_STRUCT(svalue)
 #define BOOL_VAL(bvalue) (Value) BOOL_VAL_STRUCT(bvalue)
 
+const char *get_value_type(Value);
 Status deep_copy_value(Value, Value *);
 void free_value(Value);
 

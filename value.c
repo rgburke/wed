@@ -17,9 +17,21 @@
  */
 
 #include <stdlib.h>
-#include "variable.h"
+#include "value.h"
 #include "util.h"
 #include "status.h"
+
+static const char *value_types[] = {
+    "Boolean",
+    "Integer",
+    "Float",
+    "String"
+};
+
+const char *get_value_type(Value value)
+{
+    return value_types[value.type];
+}
 
 Status deep_copy_value(Value value, Value *new_val)
 {
