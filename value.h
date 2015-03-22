@@ -47,6 +47,7 @@ typedef struct {
 
 const char *get_value_type(Value);
 Status deep_copy_value(Value, Value *);
+char *to_string(Value);
 void free_value(Value);
 
 #endif

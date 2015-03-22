@@ -44,14 +44,15 @@ static HashMap *config_vars = NULL;
 static int is_valid_var(const char *);
 static ConfigVariableDescriptor *clone_config_var_descriptor(const char *);
 static int populate_default_config(HashMap *);
-static const ConfigVariableDescriptor *get_variable(char *);
+static const ConfigVariableDescriptor *get_variable(const char *);
 static Status set_config_var(HashMap *, char *, Value);
 static Status tabwidth_validator(Value);
+static Status on_tabwidth_change(Session *, Value, Value);
 
 static const ConfigVariableDescriptor default_config[] = {
-    { "linewrap", "lw", BOOL_VAL_STRUCT(1), NULL              , NULL },
-    { "lineno"  , "ln", BOOL_VAL_STRUCT(1), NULL              , NULL },
-    { "tabwidth", "tw", INT_VAL_STRUCT(8) , tabwidth_validator, NULL }
+    { "linewrap", "lw", BOOL_VAL_STRUCT(1), NULL              , NULL               },
+    { "lineno"  , "ln", BOOL_VAL_STRUCT(1), NULL              , NULL               },
+    { "tabwidth", "tw", INT_VAL_STRUCT(8) , tabwidth_validator, on_tabwidth_change }
 };
 
 void set_config_session(Session *sess)
@@ -112,7 +113,7 @@ Status init_session_config(Session *sess)
     char *system_config_path = CFG_SYSTEM_DIR "/" CFG_FILE_NAME;
 
     if (access(system_config_path, F_OK) != -1) {
-        RETURN_IF_FAIL(load_config(sess, system_config_path));
+        add_error(sess, load_config(sess, system_config_path));
     }
 
     Status status = STATUS_SUCCESS;
@@ -192,23 +193,7 @@ static int populate_default_config(HashMap *config)
 
 Status load_config(Session *sess, char *config_file_path)
 {
-    FILE *config_file = fopen(config_file_path, "rb");
-
-    if (config_file == NULL) {
-        return get_error(ERR_UNABLE_TO_OPEN_FILE, 
-                         "Unable to open file %s for reading", config_file_path);
-    } 
-
-    reset_lexer(config_file);
-
-    int parse_status = yyparse(sess, CL_SESSION, config_file_path);
-
-    if (parse_status != 0) {
-        return get_error(ERR_FAILED_TO_PARSE_CONFIG_FILE, 
-                         "Failed to fully parse config file %s", config_file_path);
-    }
-
-    return STATUS_SUCCESS;
+    return parse_config_file(sess, CL_SESSION, config_file_path);
 }
 
 Status set_var(Session *sess, ConfigLevel config_level, char *var_name, Value value)
@@ -233,11 +218,11 @@ Status set_buffer_var(Buffer *buffer, char *var_name, Value value)
 static Status set_config_var(HashMap *config, char *var_name, Value value)
 {
     if (config == NULL || var_name == NULL) {
-        return get_error(ERR_INVALID_VAR, "Invalid entry");
+        return get_error(ERR_INVALID_VAR, "Invalid property");
     }
 
     if (!is_valid_var(var_name)) {
-        return get_error(ERR_INVALID_VAR, "Invalid variable name %s", var_name);
+        return get_error(ERR_INVALID_VAR, "Invalid property %s", var_name);
     }
 
     ConfigVariableDescriptor *var = hashmap_get(config, var_name);
@@ -254,9 +239,10 @@ static Status set_config_var(HashMap *config, char *var_name, Value value)
     if (var->default_value.type != value.type) {
         if (var->default_value.type == VAL_TYPE_BOOL && value.type == VAL_TYPE_INT) {
             value.type = VAL_TYPE_BOOL; 
+            value.val.ival = value.val.ival ? 1 : 0;
         } else {
-            return get_error(ERR_INVALID_VAL, "Variable %s must have value of type %s", 
-                             var_name, get_value_type(var->default_value));
+            return get_error(ERR_INVALID_VAL, "%s must have value of type %s", 
+                             var->name, get_value_type(var->default_value));
         }
     }
 
@@ -268,7 +254,8 @@ static Status set_config_var(HashMap *config, char *var_name, Value value)
     var->default_value = value; 
 
     if (!existing_var) {
-        hashmap_set(config, var_name, var);
+        hashmap_set(config, var->name, var);
+        hashmap_set(config, var->short_name, var);
     }
 
     Status status = STATUS_SUCCESS;
@@ -279,10 +266,16 @@ static Status set_config_var(HashMap *config, char *var_name, Value value)
 
     free_value(old_value);
 
+    char config_msg[MAX_MSG_SIZE];
+    char *value_str = to_string(value);
+    snprintf(config_msg, MAX_MSG_SIZE, "Set %s=%s", var->name, value_str);
+    free(value_str);
+    add_msg(curr_sess, config_msg);
+
     return status;
 }
 
-static const ConfigVariableDescriptor *get_variable(char *var_name)
+static const ConfigVariableDescriptor *get_variable(const char *var_name)
 {
     Buffer *buffer = curr_sess->active_buffer;
 
@@ -297,6 +290,25 @@ static const ConfigVariableDescriptor *get_variable(char *var_name)
     }
 
     return var;
+}
+
+Status print_var(Session *sess, const char *var_name)
+{
+    if (var_name == NULL) {
+        return get_error(ERR_INVALID_VAR, "Invalid property");
+    } else if (!is_valid_var(var_name)) {
+        return get_error(ERR_INVALID_VAR, "Invalid property %s", var_name);
+    }
+
+    const ConfigVariableDescriptor *var = get_variable(var_name);
+
+    char var_msg[MAX_MSG_SIZE];
+    char *value_str = to_string(var->default_value);
+    snprintf(var_msg, MAX_MSG_SIZE, "%s=%s", var->name, value_str);
+    free(value_str);
+    add_msg(sess, var_msg);
+
+    return STATUS_SUCCESS;
 }
 
 int config_bool(char *var_name)
@@ -331,5 +343,14 @@ static Status tabwidth_validator(Value value)
     }
 
     return STATUS_SUCCESS;
+}
+
+static Status on_tabwidth_change(Session *sess, Value old_value, Value new_value)
+{
+    if (old_value.val.ival == new_value.val.ival) {
+        return STATUS_SUCCESS;
+    }
+
+    return update_screen_length(sess->active_buffer);
 }
 

@@ -44,6 +44,7 @@ typedef struct {
     size_t active_buffer_index;
     size_t menu_first_buffer_index;
     size_t empty_buffer_num;
+    int msgs_enabled;
 } Session;
 
 Session *new_session(void);

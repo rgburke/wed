@@ -71,6 +71,8 @@ int init_session(Session *sess, char *buffer_paths[], int buffer_num)
 
     set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", INT_VAL(0));
 
+    sess->msgs_enabled = 1;
+
     return 1;
 }
 
@@ -319,6 +321,8 @@ int add_msg(Session *sess, const char *msg)
 {
     if (msg == NULL) {
         return 0; 
+    } else if (!sess->msgs_enabled) {
+        return 1;
     }
 
     Buffer *msg_buffer = sess->msg_buffer;

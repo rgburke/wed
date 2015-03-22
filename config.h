@@ -47,6 +47,7 @@ Status load_config(Session *, char *);
 Status set_var(Session *, ConfigLevel, char *, Value);
 Status set_session_var(Session *, char *, Value);
 Status set_buffer_var(Buffer *, char *, Value);
+Status print_var(Session *sess, const char *);
 int config_bool(char *);
 long config_int(char *);
 

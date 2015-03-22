@@ -28,6 +28,7 @@ typedef enum {
     NT_VALUE,
     NT_VARIABLE,
     NT_ASSIGNMENT,
+    NT_REFERENCE,
     NT_STATEMENT
 } ASTNodeType;
 
@@ -73,6 +74,9 @@ void print_ast(ASTNode *);
 void update_parser_location(int *, int, int);
 Status get_config_error(ErrorCode, const char *, const char *, ...);
 void yyerror(Session *, ConfigLevel, const char *, char const *);
-void reset_lexer(FILE *);
+Status parse_config_file(Session *, ConfigLevel, const char *);
+Status parse_config_string(Session *, ConfigLevel, const char *);
+void start_scan_string(const char *);
+void finish_scan_string(void);
 
 #endif

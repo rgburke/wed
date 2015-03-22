@@ -54,7 +54,8 @@ typedef enum {
     ERR_INVALID_TABWIDTH,
     ERR_INVALID_CONFIG_CHARACTERS,
     ERR_INVALID_CONFIG_SYNTAX,
-    ERR_FAILED_TO_PARSE_CONFIG_FILE
+    ERR_FAILED_TO_PARSE_CONFIG_FILE,
+    ERR_FAILED_TO_PARSE_CONFIG_INPUT
 } ErrorCode;
 
 /* Used to determine the success of an action.
@@ -65,8 +66,8 @@ typedef struct {
     int msg_literal;
 } Status;
 
-Status get_error(ErrorCode, char *, ...);
-Status get_custom_error(ErrorCode, char *, va_list);
+Status get_error(ErrorCode, const char *, ...);
+Status get_custom_error(ErrorCode, const char *, va_list);
 void free_status(Status);
 
 #endif

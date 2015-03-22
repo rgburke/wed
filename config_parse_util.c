@@ -249,11 +249,14 @@ int eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
                 VariableNode *var_node = (VariableNode *)exp_node->left;
                 ValueNode *val_node = (ValueNode *)exp_node->right;
 
-                if (var_node == NULL || val_node == NULL) {
-                    return 0;
-                }
-                
                 add_error(sess, set_var(sess, config_level, var_node->name, val_node->value));
+                break;
+            }
+        case NT_REFERENCE:
+            {
+                ExpressionNode *exp_node = (ExpressionNode *)node;
+                VariableNode *var_node = (VariableNode *)exp_node->left;
+                add_error(sess, print_var(sess, var_node->name));
                 break;
             }
         default:
@@ -283,6 +286,7 @@ void free_ast(ASTNode *node)
                 break;
             }
         case NT_ASSIGNMENT:
+        case NT_REFERENCE:
             {
                 ExpressionNode *exp_node = (ExpressionNode *)node;
                 free_ast(exp_node->left);
@@ -323,14 +327,21 @@ void update_parser_location(int *yycolumn, int yylineno, int yyleng)
 
 Status get_config_error(ErrorCode error_code, const char *file_name, const char *format, ...)
 {
-    char new_format[MAX_ERROR_MSG_SIZE];
-
-    snprintf(new_format, MAX_ERROR_MSG_SIZE, "%s:%d:%d: %s", file_name, 
-             yylloc.first_line, yylloc.first_column, format);
-
     va_list arg_ptr;
     va_start(arg_ptr, format);
-    Status status = get_custom_error(error_code, new_format, arg_ptr);
+    Status status;
+
+    if (file_name != NULL) {
+        char new_format[MAX_ERROR_MSG_SIZE];
+
+        snprintf(new_format, MAX_ERROR_MSG_SIZE, "%s:%d:%d: %s", file_name, 
+                yylloc.first_line, yylloc.first_column, format);
+
+        status = get_custom_error(error_code, new_format, arg_ptr);
+    } else {
+        status = get_custom_error(error_code, format, arg_ptr);
+    }
+
     va_end(arg_ptr);
 
     return status;
@@ -342,8 +353,41 @@ void yyerror(Session *sess, ConfigLevel config_level, const char *file_name, cha
     add_error(sess, get_config_error(ERR_INVALID_CONFIG_SYNTAX, file_name, error));
 }
 
-void reset_lexer(FILE *file)
+Status parse_config_file(Session *sess, ConfigLevel config_level, const char *config_file_path)
 {
-    yyrestart(file);
+    FILE *config_file = fopen(config_file_path, "rb");
+
+    if (config_file == NULL) {
+        return get_error(ERR_UNABLE_TO_OPEN_FILE, 
+                         "Unable to open file %s for reading", config_file_path);
+    } 
+
+    yyrestart(config_file);
     yylineno = 1;
+
+    int parse_status = yyparse(sess, config_level, config_file_path);
+
+    if (parse_status != 0) {
+        return get_error(ERR_FAILED_TO_PARSE_CONFIG_FILE, 
+                         "Failed to fully config parse file %s", config_file_path);
+    }
+
+    return STATUS_SUCCESS;
 }
+
+Status parse_config_string(Session *sess, ConfigLevel config_level, const char *str)
+{
+    start_scan_string(str);
+    yylineno = 1;
+
+    int parse_status = yyparse(sess, config_level, NULL);
+
+    finish_scan_string();
+
+    if (parse_status != 0) {
+        return get_error(ERR_FAILED_TO_PARSE_CONFIG_INPUT, "Failed to fully parse config input");
+    }
+
+    return STATUS_SUCCESS;
+}
+

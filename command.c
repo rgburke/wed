@@ -30,6 +30,8 @@
 #include "hashmap.h"
 #include "util.h"
 #include "input.h"
+#include "config.h"
+#include "config_parse_util.h"
 
 static void free_command(void *);
 
@@ -57,6 +59,7 @@ static Status session_open_file(Session *, Value, const char *, int *);
 static Status session_add_empty_buffer(Session *, Value, const char *, int *);
 static Status session_change_tab(Session *, Value, const char *, int *);
 static Status session_close_buffer(Session *, Value, const char *, int *);
+static Status session_run_command(Session *, Value, const char *, int *);
 static Status finished_processing_input(Session *, Value, const char *, int *);
 static Status session_end(Session *, Value, const char *, int *);
 
@@ -112,6 +115,7 @@ static const Command commands[] = {
     { "<M-C-Left>"   , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
     { "<M-Left>"     , session_change_tab       , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
     { "<C-w>"        , session_close_buffer     , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
+    { "<C-\\>"       , session_run_command      , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
     { "<Escape>"     , session_end              , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
 };
 
@@ -527,6 +531,10 @@ static Status session_close_buffer(Session *sess, Value param, const char *keyst
 
         free(input);
         RETURN_IF_FAIL(status);
+
+        if (sess->cmd_prompt.cancelled) {
+            return STATUS_SUCCESS;
+        }
     }
 
     remove_buffer(sess, buffer);
@@ -536,6 +544,32 @@ static Status session_close_buffer(Session *sess, Value param, const char *keyst
     }
 
     return STATUS_SUCCESS;
+}
+
+static Status session_run_command(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    cmd_input_prompt(sess, "Command:");
+
+    if (sess->cmd_prompt.cancelled) {
+        return STATUS_SUCCESS;
+    }
+
+    char *input = get_cmd_buffer_text(sess);
+    Status status = STATUS_SUCCESS;
+
+    if (input == NULL) {
+        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+    } else if (strnlen(input, 1) != 0) {
+        status = parse_config_string(sess, CL_BUFFER, input);
+    }
+
+    free(input);
+
+    return status;
 }
 
 static Status finished_processing_input(Session *sess, Value param, const char *keystr, int *finished)

@@ -342,6 +342,24 @@ static Status reset_buffer(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
+Status update_screen_length(Buffer *buffer)
+{
+    BufferPos pos = (BufferPos) { 
+        .line = buffer->lines, 
+        .offset = 0,
+        .line_no = 1,
+        .col_no = 1 
+    };
+
+    while (pos.line != NULL) {
+        pos.line->screen_length = line_screen_length(buffer, pos, pos.line->length);
+        pos.line = pos.line->next;
+        pos.line_no++;
+    }
+
+    return STATUS_SUCCESS;
+}
+
 /* Loads file into buffer structure */
 Status load_buffer(Buffer *buffer)
 {
@@ -390,6 +408,8 @@ Status load_buffer(Buffer *buffer)
 
     buffer->pos.line = buffer->screen_start.line = buffer->lines;
 
+    update_screen_length(buffer);
+
 cleanup:
     fclose(input_file);
 
@@ -411,8 +431,6 @@ static int add_to_buffer(Buffer *buffer, BufferPos *pos, const char buf[], size_
 
         /* TODO Detect and deal with CRLF and CR as well */
         if (buf[idx] == '\n') {
-            line->screen_length = line_screen_length(buffer, *pos, line->length);
-
             if (eof && idx == (bsize - 1)) {
                 return 1;
             }

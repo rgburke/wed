@@ -128,6 +128,7 @@ TextSelection *new_textselection(Buffer *, Range);
 void free_textselection(TextSelection *);
 Line *clone_line(Line *line);
 Status clear_buffer(Buffer *);
+Status update_screen_length(Buffer *);
 Status load_buffer(Buffer *);
 Status write_buffer(Buffer *, const char *);
 char *get_buffer_as_string(Buffer *);

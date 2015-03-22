@@ -17,9 +17,12 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 #include "value.h"
 #include "util.h"
 #include "status.h"
+
+#define VALUE_STRING_CONVERT_SIZE 100
 
 static const char *value_types[] = {
     "Boolean",
@@ -48,6 +51,35 @@ Status deep_copy_value(Value value, Value *new_val)
     }
 
     return STATUS_SUCCESS;
+}
+
+char *to_string(Value value)
+{
+    switch (value.type) {
+        case VAL_TYPE_STR:
+            return strdupe(value.val.sval);
+        case VAL_TYPE_BOOL:
+            return strdupe(value.val.ival ? "true" : "false");
+        case VAL_TYPE_INT:
+        case VAL_TYPE_FLOAT:
+            {
+                char *num_str = malloc(VALUE_STRING_CONVERT_SIZE);
+
+                if (num_str == NULL) {
+                    return NULL;
+                }
+
+                const char *format = (value.type == VAL_TYPE_INT ? "%d" : "%f");
+
+                snprintf(num_str, VALUE_STRING_CONVERT_SIZE, format, value.val);
+
+                return num_str;
+            }
+        default:
+            break;
+    }
+
+    return NULL;
 }
 
 void free_value(Value value)

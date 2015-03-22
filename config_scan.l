@@ -23,6 +23,7 @@
 #include "util.h"
 
 static int yycolumn = 1;
+static YY_BUFFER_STATE buf_state;
 
 #define YY_DECL int yylex(Session *sess, const char *file_path)
 #define YY_USER_ACTION update_parser_location(&yycolumn, yylineno, yyleng);
@@ -49,3 +50,12 @@ true|false      { yylval.string = strdupe(yytext); return TKN_BOOLEAN; }
 
 %%
 
+void start_scan_string(const char *str)
+{
+    buf_state = yy_scan_string(str);
+}
+
+void finish_scan_string(void)
+{
+    yy_delete_buffer(buf_state);
+}

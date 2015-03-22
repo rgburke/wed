@@ -70,6 +70,7 @@ statememt: expression TKN_SEMI_COLON { $$ = (ASTNode *)new_statementnode($1); }
          ;
 
 expression: variable TKN_ASSIGN value { $$ = (ASTNode *)new_expressionnode(NT_ASSIGNMENT, $1, $3); }
+          | variable { $$ = (ASTNode *)new_expressionnode(NT_REFERENCE, $1, NULL); }
           ;
 
 variable: TKN_NAME { $$ = (ASTNode *)new_variablenode($1); free($1); }

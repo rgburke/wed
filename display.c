@@ -46,6 +46,7 @@ static WINDOW *lineno;
 static WINDOW *windows[WINDOW_NUM];
 static size_t text_y = 0;
 static size_t text_x = 0;
+static size_t line_no_x = 0;
 
 static void draw_prompt(Session *);
 static void draw_menu(Session *);
@@ -852,11 +853,7 @@ static size_t update_line_no_width(Buffer *buffer, int line_wrap)
         win_info->line_no_width = line_no_width;
     }
 
-    int lineno_x, lineno_y;
-    getmaxyx(lineno, lineno_y, lineno_x);
-    (void)lineno_y;
-
-    if (diff > 0 || line_no_width != (size_t)lineno_x) {
+    if (diff > 0 || line_no_width != line_no_x) {
         if (line_wrap) {
             vertical_scroll_linewrap(buffer);
         }
@@ -866,6 +863,8 @@ static size_t update_line_no_width(Buffer *buffer, int line_wrap)
 
         werase(lineno);
         wresize(lineno, text_y, line_no_width);
+
+        line_no_x = line_no_width;
     }
 
     return line_no_width;
