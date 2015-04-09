@@ -49,7 +49,9 @@ static const ErrorCodeMsg default_error_messages[] = {
     { ERR_INVALID_CONFIG_CHARACTERS   , "Invalid characters in config"      },
     { ERR_INVALID_CONFIG_SYNTAX       , "Invalid config syntax"             },
     { ERR_FAILED_TO_PARSE_CONFIG_FILE , "Failed to parse config file"       },
-    { ERR_FAILED_TO_PARSE_CONFIG_INPUT, "Failed to parse config input"      }
+    { ERR_FAILED_TO_PARSE_CONFIG_INPUT, "Failed to parse config input"      },
+    { ERR_INVALID_STREAM              , "Invalid stream"                    },
+    { ERR_INVALID_ARGUMENTS           , "Invalid arguments"                 }
 };
 
 Status get_error(ErrorCode error_code, const char *format, ...)

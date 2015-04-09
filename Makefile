@@ -3,7 +3,7 @@ CFLAGS=-c -std=c99 -Wall -Wextra -Werror -pedantic -g -D_POSIX_C_SOURCE=200809L 
 LDFLAGS=-lncursesw
 LEX=lex
 YACC=yacc
-SOURCES=wed.c display.c buffer.c util.c input.c session.c status.c command.c file.c value.c list.c hashmap.c config.c encoding.c config_parse_util.c config_parse.c config_scan.c
+SOURCES=wed.c display.c buffer.c util.c input.c session.c status.c command.c file.c value.c list.c hashmap.c config.c encoding.c config_parse_util.c config_parse.c config_scan.c gap_buffer.c buffer_segment.c buffer_data.c
 LIBTERMKEYDIR=lib/libtermkey
 LIBTERMKEYLIB=libtermkey.a
 OBJECTS=$(SOURCES:.c=.o)
