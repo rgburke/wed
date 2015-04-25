@@ -28,5 +28,8 @@ int sign(int);
 
 size_t utf8_char_num(const char *);
 char *strdupe(const char *);
+int is_null_or_empty(const char *);
+size_t occurrences(const char *, const char *);
+char *replace(const char *, const char *, const char *);
 
 #endif

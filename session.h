@@ -32,7 +32,7 @@ typedef struct {
     Buffer *error_buffer;
     Buffer *msg_buffer;
     HashMap *keymap; /* Maps keyboard inputs to commands */
-    TextSelection *clipboard; /* Stores copied and cut text */
+    TextSelection clipboard; /* Stores copied and cut text */
     HashMap *config; /* Stores config variables */
     struct {
         Buffer *cmd_buffer; /* Used for command input e.g. Find & Replace, file name input, etc... */
@@ -59,7 +59,7 @@ int end_cmd_buffer_active(Session *);
 int cmd_buffer_active(Session *);
 char *get_cmd_buffer_text(Session *);
 int add_error(Session *, Status);
-void set_clipboard(Session *, TextSelection *);
+void set_clipboard(Session *, TextSelection);
 void exclude_command_type(Session *, CommandType);
 void enable_command_type(Session *, CommandType);
 int command_type_excluded(Session *, CommandType);

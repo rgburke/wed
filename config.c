@@ -347,10 +347,12 @@ static Status tabwidth_validator(Value value)
 
 static Status on_tabwidth_change(Session *sess, Value old_value, Value new_value)
 {
+    (void)sess;
+
     if (old_value.val.ival == new_value.val.ival) {
         return STATUS_SUCCESS;
     }
 
-    return update_screen_length(sess->active_buffer);
+    return STATUS_SUCCESS;
 }
 

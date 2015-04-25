@@ -55,13 +55,15 @@ static size_t draw_status_file_info(Session *, size_t);
 static size_t draw_status_pos_info(Session *, size_t);
 static void draw_status_general_info(Session *, size_t, size_t);
 static void draw_buffer(Buffer *, int);
-static size_t draw_line(Buffer *, BufferPos, int, int, Range, int, WindowInfo);
-static void draw_char(CharInfo, BufferPos, WINDOW *, size_t, int);
+static size_t draw_line(Buffer *, BufferPos *, int, int, Range, int, WindowInfo);
+static void draw_char(CharInfo, const BufferPos *, WINDOW *, size_t, int);
 static void position_cursor(Buffer *, int);
 static void vertical_scroll(Buffer *);
 static void vertical_scroll_linewrap(Buffer *);
 static void horizontal_scroll(Buffer *);
 static size_t update_line_no_width(Buffer *, int);
+static size_t line_screen_length(const BufferPos *, WindowInfo win_info);
+static size_t line_screen_height(WindowInfo, const BufferPos *);
 
 /* ncurses setup */
 void init_display(void)
@@ -147,6 +149,7 @@ void init_window_info(WindowInfo *win_info)
     win_info->start_y = 0;
     win_info->start_x = 0;
     win_info->line_no_width = 0;
+    win_info->horizontal_scroll = 1;
     win_info->draw_window = WIN_TEXT;
 }
 
@@ -337,13 +340,14 @@ static size_t draw_status_pos_info(Session *sess, size_t max_segment_width)
     char rel_pos[5];
     memset(rel_pos, 0, sizeof(rel_pos));
 
+    size_t line_num = gb_lines(buffer->data) + 1;
     size_t lines_above = screen_start.line_no - 1;
     size_t lines_below;
 
-    if ((screen_start.line_no + win_info.height - 1) >= buffer->line_num) {
+    if ((screen_start.line_no + win_info.height - 1) >= line_num) {
         lines_below = 0; 
     } else {
-        lines_below = buffer->line_num - (screen_start.line_no + win_info.height - 1);
+        lines_below = line_num - (screen_start.line_no + win_info.height - 1);
     }
 
     if (lines_below == 0) {
@@ -361,7 +365,7 @@ static size_t draw_status_pos_info(Session *sess, size_t max_segment_width)
 
     int pos_info_size = snprintf(status_text, STATUS_TEXT_SIZE, 
                                  "Length: %zu Lines: %zu | Line: %zu Col: %zu | %s ",
-                                 buffer->byte_num, buffer->line_num, pos.line_no, pos.col_no,
+                                 gb_length(buffer->data), line_num, pos.line_no, pos.col_no,
                                  rel_pos);
 
     if (pos_info_size < 0 || (size_t)pos_info_size > max_segment_width) {
@@ -382,40 +386,44 @@ static size_t draw_status_pos_info(Session *sess, size_t max_segment_width)
 static void draw_status_general_info(Session *sess, size_t file_info_size, size_t available_space)
 {
     char status_text[STATUS_TEXT_SIZE];
-    available_space -= 3;
-    mvwprintw(status, 0, file_info_size - 1, " | ");
     char *msg = join_lines(sess->msg_buffer, ". ");
+    clear_msgs(sess);
 
-    if (msg != NULL) {
-        size_t msg_length = strlen(msg);
-
-        if (msg_length > available_space) {
-            char *fmt = "%%.%ds... (F12 view full) |";
-            char msg_fmt[STATUS_TEXT_SIZE];
-            msg_length = available_space - strlen(fmt) + 5;
-            snprintf(msg_fmt, STATUS_TEXT_SIZE, fmt, msg_length);
-            snprintf(status_text, available_space, msg_fmt, msg);
-        } else {
-            snprintf(status_text, available_space, "%s", msg); 
-        }
-
-        mvwprintw(status, 0, file_info_size - 1 + 3, status_text);
-        free(msg);
+    if (msg == NULL) {
+        return;
     }
 
-    clear_msgs(sess);
+    available_space -= 3;
+    mvwprintw(status, 0, file_info_size - 1, " | ");
+
+    size_t msg_length = strlen(msg);
+
+    if (msg_length > available_space) {
+        char *fmt = "%%.%ds... (F12 view full) |";
+        char msg_fmt[STATUS_TEXT_SIZE];
+        msg_length = available_space - strlen(fmt) + 5;
+        snprintf(msg_fmt, STATUS_TEXT_SIZE, fmt, msg_length);
+        snprintf(status_text, available_space, msg_fmt, msg);
+    } else {
+        snprintf(status_text, available_space, "%s", msg); 
+    }
+
+    mvwprintw(status, 0, file_info_size - 1 + 3, status_text);
+    free(msg);
 }
 
 void draw_errors(Session *sess)
 {
     Buffer *error_buffer = sess->error_buffer;
-    Line *line = error_buffer->lines;
+    BufferPos pos;
     size_t screen_lines = 0;
     WindowInfo *win_info = &error_buffer->win_info;
+    bp_init(&pos, error_buffer->data, &error_buffer->cef);
 
-    while (line != NULL) {
-        screen_lines += line_screen_height(*win_info, line);
-        line = line->next;
+    while (!bp_at_buffer_end(&pos)) {
+        screen_lines += line_screen_height(*win_info, &pos);
+        bp_to_line_end(&pos);
+        bp_next_char(&pos);
     }
     
     size_t curr_height = win_info->height - win_info->start_y;
@@ -468,22 +476,29 @@ static void draw_buffer(Buffer *buffer, int line_wrap)
     size_t line_count = 0;
     BufferPos draw_pos = buffer->screen_start;
     WINDOW *draw_win = windows[buffer->win_info.draw_window];
+    size_t buffer_len = gb_length(buffer->data);
+
+    if (!line_wrap) {
+        size_t buffer_lines = gb_lines(buffer->data) + 1;
+
+        if (line_num > buffer_lines) {
+            line_num = buffer_lines;
+        }
+    }
 
     if (buffer->win_info.line_no_width > 0) {
         werase(lineno);
     }
 
-    while (line_count < line_num && draw_pos.line != NULL) {
-        line_count += draw_line(buffer, draw_pos, line_count, is_selection, 
+    while (line_count < line_num && draw_pos.offset <= buffer_len) {
+        line_count += draw_line(buffer, &draw_pos, line_count, is_selection, 
                                 select_range, line_wrap, buffer->win_info);
 
-        draw_pos.line = draw_pos.line->next;
-        draw_pos.line_no++;
-
-        if (line_wrap) {
-            draw_pos.offset = 0;
-            draw_pos.col_no = 1;
+        if (draw_pos.offset == buffer_len) {
+            break;
         }
+
+        bp_next_line(&draw_pos);
     }
 
     if (buffer->win_info.line_no_width > 0) {
@@ -501,76 +516,69 @@ static void draw_buffer(Buffer *buffer, int line_wrap)
     wattroff(draw_win, COLOR_PAIR(CP_BUFFER_END));
 }
 
-static size_t draw_line(Buffer *buffer, BufferPos draw_pos, int y, int is_selection, 
+static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selection, 
                         Range select_range, int line_wrap, WindowInfo win_info)
 {
-    Line *line = draw_pos.line;
-
-    if (win_info.line_no_width > 0 && draw_pos.offset == 0) {
+    if (win_info.line_no_width > 0 && (bp_at_line_start(draw_pos) || !line_wrap)) {
         wmove(lineno, win_info.start_y + y, 0);
         wattron(lineno, COLOR_PAIR(CP_LINE_NO));
-        wprintw(lineno, "%*zu ", ((int)win_info.line_no_width - 1), draw_pos.line_no);
+        wprintw(lineno, "%*zu ", ((int)win_info.line_no_width - 1), draw_pos->line_no);
         wattroff(lineno, COLOR_PAIR(CP_LINE_NO));
     }
 
-    if (line->length == 0) {
+    if (bp_at_line_end(draw_pos)) {
         return 1;
     }
 
     CharInfo char_info;
 
-    if (!line_wrap) {
-        if (line->screen_length < draw_pos.col_no) {
-            return 1;
-        }
+    if (!line_wrap && win_info.horizontal_scroll > 1) {
+        while (draw_pos->col_no < win_info.horizontal_scroll &&
+               !bp_at_line_end(draw_pos)) {
 
-        size_t col_no = draw_pos.col_no;
-        draw_pos.offset = 0;
-        draw_pos.col_no = 1;
+            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *draw_pos);
 
-        while (draw_pos.col_no < col_no && draw_pos.offset < line->length) {
-            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, draw_pos);
-
-            /* TODO Also handle unprintable characters when horizontally scrolling */
-            if (draw_pos.col_no + char_info.screen_length > col_no) {
-                draw_pos.col_no = col_no;
+            // TODO Also handle unprintable characters when horizontally scrolling 
+            if (draw_pos->col_no + char_info.screen_length > win_info.horizontal_scroll) {
+                draw_pos->col_no = win_info.horizontal_scroll;
                 break;
             }
 
-            draw_pos.offset += char_info.byte_length;
-            draw_pos.col_no += char_info.screen_length;
+            draw_pos->offset += char_info.byte_length;
+            draw_pos->col_no += char_info.screen_length;
         }
 
-        if (draw_pos.col_no < col_no) {
+        if (draw_pos->col_no < win_info.horizontal_scroll ||
+            bp_at_line_end(draw_pos)) {
             return 1;
         }
     }
 
     WINDOW *draw_win = windows[win_info.draw_window];
     size_t scr_line_num = 0;
-    size_t start_col = draw_pos.col_no;
+    size_t start_col = draw_pos->col_no;
     size_t window_width = win_info.start_x + win_info.width;
     size_t window_height = win_info.start_y + win_info.height;
     size_t screen_length = 0;
 
-    while (draw_pos.offset < line->length && scr_line_num < window_height) {
+    while (!bp_at_line_end(draw_pos) && scr_line_num < window_height) {
         wmove(draw_win, win_info.start_y + y + scr_line_num, win_info.start_x);
 
         for (screen_length += win_info.start_x; 
-             screen_length < window_width && draw_pos.offset < line->length;) {
+             screen_length < window_width && !bp_at_line_end(draw_pos);) {
 
-            if (is_selection && bufferpos_in_range(select_range, draw_pos)) {
+            if (is_selection && bufferpos_in_range(select_range, *draw_pos)) {
                 wattron(draw_win, A_REVERSE);
             } else {
                 wattroff(draw_win, A_REVERSE);
             }
 
-            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, draw_pos);
+            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *draw_pos);
 
             draw_char(char_info, draw_pos, draw_win, window_width, line_wrap);
 
-            draw_pos.col_no += char_info.screen_length;
-            draw_pos.offset += char_info.byte_length;
+            draw_pos->col_no += char_info.screen_length;
+            draw_pos->offset += char_info.byte_length;
             screen_length += char_info.screen_length;
         }
 
@@ -583,36 +591,37 @@ static size_t draw_line(Buffer *buffer, BufferPos draw_pos, int y, int is_select
         screen_length -= window_width;
     }
 
-    if (scr_line_num < screen_height_from_screen_length(win_info, line->screen_length - (start_col - 1))) {
+    if (scr_line_num < screen_height_from_screen_length(win_info, draw_pos->col_no - start_col)) {
         scr_line_num++;
     }
 
     return scr_line_num;
 }
 
-static void draw_char(CharInfo char_info, BufferPos draw_pos, WINDOW *draw_win, size_t window_width, int line_wrap)
+static void draw_char(CharInfo char_info, const BufferPos *draw_pos, WINDOW *draw_win, size_t window_width, int line_wrap)
 {
-    uchar character = *(draw_pos.line->text + draw_pos.offset);
-    size_t remaining = window_width - ((draw_pos.col_no - 1) % window_width);
+    uchar character[50] = { 0 };
+    gb_get_range(draw_pos->data, draw_pos->offset, (char *)character, char_info.byte_length);
+    size_t remaining = window_width - ((draw_pos->col_no - 1) % window_width);
 
     if (!char_info.is_valid) {
         waddstr(draw_win, "\xEF\xBF\xBD");
     } else if (!char_info.is_printable) {
         char nonprint_draw[] = "^ ";
 
-        if (character == 127) {
+        if (*character == 127) {
             nonprint_draw[1] = '?';
         } else {
-            nonprint_draw[1] = character + 64;
+            nonprint_draw[1] = character[0] + 64;
         }
 
         waddnstr(draw_win, nonprint_draw, line_wrap ? 2 : remaining);
-    } else if (character == '\t') {
+    } else if (*character == '\t') {
         for (size_t k = 0; k < char_info.screen_length && (line_wrap || k < remaining); k++) {
             waddstr(draw_win, " ");
         }
     } else {
-        waddnstr(draw_win, draw_pos.line->text + draw_pos.offset, char_info.byte_length);
+        waddnstr(draw_win, (char *)character, char_info.byte_length);
     }
 }
 
@@ -625,21 +634,9 @@ static void position_cursor(Buffer *buffer, int line_wrap)
     size_t cursor_y = 0, cursor_x;
 
     if (line_wrap) {
-        if (screen_start.line_no < pos.line_no && screen_start.col_no > 1) {
-            size_t screen_length = line_screen_length(buffer, screen_start, screen_start.line->length); 
-            cursor_y += screen_height_from_screen_length(win_info, screen_length);
-            screen_start.line = screen_start.line->next;
-            screen_start.line_no++;
-            screen_start.offset = 0;
-            screen_start.col_no = 1;
-        }
-
         while (screen_start.line_no < pos.line_no) {
-            cursor_y += line_screen_height(win_info, screen_start.line);
-            screen_start.line = screen_start.line->next;
-            screen_start.line_no++;
-            screen_start.offset = 0;
-            screen_start.col_no = 1;
+            cursor_y += line_screen_height(win_info, &screen_start);
+            bp_next_line(&screen_start);
         }
 
         size_t screen_length = pos.col_no - screen_start.col_no;
@@ -647,7 +644,7 @@ static void position_cursor(Buffer *buffer, int line_wrap)
         cursor_x = win_info.start_x + (screen_length %= win_info.width);
     } else {
         cursor_y = win_info.start_y + pos.line_no - screen_start.line_no;
-        cursor_x = win_info.start_x + pos.col_no - screen_start.col_no;
+        cursor_x = win_info.start_x + pos.col_no - win_info.horizontal_scroll;
     }
 
     wmove(draw_win, cursor_y, cursor_x);
@@ -670,31 +667,18 @@ size_t screen_col_no(WindowInfo win_info, BufferPos pos)
 }
 
 /* The number of screen columns taken up by this line segment */
-size_t line_screen_length(Buffer *buffer, BufferPos pos, size_t limit_offset)
+static size_t line_screen_length(const BufferPos *pos, WindowInfo win_info)
 {
-    /*if (pos.line->length == pos.offset) {
-        return 1;
-    } else*/ if (limit_offset <= pos.offset) {
-        return 0;
-    }
+    BufferPos tmp = *pos;
+    size_t max_visible_col = pos->col_no + (win_info.height * win_info.width);
+    bp_advance_to_col(&tmp, max_visible_col);
 
-    size_t screen_length = 0;
-    limit_offset = (limit_offset > pos.line->length ? pos.line->length : limit_offset);
-    CharInfo char_info;
-
-    while (pos.offset < limit_offset) {
-        buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, pos); 
-        screen_length += char_info.screen_length;
-        pos.col_no += char_info.screen_length;
-        pos.offset += char_info.byte_length;
-    }
-
-    return screen_length;
+    return tmp.col_no - pos->col_no;
 }
 
-size_t line_screen_height(WindowInfo win_info, Line *line)
+static size_t line_screen_height(WindowInfo win_info, const BufferPos *pos)
 {
-    return screen_height_from_screen_length(win_info, line->screen_length);
+    return screen_height_from_screen_length(win_info, line_screen_length(pos, win_info));
 }
 
 /* This calculates the number of lines that text, when displayed on the screen
@@ -719,8 +703,10 @@ static void vertical_scroll(Buffer *buffer)
     BufferPos *screen_start = &buffer->screen_start;
 
     if (pos.line_no < screen_start->line_no) {
-        screen_start->line = pos.line;
-        screen_start->line_no = pos.line_no;
+        BufferPos tmp = pos;
+        bp_to_line_start(&tmp);
+        screen_start->offset = tmp.offset;
+        screen_start->line_no = tmp.line_no;
     } else {
         size_t diff = pos.line_no - screen_start->line_no;
 
@@ -731,13 +717,12 @@ static void vertical_scroll(Buffer *buffer)
         diff -= (win_info.height - 1);
 
         if (diff > win_info.height) {
-            screen_start->line = pos.line;
-            screen_start->line_no = pos.line_no;
+            BufferPos tmp = pos;
+            bp_to_line_start(&tmp);
+            screen_start->offset = tmp.offset;
+            screen_start->line_no = tmp.line_no;
         } else {
-            size_t start_col = screen_start->col_no;
             pos_change_multi_line(buffer, screen_start, DIRECTION_DOWN, diff, 0);
-            /* Preserve horizontal scroll */
-            screen_start->col_no = start_col;
         }
     }
 }
@@ -751,19 +736,19 @@ static void vertical_scroll_linewrap(Buffer *buffer)
         (pos.line_no == screen_start->line_no && pos.col_no < screen_start->col_no)) {
         *screen_start = pos;
 
-        if (!bufferpos_at_screen_line_start(*screen_start, buffer->win_info)) {
+        if (!bufferpos_at_screen_line_start(screen_start, buffer->win_info)) {
             bpos_to_screen_line_start(buffer, screen_start, 0, 0);
         }
     } else {
         BufferPos start = pos;
 
-        if (!bufferpos_at_screen_line_start(start, buffer->win_info)) {
+        if (!bufferpos_at_screen_line_start(&start, buffer->win_info)) {
             bpos_to_screen_line_start(buffer, &start, 0, 0);
         }
 
         size_t line_num = buffer->win_info.height;
 
-        while (bufferpos_compare(start, *screen_start) != 0 && --line_num > 0) {
+        while (bp_compare(&start, screen_start) != 0 && --line_num > 0) {
             pos_change_line(buffer, &start, DIRECTION_UP, 0);
         }
 
@@ -778,13 +763,13 @@ static void horizontal_scroll(Buffer *buffer)
     size_t diff;
     Direction direction;
     BufferPos pos = buffer->pos;
-    BufferPos *screen_start = &buffer->screen_start;
+    WindowInfo *win_info = &buffer->win_info;
 
-    if (pos.col_no > screen_start->col_no) {
-        diff = pos.col_no - screen_start->col_no;
+    if (pos.col_no > win_info->horizontal_scroll) {
+        diff = pos.col_no - win_info->horizontal_scroll;
         direction = DIRECTION_RIGHT;
     } else {
-        diff = screen_start->col_no - pos.col_no;
+        diff = win_info->horizontal_scroll - pos.col_no;
         direction = DIRECTION_LEFT;
     }
 
@@ -792,18 +777,16 @@ static void horizontal_scroll(Buffer *buffer)
         return;
     }
 
-    WindowInfo win_info = buffer->win_info;
-
     if (direction == DIRECTION_RIGHT) {
-        if (diff < win_info.width) {
+        if (diff < win_info->width) {
             return;
         }
 
-        diff -= (win_info.width - 1);
+        diff -= (win_info->width - 1);
 
-        screen_start->col_no += diff;
+        win_info->horizontal_scroll += diff;
     } else {
-        screen_start->col_no -= diff;
+        win_info->horizontal_scroll -= diff;
     }
 }
 
@@ -818,14 +801,11 @@ static size_t update_line_no_width(Buffer *buffer, int line_wrap)
     if (!config_bool("lineno")) {
         max_line_no = 0;
     } else if (line_wrap) {
-        Line *line = screen_start.line;
-        size_t screen_lines = screen_height_from_screen_length(*win_info, 
-                line->screen_length - (screen_start.col_no - 1));
+        size_t screen_lines = 0;
 
-        while (line->next != NULL && screen_lines < win_info->height) {
-            line = line->next;
-            screen_lines += line_screen_height(*win_info, line);
-            screen_start.line_no++;
+        while (!bp_at_buffer_end(&screen_start) && screen_lines < win_info->height) {
+            screen_lines += line_screen_height(*win_info, &screen_start);
+            bp_next_line(&screen_start);
         }
 
         max_line_no = screen_start.line_no;

@@ -43,8 +43,10 @@ typedef struct {
 
 typedef struct {
     int (*char_info)(CharInfo *, CharInfoProperties, struct BufferPos);
-    size_t (*previous_char_offset)(const char *, size_t);
+    size_t (*previous_char_offset)(struct BufferPos);
 } CharacterEncodingFunctions;
+
+typedef CharacterEncodingFunctions CEF;
 
 int init_char_enc_funcs(CharacterEncodingType, CharacterEncodingFunctions *);
 

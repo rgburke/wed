@@ -71,3 +71,82 @@ char *strdupe(const char *str)
 
     return copy;
 }
+
+int is_null_or_empty(const char *str)
+{
+    if (str == NULL) {
+        return 1;
+    }
+
+    return *str == '\0';
+}
+
+size_t occurrences(const char *str, const char *sub_str)
+{
+    if (is_null_or_empty(str) || is_null_or_empty(sub_str)) {
+        return 0;
+    }
+
+    size_t occurrences = 0;
+    size_t sub_str_len = strlen(sub_str);
+    const char *iter = str;
+
+    while ((iter = strstr(iter, sub_str)) != NULL) {
+        occurrences++;
+        iter += sub_str_len;
+    }
+
+    return occurrences;
+}
+
+char *replace(const char *str, const char *to_replace, const char *replacement)
+{
+    if (str == NULL || is_null_or_empty(to_replace) || replacement == NULL) {
+        return NULL;
+    }
+
+    size_t occurs = occurrences(str, to_replace);
+
+    if (occurs == 0) {
+        return strdupe(str);
+    }
+
+    size_t to_rep_len = strlen(to_replace);
+    size_t rep_len = strlen(replacement);
+    size_t new_str_len = strlen(str);
+
+    if (rep_len > to_rep_len) {
+        new_str_len += occurs * (rep_len - to_rep_len);
+    } else if (to_rep_len > rep_len) {
+        new_str_len -= occurs * (to_rep_len - rep_len);
+    }
+
+    char *new_str = malloc(new_str_len + 1);
+
+    if (new_str == NULL) {
+        return NULL;
+    }
+
+    const char *last = str, *iter = str;
+    char *new = new_str;
+    size_t byte_num;
+
+    while ((iter = strstr(iter, to_replace)) != NULL) {
+        byte_num = iter - last;
+
+        if (byte_num > 0) {
+            memcpy(new, last, byte_num);
+            new += byte_num;
+        }
+
+        memcpy(new, replacement, rep_len);
+        new += rep_len;
+        iter += to_rep_len;
+        last = iter;
+    }
+
+    while ((*new++ = *last++)) ;
+
+    return new_str;
+}
+

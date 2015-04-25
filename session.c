@@ -92,7 +92,7 @@ void free_session(Session *sess)
     }
 
     free_keymap(sess);
-    free_textselection(sess->clipboard);
+    free_textselection(&sess->clipboard);
     free_config(sess->config);
     free_buffer(sess->cmd_prompt.cmd_buffer);
     free(sess->cmd_prompt.cmd_text);
@@ -262,10 +262,10 @@ char *get_cmd_buffer_text(Session *sess)
     return get_buffer_as_string(sess->cmd_prompt.cmd_buffer);
 }
 
-void set_clipboard(Session *sess, TextSelection *clipboard)
+void set_clipboard(Session *sess, TextSelection clipboard)
 {
-    if (sess->clipboard != NULL) {
-        free_textselection(sess->clipboard);
+    if (sess->clipboard.str != NULL) {
+        free_textselection(&sess->clipboard);
     }
 
     sess->clipboard = clipboard;
@@ -299,7 +299,7 @@ int add_error(Session *sess, Status error)
     free_status(error);
 
     if (!bufferpos_at_buffer_start(error_buffer->pos)) {
-        insert_line(error_buffer);
+        insert_character(error_buffer, "\n", 1);
     }
 
     insert_string(error_buffer, error_msg, strnlen(error_msg, MAX_ERROR_MSG_SIZE), 1);
@@ -328,7 +328,7 @@ int add_msg(Session *sess, const char *msg)
     Buffer *msg_buffer = sess->msg_buffer;
 
     if (!bufferpos_at_buffer_start(msg_buffer->pos)) {
-        insert_line(msg_buffer);
+        insert_character(msg_buffer, "\n", 1);
     }
 
     insert_string(msg_buffer, msg, strnlen(msg, MAX_MSG_SIZE), 1);

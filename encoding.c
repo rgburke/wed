@@ -23,14 +23,15 @@
 #include <ctype.h>
 #include "buffer.h"
 #include "config.h"
+#include "gap_buffer.h"
 
-#include "unicode.c"
+//#include "unicode.c"
 
 static int utf8_char_info(CharInfo *, CharInfoProperties, BufferPos);
-static size_t utf8_previous_char_offset(const char *, size_t);
-static int utf8_is_valid_character(const uchar *, size_t, size_t, size_t *);
+static size_t utf8_previous_char_offset(BufferPos);
+static int utf8_is_valid_character(BufferPos, size_t *);
 static uint utf8_code_point(const uchar *, uint);
-static int utf8_is_combining_char(uint);
+//static int utf8_is_combining_char(uint);
 
 static const CharacterEncodingFunctions utf8_character_encoding_functions = {
     utf8_char_info,
@@ -61,26 +62,19 @@ static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos
     }
 
     memset(char_info, 0, sizeof(CharInfo));
-    const uchar *ch;
 
-    if (pos.offset == pos.line->length) {
-        ch = (const uchar *)" ";
-    } else {
-        ch = (const uchar *)(pos.line->text + pos.offset);
-    }
-
-    if (utf8_is_valid_character(ch, pos.offset, pos.line->length, &char_info->byte_length)) {
+    if (utf8_is_valid_character(pos, &char_info->byte_length)) {
         char_info->is_valid = 1;
     } else {
         char_info->byte_length = 1;
 
-        while (((pos.offset + char_info->byte_length) < pos.line->length) && 
-               (*(ch + char_info->byte_length) & 0xC0) == 0x80) {
+        while (((pos.offset + char_info->byte_length) < gb_length(pos.data)) && 
+               ((uchar)gb_get_at(pos.data, pos.offset + char_info->byte_length) & 0xC0) == 0x80) {
             char_info->byte_length++;
         }
     }
 
-    if (char_info->is_valid) {
+    /*if (char_info->is_valid) {
         const uchar *next;
         size_t next_byte_length;
 
@@ -97,13 +91,17 @@ static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos
                 break;
             }
         }
-    }
+    }*/
 
     if (cip & CIP_SCREEN_LENGTH) {
         char_info->is_printable = 1;
+        uchar ch[5] = { 0 };
+        gb_get_range(pos.data, pos.offset, (char *)ch, char_info->byte_length);
 
         if (!char_info->is_valid) {
             char_info->screen_length = 1;
+        } else if (*ch == '\n') {
+            char_info->screen_length = 0;
         } else if (*ch == '\t') {
             size_t tabwidth = config_int("tabwidth");
             char_info->screen_length = tabwidth - ((pos.col_no - 1) % tabwidth);
@@ -125,32 +123,41 @@ static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos
     return 1;
 }
 
-static int utf8_is_valid_character(const uchar *character, size_t offset, 
-                                   size_t length, size_t *char_byte_length)
+static int utf8_is_valid_character(BufferPos pos, size_t *char_byte_length)
 {
-    uchar c = *character;
-    size_t byte_space_left = length - offset;
+    uchar byte = gb_get_at(pos.data, pos.offset);
+    size_t byte_space_left = gb_length(pos.data) - pos.offset;
     *char_byte_length = 0;
 
-    if (c < 0x80) {
+    if (byte < 0x80) {
         *char_byte_length = 1;
-    } else if (c < 0xC2) {
+    } else if (byte < 0xC2) {
         return 0;
-    } else if (c < 0xE0) {
+    } else if (byte < 0xE0) {
         *char_byte_length = 2;
-    } else if (c < 0xF0) {
+    } else if (byte < 0xF0) {
         *char_byte_length = 3;
 
-        if ((*char_byte_length > byte_space_left) || 
-            (character[0] == 0xE0 && character[1] < 0xA0)) {
+        if (*char_byte_length > byte_space_left) {
+            return 0;
+        }
+
+        uchar byte2 = gb_get_at(pos.data, pos.offset + 1);
+
+        if (byte == 0xE0 && byte2 < 0xA0) {
             return 0;
         } 
-    } else if (c < 0xF5) {
+    } else if (byte < 0xF5) {
         *char_byte_length = 4;
 
-        if ((*char_byte_length > byte_space_left) || 
-            (character[0] == 0xF0 && character[1] < 0x90) ||
-            (character[0] == 0xF4 && character[1] >= 0x90)) {
+        if (*char_byte_length > byte_space_left) {
+            return 0;
+        }
+
+        uchar byte2 = gb_get_at(pos.data, pos.offset + 1);
+
+        if ((byte == 0xF0 && byte2 < 0x90) ||
+            (byte == 0xF4 && byte2 >= 0x90)) {
             return 0;
         } 
     } else {
@@ -162,7 +169,7 @@ static int utf8_is_valid_character(const uchar *character, size_t offset,
     }
 
     for (uint k = 1; k < *char_byte_length; k++) {
-        if ((character[k] & 0xC0) != 0x80) {
+        if (((uchar)gb_get_at(pos.data, pos.offset + k) & 0xC0) != 0x80) {
             return 0;
         }
     }
@@ -191,7 +198,7 @@ static uint utf8_code_point(const uchar *character, uint byte_length)
    return 0;
 }
 
-static int utf8_is_combining_char(uint code_point)
+/*static int utf8_is_combining_char(uint code_point)
 {
     if (code_point < combining[0]) {
         return 0;
@@ -214,21 +221,19 @@ static int utf8_is_combining_char(uint code_point)
     }
 
     return 0;
-}
+}*/
 
-static size_t utf8_previous_char_offset(const char *character, size_t offset)
+static size_t utf8_previous_char_offset(BufferPos pos)
 {
-    if (offset == 0) {
+    if (pos.offset == 0) {
         return 0;
     }
 
-    const uchar *ch = (const uchar *)character; 
-    size_t start_offset = offset;
+    size_t start_offset = pos.offset;
 
     do {
-        offset--;
-        ch--; 
-    } while (offset > 0 && (*ch & 0xC0) == 0x80);
+        pos.offset--;
+    } while (pos.offset > 0 && ((uchar)gb_get_at(pos.data, pos.offset) & 0xC0) == 0x80);
 
-    return start_offset - offset;
+    return start_offset - pos.offset;
 }

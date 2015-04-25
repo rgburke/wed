@@ -175,7 +175,7 @@ Status do_command(Session *sess, const char *command_str, int *finished)
 
     if (!(command_str[0] == '<' && command_str[1] != '\0') &&
         !command_type_excluded(sess, CMDT_BUFFER_MOD)) {
-        return insert_character(sess->active_buffer, command_str);
+        return insert_character(sess->active_buffer, command_str, 1);
     }
 
     return STATUS_SUCCESS;
@@ -248,7 +248,7 @@ static Status buffer_insert_char(Session *sess, Value param, const char *keystr,
 {
     (void)keystr;
     (void)finished;
-    return insert_character(sess->active_buffer, param.val.sval);
+    return insert_character(sess->active_buffer, param.val.sval, 1);
 }
 
 static Status buffer_delete_char(Session *sess, Value param, const char *keystr, int *finished)
@@ -298,7 +298,7 @@ static Status buffer_insert_line(Session *sess, Value param, const char *keystr,
     (void)param;
     (void)keystr;
     (void)finished;
-    return insert_line(sess->active_buffer);
+    return insert_character(sess->active_buffer, "\n", 1);
 }
 
 static Status buffer_select_all_text(Session *sess, Value param, const char *keystr, int *finished)
@@ -315,11 +315,11 @@ static Status buffer_copy_selected_text(Session *sess, Value param, const char *
     (void)keystr;
     (void)finished;
 
-    TextSelection *text_selection;
+    TextSelection text_selection;
 
     Status status = copy_selected_text(sess->active_buffer, &text_selection);
 
-    if (!STATUS_IS_SUCCESS(status) || text_selection == NULL) {
+    if (!STATUS_IS_SUCCESS(status) || text_selection.str == NULL) {
         return status;
     }
 
@@ -334,11 +334,11 @@ static Status buffer_cut_selected_text(Session *sess, Value param, const char *k
     (void)keystr;
     (void)finished;
 
-    TextSelection *text_selection;
+    TextSelection text_selection;
 
     Status status = cut_selected_text(sess->active_buffer, &text_selection);
 
-    if (!STATUS_IS_SUCCESS(status) || text_selection == NULL) {
+    if (!STATUS_IS_SUCCESS(status) || text_selection.str == NULL) {
         return status;
     }
 
@@ -353,11 +353,11 @@ static Status buffer_paste_text(Session *sess, Value param, const char *keystr, 
     (void)keystr;
     (void)finished;
 
-    if (sess->clipboard == NULL) {
+    if (sess->clipboard.str == NULL) {
         return STATUS_SUCCESS;
     }
 
-    return insert_textselection(sess->active_buffer, sess->clipboard);
+    return insert_textselection(sess->active_buffer, &sess->clipboard);
 }
 
 static Status buffer_save_file(Session *sess, Value param, const char *keystr, int *finished)
@@ -418,7 +418,7 @@ static Status buffer_save_file(Session *sess, Value param, const char *keystr, i
     }
 
     char msg[MAX_MSG_SIZE];
-    snprintf(msg, MAX_MSG_SIZE, "Save successful: %zu lines, %zu bytes written", buffer->line_num, buffer->byte_num);
+    snprintf(msg, MAX_MSG_SIZE, "Save successful: %zu lines, %zu bytes written", gb_lines(buffer->data) + 1, gb_length(buffer->data));
     add_msg(sess, msg);
 
     return status;

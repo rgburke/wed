@@ -30,8 +30,6 @@ void init_window_info(WindowInfo *);
 void update_display(Session *);
 void draw_errors(Session *);
 size_t screen_col_no(WindowInfo, BufferPos);
-size_t line_screen_length(Buffer *, BufferPos, size_t);
-size_t line_screen_height(WindowInfo, Line *);
 size_t screen_height_from_screen_length(WindowInfo, size_t);
 
 #endif

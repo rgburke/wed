@@ -35,7 +35,9 @@ typedef struct {
 GapBuffer *gb_new(size_t);
 void gb_free(GapBuffer *);
 size_t gb_length(GapBuffer *);
+size_t gb_lines(GapBuffer *);
 size_t gb_gap_size(GapBuffer *);
+int gb_preallocate(GapBuffer *, size_t);
 int gb_insert(GapBuffer *, const char *, size_t);
 int gb_add(GapBuffer *, const char *, size_t);
 int gb_delete(GapBuffer *, size_t);
@@ -43,6 +45,9 @@ size_t gb_get_point(GapBuffer *);
 int gb_set_point(GapBuffer *, size_t);
 char gb_get(GapBuffer *);
 char gb_get_at(GapBuffer *, size_t);
+unsigned char gb_getu_at(GapBuffer *, size_t);
 size_t gb_get_range(GapBuffer *, size_t, char *, size_t);
+int gb_find_next(GapBuffer *, size_t, size_t *, char);
+int gb_find_prev(GapBuffer *, size_t, size_t *, char);
 
 #endif

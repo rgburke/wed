@@ -16,6 +16,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+/* For memrchr */
+#define _GNU_SOURCE
+
 #include <stdlib.h>
 #include <string.h>
 #include "gap_buffer.h"
@@ -24,6 +27,7 @@ static void gb_move_gap_to_point(GapBuffer *);
 static int gb_increase_gap_if_required(GapBuffer *, size_t);
 static int gb_decrease_gap_if_required(GapBuffer *);
 static size_t gb_internal_point(GapBuffer *, size_t);
+static size_t gb_external_point(GapBuffer *, size_t);
 
 GapBuffer *gb_new(size_t size)
 {
@@ -61,6 +65,11 @@ void gb_free(GapBuffer *buffer)
 size_t gb_length(GapBuffer *buffer)
 {
     return buffer->allocated - gb_gap_size(buffer);
+}
+
+size_t gb_lines(GapBuffer *buffer)
+{
+    return buffer->lines;
 }
 
 static void gb_move_gap_to_point(GapBuffer *buffer)
@@ -108,6 +117,11 @@ static void gb_move_gap_to_point(GapBuffer *buffer)
 size_t gb_gap_size(GapBuffer *buffer)
 {
     return buffer->gap_end - buffer->gap_start;
+}
+
+int gb_preallocate(GapBuffer *buffer, size_t size)
+{
+    return gb_increase_gap_if_required(buffer, size);
 }
 
 static int gb_increase_gap_if_required(GapBuffer *buffer, size_t new_size)
@@ -301,6 +315,12 @@ char gb_get_at(GapBuffer *buffer, size_t point)
     return *(buffer->text + point); 
 }
 
+unsigned char gb_getu_at(GapBuffer *buffer, size_t point)
+{
+    char c = gb_get_at(buffer, point);
+    return *(unsigned char *)&c;
+}
+
 size_t gb_get_range(GapBuffer *buffer, size_t point, char *buf, size_t num_bytes)
 {
     size_t buffer_len = gb_length(buffer);
@@ -342,3 +362,92 @@ static size_t gb_internal_point(GapBuffer *buffer, size_t external_point)
     return external_point;
 }
 
+static size_t gb_external_point(GapBuffer *buffer, size_t internal_point)
+{
+    if (internal_point == buffer->gap_end) {
+        return buffer->gap_start; 
+    } else if (internal_point > buffer->gap_end) {
+        return internal_point - gb_gap_size(buffer);
+    }
+
+    return internal_point;
+}
+
+int gb_find_next(GapBuffer *buffer, size_t point, size_t *next, char c)
+{
+    if (next == NULL || point >= gb_length(buffer)) {
+        return 0;
+    }
+
+    point = gb_internal_point(buffer, point);
+    char *match;
+    size_t offset;
+
+    if (point < buffer->gap_start) {
+        match = memchr(buffer->text + point, c, 
+                       buffer->gap_start - point);       
+
+        if (match != NULL) {
+            offset = match - (buffer->text + point);
+            *next = gb_external_point(buffer, point + offset);
+            return 1;
+        }
+    } 
+    
+    if (point <= buffer->gap_start) {
+        point = buffer->gap_end;
+    }
+
+    match = memchr(buffer->text + point, c, 
+                   buffer->allocated - point);       
+
+    if (match != NULL) {
+        offset = match - (buffer->text + point);
+        *next = gb_external_point(buffer, point + offset);
+        return 1;
+    }
+
+    return 0;
+}
+
+int gb_find_prev(GapBuffer *buffer, size_t point, size_t *prev, char c)
+{
+    size_t buffer_len = gb_length(buffer);
+
+    if (prev == NULL || point == 0 || buffer_len == 0) {
+        return 0;
+    }
+
+    if (point > buffer_len) {
+        point = buffer_len;
+    }
+
+    point = gb_internal_point(buffer, point);
+    char *match;
+    size_t offset;
+
+    if (point > buffer->gap_end) {
+        match = memrchr(buffer->text + buffer->gap_end, c,
+                        point - buffer->gap_end);
+
+        if (match != NULL) {
+            offset = match - (buffer->text + buffer->gap_end);
+            *prev = gb_external_point(buffer, buffer->gap_end + offset);
+            return 1;
+        }
+    }
+
+    if (point >= buffer->gap_end) {
+        point = buffer->gap_start;
+    }
+
+    match = memrchr(buffer->text, c, point);
+
+    if (match != NULL) {
+        offset = match - buffer->text;
+        *prev = gb_external_point(buffer, offset);
+        return 1;
+    }
+
+    return 0;
+}
