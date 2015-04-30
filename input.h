@@ -21,7 +21,7 @@
 
 #include "session.h"
 
-void edit(Session *);
-void process_input(Session *);
+void ip_edit(Session *);
+void ip_process_input(Session *);
 
 #endif

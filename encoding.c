@@ -27,18 +27,18 @@
 
 //#include "unicode.c"
 
-static int utf8_char_info(CharInfo *, CharInfoProperties, BufferPos);
-static size_t utf8_previous_char_offset(BufferPos);
-static int utf8_is_valid_character(BufferPos, size_t *);
-static uint utf8_code_point(const uchar *, uint);
+static int en_utf8_char_info(CharInfo *, CharInfoProperties, BufferPos);
+static size_t en_utf8_previous_char_offset(BufferPos);
+static int en_utf8_is_valid_character(BufferPos, size_t *);
+static uint en_utf8_code_point(const uchar *, uint);
 //static int utf8_is_combining_char(uint);
 
 static const CharacterEncodingFunctions utf8_character_encoding_functions = {
-    utf8_char_info,
-    utf8_previous_char_offset
+    en_utf8_char_info,
+    en_utf8_previous_char_offset
 };
 
-int init_char_enc_funcs(CharacterEncodingType type, CharacterEncodingFunctions *cef)
+int en_init_char_enc_funcs(CharacterEncodingType type, CharacterEncodingFunctions *cef)
 {
     if (cef == NULL) {
         return 0;
@@ -55,7 +55,7 @@ int init_char_enc_funcs(CharacterEncodingType type, CharacterEncodingFunctions *
     return 1;
 }
 
-static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos pos)
+static int en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos pos)
 {
     if (char_info == NULL) {
         return 0;
@@ -63,7 +63,7 @@ static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos
 
     memset(char_info, 0, sizeof(CharInfo));
 
-    if (utf8_is_valid_character(pos, &char_info->byte_length)) {
+    if (en_utf8_is_valid_character(pos, &char_info->byte_length)) {
         char_info->is_valid = 1;
     } else {
         char_info->byte_length = 1;
@@ -81,11 +81,11 @@ static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos
         while (pos.offset + char_info->byte_length < pos.line->length) {
             next = ch + char_info->byte_length;
 
-            if (!utf8_is_valid_character(next, pos.offset + char_info->byte_length, pos.line->length, &next_byte_length)) {
+            if (!en_utf8_is_valid_character(next, pos.offset + char_info->byte_length, pos.line->length, &next_byte_length)) {
                 break;
             }
 
-            if (utf8_is_combining_char(utf8_code_point(next, next_byte_length))) {
+            if (utf8_is_combining_char(en_utf8_code_point(next, next_byte_length))) {
                 char_info->byte_length += next_byte_length;
             } else {
                 break;
@@ -103,13 +103,13 @@ static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos
         } else if (*ch == '\n') {
             char_info->screen_length = 0;
         } else if (*ch == '\t') {
-            size_t tabwidth = config_int("tabwidth");
+            size_t tabwidth = cf_int("tabwidth");
             char_info->screen_length = tabwidth - ((pos.col_no - 1) % tabwidth);
         } else if (*ch < 128 && !isprint(*ch)) {
             char_info->screen_length = 2;
             char_info->is_printable = 0;
         } else {
-            uint code_point = utf8_code_point(ch, char_info->byte_length);    
+            uint code_point = en_utf8_code_point(ch, char_info->byte_length);    
             int screen_length = wcwidth(code_point);
 
             if (screen_length < 0) {
@@ -123,7 +123,7 @@ static int utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos
     return 1;
 }
 
-static int utf8_is_valid_character(BufferPos pos, size_t *char_byte_length)
+static int en_utf8_is_valid_character(BufferPos pos, size_t *char_byte_length)
 {
     uchar byte = gb_get_at(pos.data, pos.offset);
     size_t byte_space_left = gb_length(pos.data) - pos.offset;
@@ -178,7 +178,7 @@ static int utf8_is_valid_character(BufferPos pos, size_t *char_byte_length)
 }
 
 /* Must pass valid character */
-static uint utf8_code_point(const uchar *character, uint byte_length)
+static uint en_utf8_code_point(const uchar *character, uint byte_length)
 {
    switch (byte_length) {
         case 1:
@@ -223,7 +223,7 @@ static uint utf8_code_point(const uchar *character, uint byte_length)
     return 0;
 }*/
 
-static size_t utf8_previous_char_offset(BufferPos pos)
+static size_t en_utf8_previous_char_offset(BufferPos pos)
 {
     if (pos.offset == 0) {
         return 0;

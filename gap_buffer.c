@@ -21,16 +21,19 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include "gap_buffer.h"
 
 static void gb_move_gap_to_point(GapBuffer *);
 static int gb_increase_gap_if_required(GapBuffer *, size_t);
 static int gb_decrease_gap_if_required(GapBuffer *);
-static size_t gb_internal_point(GapBuffer *, size_t);
-static size_t gb_external_point(GapBuffer *, size_t);
+static size_t gb_internal_point(const GapBuffer *, size_t);
+static size_t gb_external_point(const GapBuffer *, size_t);
 
 GapBuffer *gb_new(size_t size)
 {
+    assert(size > 0);
+
     GapBuffer *buffer = malloc(sizeof(GapBuffer));
 
     if (buffer == NULL) {
@@ -62,12 +65,12 @@ void gb_free(GapBuffer *buffer)
     free(buffer);
 }
 
-size_t gb_length(GapBuffer *buffer)
+size_t gb_length(const GapBuffer *buffer)
 {
     return buffer->allocated - gb_gap_size(buffer);
 }
 
-size_t gb_lines(GapBuffer *buffer)
+size_t gb_lines(const GapBuffer *buffer)
 {
     return buffer->lines;
 }
@@ -114,7 +117,7 @@ static void gb_move_gap_to_point(GapBuffer *buffer)
     } 
 }
 
-size_t gb_gap_size(GapBuffer *buffer)
+size_t gb_gap_size(const GapBuffer *buffer)
 {
     return buffer->gap_end - buffer->gap_start;
 }
@@ -209,6 +212,8 @@ static int gb_decrease_gap_if_required(GapBuffer *buffer)
 
 int gb_insert(GapBuffer *buffer, const char *str, size_t str_len)
 {
+    assert(str != NULL);
+
     if (str == NULL) {
         return 0;
     } else if (str_len == 0) {
@@ -275,7 +280,7 @@ int gb_delete(GapBuffer *buffer, size_t byte_num)
     return 1;
 }
 
-size_t gb_get_point(GapBuffer *buffer)
+size_t gb_get_point(const GapBuffer *buffer)
 {
     if (buffer->point > buffer->gap_end) {
         return buffer->point - gb_gap_size(buffer);
@@ -286,6 +291,8 @@ size_t gb_get_point(GapBuffer *buffer)
 
 int gb_set_point(GapBuffer *buffer, size_t point)
 {
+    assert(point <= gb_length(buffer));
+
     if (point > gb_length(buffer)) {
         return 0;
     } 
@@ -295,13 +302,15 @@ int gb_set_point(GapBuffer *buffer, size_t point)
     return 1; 
 }
 
-char gb_get(GapBuffer *buffer)
+char gb_get(const GapBuffer *buffer)
 {
     return gb_get_at(buffer, gb_get_point(buffer));
 }
 
-char gb_get_at(GapBuffer *buffer, size_t point)
+char gb_get_at(const GapBuffer *buffer, size_t point)
 {
+    assert(point <= gb_length(buffer));
+
     if (point >= gb_length(buffer)) {
         return '\0';
     } 
@@ -315,15 +324,17 @@ char gb_get_at(GapBuffer *buffer, size_t point)
     return *(buffer->text + point); 
 }
 
-unsigned char gb_getu_at(GapBuffer *buffer, size_t point)
+unsigned char gb_getu_at(const GapBuffer *buffer, size_t point)
 {
     char c = gb_get_at(buffer, point);
     return *(unsigned char *)&c;
 }
 
-size_t gb_get_range(GapBuffer *buffer, size_t point, char *buf, size_t num_bytes)
+size_t gb_get_range(const GapBuffer *buffer, size_t point, char *buf, size_t num_bytes)
 {
     size_t buffer_len = gb_length(buffer);
+    assert(buf != NULL);
+    assert(point <= buffer_len);
 
     if (buf == NULL || point >= buffer_len || num_bytes == 0) {
         return 0; 
@@ -353,7 +364,7 @@ size_t gb_get_range(GapBuffer *buffer, size_t point, char *buf, size_t num_bytes
     return num_bytes;
 }
 
-static size_t gb_internal_point(GapBuffer *buffer, size_t external_point)
+static size_t gb_internal_point(const GapBuffer *buffer, size_t external_point)
 {
     if (external_point > buffer->gap_start) {
         external_point += gb_gap_size(buffer);
@@ -362,7 +373,7 @@ static size_t gb_internal_point(GapBuffer *buffer, size_t external_point)
     return external_point;
 }
 
-static size_t gb_external_point(GapBuffer *buffer, size_t internal_point)
+static size_t gb_external_point(const GapBuffer *buffer, size_t internal_point)
 {
     if (internal_point == buffer->gap_end) {
         return buffer->gap_start; 
@@ -373,8 +384,11 @@ static size_t gb_external_point(GapBuffer *buffer, size_t internal_point)
     return internal_point;
 }
 
-int gb_find_next(GapBuffer *buffer, size_t point, size_t *next, char c)
+int gb_find_next(const GapBuffer *buffer, size_t point, size_t *next, char c)
 {
+    assert(next != NULL);
+    assert(point <= gb_length(buffer));
+
     if (next == NULL || point >= gb_length(buffer)) {
         return 0;
     }
@@ -410,9 +424,11 @@ int gb_find_next(GapBuffer *buffer, size_t point, size_t *next, char c)
     return 0;
 }
 
-int gb_find_prev(GapBuffer *buffer, size_t point, size_t *prev, char c)
+int gb_find_prev(const GapBuffer *buffer, size_t point, size_t *prev, char c)
 {
     size_t buffer_len = gb_length(buffer);
+    assert(prev != NULL);
+    assert(point <= buffer_len);
 
     if (prev == NULL || point == 0 || buffer_len == 0) {
         return 0;

@@ -29,8 +29,6 @@
 #include "gap_buffer.h"
 #include "buffer_pos.h"
 
-#define DIRECTION_OFFSET(d) (((d) & 1) ? -1 : 1)
-
 typedef enum {
     CCLASS_WHITESPACE,
     CCLASS_PUNCTUATION,
@@ -86,62 +84,51 @@ struct Buffer {
     GapBuffer *data;
 };
 
-Buffer *new_buffer(FileInfo);
-Buffer *new_empty_buffer(const char *);
-void free_buffer(Buffer *);
-Status clear_buffer(Buffer *);
-Status update_screen_length(Buffer *);
-Status load_buffer(Buffer *);
-Status write_buffer(Buffer *, const char *);
-char *get_buffer_as_string(Buffer *);
-char *join_lines(Buffer *, const char *);
-int buffer_is_empty(Buffer *);
-int buffer_file_exists(Buffer *);
-int bufferpos_compare(BufferPos, BufferPos);
-BufferPos bufferpos_min(BufferPos, BufferPos);
-BufferPos bufferpos_max(BufferPos, BufferPos);
-int get_selection_range(Buffer *, Range *);
-int bufferpos_in_range(Range, BufferPos);
-CharacterClass character_class(const BufferPos *);
-const char *pos_offset_character(Buffer *, BufferPos, Direction, size_t);
-int bufferpos_at_line_start(BufferPos);
-int bufferpos_at_screen_line_start(const BufferPos *, WindowInfo);
-int bufferpos_at_line_end(BufferPos);
-int bufferpos_at_screen_line_end(const BufferPos *, WindowInfo);
-int bufferpos_at_first_line(BufferPos);
-int bufferpos_at_last_line(BufferPos);
-int bufferpos_at_buffer_start(BufferPos);
-int bufferpos_at_buffer_end(BufferPos);
-int bufferpos_at_buffer_extreme(BufferPos);
-int move_past_buffer_extremes(const BufferPos *, Direction);
-int selection_started(Buffer *);
-Status pos_change_line(Buffer *, BufferPos *, Direction, int);
-Status pos_change_multi_line(Buffer *, BufferPos *, Direction, size_t, int);
-Status pos_change_char(Buffer *, BufferPos *, Direction, int);
-Status pos_change_multi_char(Buffer *, BufferPos *, Direction, size_t, int);
-Status bpos_to_line_start(Buffer *, BufferPos *, int, int);
-Status bpos_to_screen_line_start(Buffer *, BufferPos *, int, int);
-Status pos_to_line_start(Buffer *, BufferPos *, int, int);
-Status pos_to_line_end(Buffer *, int);
-Status bpos_to_screen_line_end(Buffer *, BufferPos *, int, int);
-Status pos_to_next_word(Buffer *, int);
-Status pos_to_prev_word(Buffer *, int);
-Status pos_to_buffer_start(Buffer *, int);
-Status pos_to_buffer_end(Buffer *, int);
-Status pos_to_bufferpos(Buffer *, BufferPos);
-Status pos_change_page(Buffer *, Direction);
-Status insert_character(Buffer *, const char *, int);
-Status insert_string(Buffer *, const char *, size_t, int);
-Status delete_character(Buffer *);
-Status select_continue(Buffer *);
-Status select_reset(Buffer *);
-Status delete_range(Buffer *, Range);
-Status select_all_text(Buffer *);
-Status copy_selected_text(Buffer *, TextSelection *);
-Status cut_selected_text(Buffer *, TextSelection *);
-Status insert_textselection(Buffer *, TextSelection *);
-void free_textselection(TextSelection *);
-Status delete_word(Buffer *);
-Status delete_prev_word(Buffer *);
+Buffer *bf_new(const FileInfo *);
+Buffer *bf_new_empty(const char *);
+void bf_free(Buffer *);
+Status bf_clear(Buffer *);
+Status bf_load_file(Buffer *);
+Status bf_write_file(Buffer *, const char *);
+char *bf_to_string(const Buffer *);
+char *bf_join_lines(const Buffer *, const char *);
+int bf_is_empty(const Buffer *);
+size_t bf_lines(const Buffer *);
+size_t bf_length(const Buffer *);
+int bf_get_range(const Buffer *, Range *);
+int bf_bp_in_range(const Range *, const BufferPos *);
+CharacterClass bf_character_class(const BufferPos *);
+int bf_bp_at_screen_line_start(const BufferPos *, const WindowInfo *);
+int bf_bp_at_screen_line_end(const BufferPos *, const WindowInfo *);
+int bf_bp_move_past_buffer_extremes(const BufferPos *, Direction);
+int bf_selection_started(const Buffer *);
+Status bf_change_line(Buffer *, BufferPos *, Direction, int);
+Status bf_change_multi_line(Buffer *, BufferPos *, Direction, size_t, int);
+Status bf_change_char(Buffer *, BufferPos *, Direction, int);
+Status bf_change_multi_char(Buffer *, BufferPos *, Direction, size_t, int);
+Status bf_bp_to_line_start(Buffer *, BufferPos *, int, int);
+Status bf_bp_to_screen_line_start(Buffer *, BufferPos *, int, int);
+Status bf_to_line_start(Buffer *, BufferPos *, int, int);
+Status bf_to_line_end(Buffer *, int);
+Status bf_bp_to_line_end(Buffer *, BufferPos *, int, int);
+Status bf_bp_to_screen_line_end(Buffer *, BufferPos *, int, int);
+Status bf_to_next_word(Buffer *, int);
+Status bf_to_prev_word(Buffer *, int);
+Status bf_to_buffer_start(Buffer *, int);
+Status bf_to_buffer_end(Buffer *, int);
+Status bf_change_page(Buffer *, Direction);
+Status bf_insert_character(Buffer *, const char *, int);
+Status bf_insert_string(Buffer *, const char *, size_t, int);
+Status bf_delete_character(Buffer *);
+Status bf_select_continue(Buffer *);
+Status bf_select_reset(Buffer *);
+Status bf_delete_range(Buffer *, const Range *);
+Status bf_select_all_text(Buffer *);
+Status bf_copy_selected_text(Buffer *, TextSelection *);
+Status bf_cut_selected_text(Buffer *, TextSelection *);
+Status bf_insert_textselection(Buffer *, TextSelection *);
+void bf_free_textselection(TextSelection *);
+Status bf_delete_word(Buffer *);
+Status bf_delete_prev_word(Buffer *);
 
 #endif

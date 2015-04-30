@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
+#include <assert.h>
 #include "session.h"
 #include "config.h"
 #include "config_parse_util.h"
@@ -31,7 +32,7 @@
 void yyrestart(FILE *);
 extern int yylineno;
 
-ValueNode *new_valuenode(Value value)
+ValueNode *cp_new_valuenode(Value value)
 {
     ValueNode *val_node = malloc(sizeof(ValueNode));
     RETURN_IF_NULL(val_node);
@@ -42,7 +43,7 @@ ValueNode *new_valuenode(Value value)
     return val_node;
 }
 
-VariableNode *new_variablenode(const char *var_name)
+VariableNode *cp_new_variablenode(const char *var_name)
 {
     VariableNode *var_node = malloc(sizeof(VariableNode));
     RETURN_IF_NULL(var_node);
@@ -53,7 +54,7 @@ VariableNode *new_variablenode(const char *var_name)
     return var_node;
 }
 
-ExpressionNode *new_expressionnode(ASTNodeType node_type, ASTNode *left, ASTNode *right)
+ExpressionNode *cp_new_expressionnode(ASTNodeType node_type, ASTNode *left, ASTNode *right)
 {
     ExpressionNode *exp_node = malloc(sizeof(ExpressionNode));
     RETURN_IF_NULL(exp_node);
@@ -65,7 +66,7 @@ ExpressionNode *new_expressionnode(ASTNodeType node_type, ASTNode *left, ASTNode
     return exp_node;
 }
 
-StatementNode *new_statementnode(ASTNode *node)
+StatementNode *cp_new_statementnode(ASTNode *node)
 {
     StatementNode *stm_node = malloc(sizeof(StatementNode));
     RETURN_IF_NULL(stm_node);
@@ -77,7 +78,7 @@ StatementNode *new_statementnode(ASTNode *node)
     return stm_node;
 }
 
-int convert_to_bool_value(const char *svalue, Value *value)
+int cp_convert_to_bool_value(const char *svalue, Value *value)
 {
     if (svalue == NULL || value == NULL) {
         return 0;
@@ -96,7 +97,7 @@ int convert_to_bool_value(const char *svalue, Value *value)
     return 1;
 }
 
-int convert_to_int_value(const char *svalue, Value *value)
+int cp_convert_to_int_value(const char *svalue, Value *value)
 {
     if (svalue == NULL || value == NULL) {
         return 0;
@@ -118,7 +119,7 @@ int convert_to_int_value(const char *svalue, Value *value)
     return 1;
 }
 
-int convert_to_string_value(const char *svalue, Value *value)
+int cp_convert_va_to_string_value(const char *svalue, Value *value)
 {
     if (svalue == NULL || value == NULL) {
         return 0;
@@ -205,10 +206,19 @@ int convert_to_string_value(const char *svalue, Value *value)
     return 1;
 }
 
-int add_statement_to_list(ASTNode *statememt_list, ASTNode *statememt)
+int cp_add_statement_to_list(ASTNode *statememt_list, ASTNode *statememt)
 {
-    if (statememt_list == NULL || statememt == NULL ||
-        statememt_list->node_type != NT_STATEMENT ||
+    assert(statememt_list != NULL);
+    assert(statememt != NULL);
+
+    if (statememt_list == NULL || statememt == NULL) {
+        return 0; 
+    }
+
+    assert(statememt_list->node_type == NT_STATEMENT);
+    assert(statememt->node_type == NT_STATEMENT);
+
+    if (statememt_list->node_type != NT_STATEMENT ||
         statememt->node_type != NT_STATEMENT) {
         return 0;
     }
@@ -225,7 +235,7 @@ int add_statement_to_list(ASTNode *statememt_list, ASTNode *statememt)
     return 1;
 }
 
-int eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
+int cp_eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
 {
     if (node == NULL) {
         return 0;
@@ -237,7 +247,7 @@ int eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
                 StatementNode *stm_node = (StatementNode *)node;
 
                 while (stm_node != NULL) {
-                    eval_ast(sess, config_level, stm_node->node);
+                    cp_eval_ast(sess, config_level, stm_node->node);
                     stm_node = stm_node->next;
                 }
 
@@ -249,14 +259,14 @@ int eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
                 VariableNode *var_node = (VariableNode *)exp_node->left;
                 ValueNode *val_node = (ValueNode *)exp_node->right;
 
-                add_error(sess, set_var(sess, config_level, var_node->name, val_node->value));
+                se_add_error(sess, cf_set_var(sess, config_level, var_node->name, val_node->value));
                 break;
             }
         case NT_REFERENCE:
             {
                 ExpressionNode *exp_node = (ExpressionNode *)node;
                 VariableNode *var_node = (VariableNode *)exp_node->left;
-                add_error(sess, print_var(sess, var_node->name));
+                se_add_error(sess, cf_print_var(sess, var_node->name));
                 break;
             }
         default:
@@ -266,7 +276,7 @@ int eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
     return 1;
 }
 
-void free_ast(ASTNode *node)
+void cp_free_ast(ASTNode *node)
 {
     if (node == NULL) {
         return;
@@ -276,7 +286,7 @@ void free_ast(ASTNode *node)
         case NT_VALUE:
             {
                 ValueNode *val_node = (ValueNode *)node;
-                free_value(val_node->value);
+                va_free_value(val_node->value);
                 break;
             }
         case NT_VARIABLE:
@@ -289,8 +299,8 @@ void free_ast(ASTNode *node)
         case NT_REFERENCE:
             {
                 ExpressionNode *exp_node = (ExpressionNode *)node;
-                free_ast(exp_node->left);
-                free_ast(exp_node->right);
+                cp_free_ast(exp_node->left);
+                cp_free_ast(exp_node->right);
                 break;
             }
         case NT_STATEMENT:
@@ -299,7 +309,7 @@ void free_ast(ASTNode *node)
                 StatementNode *last;
 
                 while (stm_node != NULL) {
-                    free_ast(stm_node->node);
+                    cp_free_ast(stm_node->node);
                     last = stm_node;
                     stm_node = stm_node->next;
                     free(last);
@@ -317,7 +327,7 @@ void free_ast(ASTNode *node)
     }
 }
 
-void update_parser_location(int *yycolumn, int yylineno, int yyleng)
+void cp_update_parser_location(int *yycolumn, int yylineno, int yyleng)
 {
     yylloc.first_line = yylloc.last_line = yylineno;
     yylloc.first_column = *yycolumn;
@@ -325,8 +335,10 @@ void update_parser_location(int *yycolumn, int yylineno, int yyleng)
     *yycolumn += yyleng;
 }
 
-Status get_config_error(ErrorCode error_code, const char *file_name, const char *format, ...)
+Status cp_get_config_error(ErrorCode error_code, const char *file_name, const char *format, ...)
 {
+    assert(!is_null_or_empty(format));
+
     va_list arg_ptr;
     va_start(arg_ptr, format);
     Status status;
@@ -337,9 +349,9 @@ Status get_config_error(ErrorCode error_code, const char *file_name, const char 
         snprintf(new_format, MAX_ERROR_MSG_SIZE, "%s:%d:%d: %s", file_name, 
                 yylloc.first_line, yylloc.first_column, format);
 
-        status = get_custom_error(error_code, new_format, arg_ptr);
+        status = st_get_custom_error(error_code, new_format, arg_ptr);
     } else {
-        status = get_custom_error(error_code, format, arg_ptr);
+        status = st_get_custom_error(error_code, format, arg_ptr);
     }
 
     va_end(arg_ptr);
@@ -350,15 +362,17 @@ Status get_config_error(ErrorCode error_code, const char *file_name, const char 
 void yyerror(Session *sess, ConfigLevel config_level, const char *file_name, char const *error)
 {
     (void)config_level;
-    add_error(sess, get_config_error(ERR_INVALID_CONFIG_SYNTAX, file_name, error));
+    se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_SYNTAX, file_name, error));
 }
 
-Status parse_config_file(Session *sess, ConfigLevel config_level, const char *config_file_path)
+Status cp_parse_config_file(Session *sess, ConfigLevel config_level, const char *config_file_path)
 {
+    assert(!is_null_or_empty(config_file_path));
+
     FILE *config_file = fopen(config_file_path, "rb");
 
     if (config_file == NULL) {
-        return get_error(ERR_UNABLE_TO_OPEN_FILE, 
+        return st_get_error(ERR_UNABLE_TO_OPEN_FILE, 
                          "Unable to open file %s for reading", config_file_path);
     } 
 
@@ -368,24 +382,26 @@ Status parse_config_file(Session *sess, ConfigLevel config_level, const char *co
     int parse_status = yyparse(sess, config_level, config_file_path);
 
     if (parse_status != 0) {
-        return get_error(ERR_FAILED_TO_PARSE_CONFIG_FILE, 
+        return st_get_error(ERR_FAILED_TO_PARSE_CONFIG_FILE, 
                          "Failed to fully config parse file %s", config_file_path);
     }
 
     return STATUS_SUCCESS;
 }
 
-Status parse_config_string(Session *sess, ConfigLevel config_level, const char *str)
+Status cp_parse_config_string(Session *sess, ConfigLevel config_level, const char *str)
 {
-    start_scan_string(str);
+    assert(!is_null_or_empty(str));
+
+    cp_start_scan_string(str);
     yylineno = 1;
 
     int parse_status = yyparse(sess, config_level, NULL);
 
-    finish_scan_string();
+    cp_finish_scan_string();
 
     if (parse_status != 0) {
-        return get_error(ERR_FAILED_TO_PARSE_CONFIG_INPUT, "Failed to fully parse config input");
+        return st_get_error(ERR_FAILED_TO_PARSE_CONFIG_INPUT, "Failed to fully parse config input");
     }
 
     return STATUS_SUCCESS;

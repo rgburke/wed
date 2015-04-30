@@ -17,14 +17,15 @@
  */
 
 #include "buffer_pos.h"
+#include <assert.h>
 
 static void calc_new_col(BufferPos *, size_t);
 
-int bp_init(BufferPos *pos, GapBuffer *data, const CEF *cef)
+int bp_init(BufferPos *pos, const GapBuffer *data, const CEF *cef)
 {
-    if (pos == NULL) {
-        return 0;
-    }
+    assert(pos != NULL);
+    assert(data != NULL);
+    assert(cef != NULL);
 
     pos->offset = 0;
     pos->line_no = 1;

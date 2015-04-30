@@ -18,11 +18,12 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include "status.h"
 #include "value.h"
 #include "util.h"
 
-static char *get_default_error_message(ErrorCode);
+static char *st_get_default_error_message(ErrorCode);
 
 typedef struct {
     ErrorCode error_code;
@@ -54,23 +55,25 @@ static const ErrorCodeMsg default_error_messages[] = {
     { ERR_INVALID_ARGUMENTS           , "Invalid arguments"                 }
 };
 
-Status get_error(ErrorCode error_code, const char *format, ...)
+Status st_get_error(ErrorCode error_code, const char *format, ...)
 {
     va_list arg_ptr;
     va_start(arg_ptr, format);
-    Status status = get_custom_error(error_code, format, arg_ptr);
+    Status status = st_get_custom_error(error_code, format, arg_ptr);
     va_end(arg_ptr);
 
     return status;
 }
 
-Status get_custom_error(ErrorCode error_code, const char *format, va_list arg_ptr)
+Status st_get_custom_error(ErrorCode error_code, const char *format, va_list arg_ptr)
 {
+    assert(!is_null_or_empty(format));
+
     char *error_msg = malloc(MAX_ERROR_MSG_SIZE);
 
     if (error_msg == NULL) {
         /* TODO Should/Can we raise an out of memory error here as well? */
-        return STATUS_ERROR(error_code, get_default_error_message(error_code), 1);
+        return STATUS_ERROR(error_code, st_get_default_error_message(error_code), 1);
     }
 
     vsnprintf(error_msg, MAX_ERROR_MSG_SIZE, format, arg_ptr);
@@ -78,7 +81,7 @@ Status get_custom_error(ErrorCode error_code, const char *format, va_list arg_pt
     return STATUS_ERROR(error_code, error_msg, 0);
 }
 
-static char *get_default_error_message(ErrorCode error_code)
+static char *st_get_default_error_message(ErrorCode error_code)
 {
     size_t error_msg_num = sizeof(default_error_messages) / sizeof(ErrorCodeMsg);
 
@@ -91,7 +94,7 @@ static char *get_default_error_message(ErrorCode error_code)
     return "Unknown error occured";
 }
 
-void free_status(Status status)
+void st_free_status(Status status)
 {
     if (!status.msg_literal && status.msg != NULL) {
         free(status.msg);

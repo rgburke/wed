@@ -86,7 +86,7 @@ void init_display(void)
     nl();
     keypad(stdscr, TRUE);
     curs_set(1);
-    set_tabsize(config_int("tabwidth"));
+    set_tabsize(cf_int("tabwidth"));
 
     text_y = LINES - 2;
     text_x = COLS;
@@ -159,7 +159,7 @@ void init_window_info(WindowInfo *win_info)
 void update_display(Session *sess)
 {
     Buffer *buffer = sess->active_buffer;
-    int line_wrap = config_bool("linewrap");
+    int line_wrap = cf_bool("linewrap");
     WINDOW *draw_win = windows[buffer->win_info.draw_window];
 
     if (line_wrap) {
@@ -169,14 +169,14 @@ void update_display(Session *sess)
         horizontal_scroll(buffer);
     }
 
-    if (!cmd_buffer_active(sess)) {
+    if (!se_cmd_buffer_active(sess)) {
         update_line_no_width(buffer, line_wrap);
     }
 
     draw_menu(sess);
     werase(draw_win);
 
-    if (cmd_buffer_active(sess)) {
+    if (se_cmd_buffer_active(sess)) {
         draw_prompt(sess);
     } else {
         draw_status(sess);
@@ -218,7 +218,7 @@ void draw_menu(Session *sess)
             }
 
             total_used_space += used_space;
-            buffer = get_buffer(sess, --start_index);
+            buffer = se_get_buffer(sess, --start_index);
         }
 
         if (total_used_space + used_space > text_x) {
@@ -229,7 +229,7 @@ void draw_menu(Session *sess)
         used_space = 0;
     }
 
-    buffer = get_buffer(sess, sess->menu_first_buffer_index);
+    buffer = se_get_buffer(sess, sess->menu_first_buffer_index);
 
     werase(menu);
     wbkgd(menu, COLOR_PAIR(CP_MENU));
@@ -266,7 +266,7 @@ void draw_status(Session *sess)
 {
     int segment_num = 2;
 
-    if (has_msgs(sess)) {
+    if (se_has_msgs(sess)) {
         segment_num = 3;
     }
 
@@ -293,13 +293,13 @@ static size_t draw_status_file_info(Session *sess, size_t max_segment_width)
 {
     char status_text[STATUS_TEXT_SIZE];
     size_t file_info_free = max_segment_width;
-    FileInfo file_info = sess->active_buffer->file_info;
+    const FileInfo *file_info = &sess->active_buffer->file_info;
 
     char *file_info_text = " ";
 
-    if (!file_exists(file_info)) {
+    if (!fi_file_exists(file_info)) {
         file_info_text = " [new] ";
-    } else if (!can_write_file(file_info)) {
+    } else if (!fi_can_write_file(file_info)) {
         file_info_text = " [readonly] ";
     }
 
@@ -307,14 +307,14 @@ static size_t draw_status_file_info(Session *sess, size_t max_segment_width)
     size_t file_info_size;
     char *file_path = NULL;
 
-    if (file_exists(file_info)) {
-        file_path = file_info.abs_path;
-    } else if (has_file_path(file_info)) {
-        file_path = file_info.rel_path;
+    if (fi_file_exists(file_info)) {
+        file_path = file_info->abs_path;
+    } else if (fi_has_file_path(file_info)) {
+        file_path = file_info->rel_path;
     }
 
     if (file_path == NULL || strlen(file_path) > file_info_free) {
-        file_path = file_info.file_name;
+        file_path = file_info->file_name;
     }
     
     if (strlen(file_path) > file_info_free) {
@@ -340,7 +340,7 @@ static size_t draw_status_pos_info(Session *sess, size_t max_segment_width)
     char rel_pos[5];
     memset(rel_pos, 0, sizeof(rel_pos));
 
-    size_t line_num = gb_lines(buffer->data) + 1;
+    size_t line_num = bf_lines(buffer);
     size_t lines_above = screen_start.line_no - 1;
     size_t lines_below;
 
@@ -365,7 +365,7 @@ static size_t draw_status_pos_info(Session *sess, size_t max_segment_width)
 
     int pos_info_size = snprintf(status_text, STATUS_TEXT_SIZE, 
                                  "Length: %zu Lines: %zu | Line: %zu Col: %zu | %s ",
-                                 gb_length(buffer->data), line_num, pos.line_no, pos.col_no,
+                                 bf_length(buffer), line_num, pos.line_no, pos.col_no,
                                  rel_pos);
 
     if (pos_info_size < 0 || (size_t)pos_info_size > max_segment_width) {
@@ -386,8 +386,8 @@ static size_t draw_status_pos_info(Session *sess, size_t max_segment_width)
 static void draw_status_general_info(Session *sess, size_t file_info_size, size_t available_space)
 {
     char status_text[STATUS_TEXT_SIZE];
-    char *msg = join_lines(sess->msg_buffer, ". ");
-    clear_msgs(sess);
+    char *msg = bf_join_lines(sess->msg_buffer, ". ");
+    se_clear_msgs(sess);
 
     if (msg == NULL) {
         return;
@@ -471,15 +471,15 @@ static void draw_prompt(Session *sess)
 static void draw_buffer(Buffer *buffer, int line_wrap)
 {
     Range select_range;
-    int is_selection = get_selection_range(buffer, &select_range);
+    int is_selection = bf_get_range(buffer, &select_range);
     size_t line_num = buffer->win_info.height;
     size_t line_count = 0;
     BufferPos draw_pos = buffer->screen_start;
     WINDOW *draw_win = windows[buffer->win_info.draw_window];
-    size_t buffer_len = gb_length(buffer->data);
+    size_t buffer_len = bf_length(buffer);
 
     if (!line_wrap) {
-        size_t buffer_lines = gb_lines(buffer->data) + 1;
+        size_t buffer_lines = bf_lines(buffer);
 
         if (line_num > buffer_lines) {
             line_num = buffer_lines;
@@ -567,7 +567,7 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
         for (screen_length += win_info.start_x; 
              screen_length < window_width && !bp_at_line_end(draw_pos);) {
 
-            if (is_selection && bufferpos_in_range(select_range, *draw_pos)) {
+            if (is_selection && bf_bp_in_range(&select_range, draw_pos)) {
                 wattron(draw_win, A_REVERSE);
             } else {
                 wattroff(draw_win, A_REVERSE);
@@ -657,7 +657,7 @@ size_t screen_col_no(WindowInfo win_info, BufferPos pos)
 {
     size_t col_no;
 
-    if (config_bool("linewrap")) {
+    if (cf_bool("linewrap")) {
         col_no = ((pos.col_no - 1) % win_info.width) + 1;
     } else {
         col_no = pos.col_no;
@@ -685,7 +685,7 @@ static size_t line_screen_height(WindowInfo win_info, const BufferPos *pos)
  * takes up screen_length columns, takes up */
 size_t screen_height_from_screen_length(WindowInfo win_info, size_t screen_length)
 {
-    if (!config_bool("linewrap") || screen_length == 0) {
+    if (!cf_bool("linewrap") || screen_length == 0) {
         return 1;
     } else if ((screen_length % win_info.width) == 0) {
         screen_length++;
@@ -722,7 +722,7 @@ static void vertical_scroll(Buffer *buffer)
             screen_start->offset = tmp.offset;
             screen_start->line_no = tmp.line_no;
         } else {
-            pos_change_multi_line(buffer, screen_start, DIRECTION_DOWN, diff, 0);
+            bf_change_multi_line(buffer, screen_start, DIRECTION_DOWN, diff, 0);
         }
     }
 }
@@ -736,20 +736,20 @@ static void vertical_scroll_linewrap(Buffer *buffer)
         (pos.line_no == screen_start->line_no && pos.col_no < screen_start->col_no)) {
         *screen_start = pos;
 
-        if (!bufferpos_at_screen_line_start(screen_start, buffer->win_info)) {
-            bpos_to_screen_line_start(buffer, screen_start, 0, 0);
+        if (!bf_bp_at_screen_line_start(screen_start, &buffer->win_info)) {
+            bf_bp_to_screen_line_start(buffer, screen_start, 0, 0);
         }
     } else {
         BufferPos start = pos;
 
-        if (!bufferpos_at_screen_line_start(&start, buffer->win_info)) {
-            bpos_to_screen_line_start(buffer, &start, 0, 0);
+        if (!bf_bp_at_screen_line_start(&start, &buffer->win_info)) {
+            bf_bp_to_screen_line_start(buffer, &start, 0, 0);
         }
 
         size_t line_num = buffer->win_info.height;
 
         while (bp_compare(&start, screen_start) != 0 && --line_num > 0) {
-            pos_change_line(buffer, &start, DIRECTION_UP, 0);
+            bf_change_line(buffer, &start, DIRECTION_UP, 0);
         }
 
         if (line_num == 0) {
@@ -798,7 +798,7 @@ static size_t update_line_no_width(Buffer *buffer, int line_wrap)
 
     size_t max_line_no;
 
-    if (!config_bool("lineno")) {
+    if (!cf_bool("lineno")) {
         max_line_no = 0;
     } else if (line_wrap) {
         size_t screen_lines = 0;

@@ -38,17 +38,17 @@ typedef struct {
     Status (*on_change_event)(Session *, Value, Value);
 } ConfigVariableDescriptor;
 
-void set_config_session(Session *);
-Status init_config(void);
-void end_config(void);
-Status init_session_config(Session *);
-void free_config(HashMap *);
-Status load_config(Session *, char *);
-Status set_var(Session *, ConfigLevel, char *, Value);
-Status set_session_var(Session *, char *, Value);
-Status set_buffer_var(Buffer *, char *, Value);
-Status print_var(Session *sess, const char *);
-int config_bool(char *);
-long config_int(char *);
+void cf_set_config_session(Session *);
+Status cf_init_config(void);
+void cf_end_config(void);
+Status cf_init_session_config(Session *);
+void cf_free_config(HashMap *);
+Status cf_load_config(Session *, char *);
+Status cf_set_var(Session *, ConfigLevel, char *, Value);
+Status cf_set_session_var(Session *, char *, Value);
+Status cf_set_buffer_var(Buffer *, char *, Value);
+Status cf_print_var(Session *sess, const char *);
+int cf_bool(char *);
+long cf_int(char *);
 
 #endif

@@ -42,7 +42,7 @@ int yylex(Session *, const char *);
 }
 
 %destructor { free($$);  } <string>
-%destructor { free_ast($$); } <node>
+%destructor { cp_free_ast($$); } <node>
 
 %token<string> TKN_INTEGER "integer"
 %token<string> TKN_STRING "string"
@@ -58,27 +58,27 @@ int yylex(Session *, const char *);
 %%
 
 program:
-       | statememt_list { eval_ast(sess, config_level, $1); free_ast($1); }
+       | statememt_list { cp_eval_ast(sess, config_level, $1); cp_free_ast($1); }
        ;
 
 statememt_list: statememt { $$ = $1; }
-              | statememt_list statememt { if ($1 == NULL) { $$ = $2; } else { add_statement_to_list($1, $2); $$ = $1; } }
+              | statememt_list statememt { if ($1 == NULL) { $$ = $2; } else { cp_add_statement_to_list($1, $2); $$ = $1; } }
               ;
 
-statememt: expression TKN_SEMI_COLON { $$ = (ASTNode *)new_statementnode($1); }
+statememt: expression TKN_SEMI_COLON { $$ = (ASTNode *)cp_new_statementnode($1); }
          | error TKN_SEMI_COLON { $$ = NULL; }
          ;
 
-expression: variable TKN_ASSIGN value { $$ = (ASTNode *)new_expressionnode(NT_ASSIGNMENT, $1, $3); }
-          | variable { $$ = (ASTNode *)new_expressionnode(NT_REFERENCE, $1, NULL); }
+expression: variable TKN_ASSIGN value { $$ = (ASTNode *)cp_new_expressionnode(NT_ASSIGNMENT, $1, $3); }
+          | variable { $$ = (ASTNode *)cp_new_expressionnode(NT_REFERENCE, $1, NULL); }
           ;
 
-variable: TKN_NAME { $$ = (ASTNode *)new_variablenode($1); free($1); }
+variable: TKN_NAME { $$ = (ASTNode *)cp_new_variablenode($1); free($1); }
         ;
 
-value: TKN_INTEGER { Value value; convert_to_int_value($1, &value); $$ = (ASTNode *)new_valuenode(value); free($1);    }
-     | TKN_STRING  { Value value; convert_to_string_value($1, &value); $$ = (ASTNode *)new_valuenode(value); free($1); }
-     | TKN_BOOLEAN { Value value; convert_to_bool_value($1, &value); $$ = (ASTNode *)new_valuenode(value); free($1);   }
+value: TKN_INTEGER { Value value; cp_convert_to_int_value($1, &value); $$ = (ASTNode *)cp_new_valuenode(value); free($1);    }
+     | TKN_STRING  { Value value; cp_convert_va_to_string_value($1, &value); $$ = (ASTNode *)cp_new_valuenode(value); free($1); }
+     | TKN_BOOLEAN { Value value; cp_convert_to_bool_value($1, &value); $$ = (ASTNode *)cp_new_valuenode(value); free($1);   }
      ;
 
 %%

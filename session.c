@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include "session.h"
 #include "status.h"
 #include "util.h"
@@ -27,7 +28,7 @@
 
 #define MAX_EMPTY_BUFFER_NAME_SIZE 20
 
-Session *new_session(void)
+Session *se_new(void)
 {
     Session *sess = malloc(sizeof(Session));
     RETURN_IF_NULL(sess);
@@ -36,47 +37,47 @@ Session *new_session(void)
     return sess;
 }
 
-int init_session(Session *sess, char *buffer_paths[], int buffer_num)
+int se_init(Session *sess, char *buffer_paths[], int buffer_num)
 {
-    if ((sess->error_buffer = new_empty_buffer("errors")) == NULL) {
+    if ((sess->error_buffer = bf_new_empty("errors")) == NULL) {
         return 0;
     }
 
-    if ((sess->cmd_prompt.cmd_buffer = new_empty_buffer("commands")) == NULL) {
+    if ((sess->cmd_prompt.cmd_buffer = bf_new_empty("commands")) == NULL) {
         return 0;
     }
 
-    if ((sess->msg_buffer = new_empty_buffer("messages")) == NULL) {
+    if ((sess->msg_buffer = bf_new_empty("messages")) == NULL) {
         return 0;
     }
 
-    if (!init_keymap(sess)) {
+    if (!cm_init_keymap(sess)) {
         return 0;
     }
 
-    set_config_session(sess);
-    add_error(sess, init_session_config(sess));
+    cf_set_config_session(sess);
+    se_add_error(sess, cf_init_session_config(sess));
 
     for (int k = 1; k < buffer_num; k++) {
-        add_error(sess, add_new_buffer(sess, buffer_paths[k]));
+        se_add_error(sess, se_add_new_buffer(sess, buffer_paths[k]));
     }
 
     if (sess->buffer_num == 0) {
-        add_new_empty_buffer(sess);
+        se_add_new_empty_buffer(sess);
     }
 
-    if (!set_active_buffer(sess, 0)) {
+    if (!se_set_active_buffer(sess, 0)) {
         return 0;
     }
 
-    set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", INT_VAL(0));
+    cf_set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", INT_VAL(0));
 
     sess->msgs_enabled = 1;
 
     return 1;
 }
 
-void free_session(Session *sess)
+void se_free(Session *sess)
 {
     if (sess == NULL) {
         return;
@@ -87,23 +88,25 @@ void free_session(Session *sess)
 
     while (buffer != NULL) {
         tmp = buffer->next;
-        free_buffer(buffer);
+        bf_free(buffer);
         buffer = tmp;
     }
 
-    free_keymap(sess);
-    free_textselection(&sess->clipboard);
-    free_config(sess->config);
-    free_buffer(sess->cmd_prompt.cmd_buffer);
+    cm_free_keymap(sess);
+    bf_free_textselection(&sess->clipboard);
+    cf_free_config(sess->config);
+    bf_free(sess->cmd_prompt.cmd_buffer);
     free(sess->cmd_prompt.cmd_text);
-    free_buffer(sess->error_buffer);
-    free_buffer(sess->msg_buffer);
+    bf_free(sess->error_buffer);
+    bf_free(sess->msg_buffer);
 
     free(sess);
 }
 
-int add_buffer(Session *sess, Buffer *buffer)
+int se_add_buffer(Session *sess, Buffer *buffer)
 {
+    assert(buffer != NULL);
+
     if (buffer == NULL) {
         return 0;
     }
@@ -129,8 +132,11 @@ int add_buffer(Session *sess, Buffer *buffer)
     return 1;
 }
 
-int set_active_buffer(Session *sess, size_t buffer_index)
+int se_set_active_buffer(Session *sess, size_t buffer_index)
 {
+    assert(sess->buffers != NULL);
+    assert(buffer_index < sess->buffer_num);
+
     if (sess->buffers == NULL || buffer_index >= sess->buffer_num) {
         return 0;
     }
@@ -149,8 +155,11 @@ int set_active_buffer(Session *sess, size_t buffer_index)
     return 1;
 }
 
-Buffer *get_buffer(Session *sess, size_t buffer_index)
+Buffer *se_get_buffer(const Session *sess, size_t buffer_index)
 {
+    assert(sess->buffers != NULL);
+    assert(buffer_index < sess->buffer_num);
+
     if (sess->buffers == NULL || buffer_index >= sess->buffer_num) {
         return NULL;
     }
@@ -164,8 +173,11 @@ Buffer *get_buffer(Session *sess, size_t buffer_index)
     return buffer;
 }
 
-int remove_buffer(Session *sess, Buffer *to_remove)
+int se_remove_buffer(Session *sess, Buffer *to_remove)
 {
+    assert(sess->buffers != NULL);
+    assert(to_remove != NULL);
+
     if (sess->buffers == NULL || to_remove == NULL) {
         return 0;
     }
@@ -211,13 +223,15 @@ int remove_buffer(Session *sess, Buffer *to_remove)
 
     sess->buffer_num--;
 
-    free_buffer(buffer);
+    bf_free(buffer);
 
     return 1;
 }
 
-Status make_cmd_buffer_active(Session *sess, const char *text)
+Status se_make_cmd_buffer_active(Session *sess, const char *text)
 {
+    assert(!is_null_or_empty(text));
+
     sess->cmd_prompt.cmd_buffer->next = sess->active_buffer;
     sess->active_buffer = sess->cmd_prompt.cmd_buffer;
 
@@ -228,17 +242,18 @@ Status make_cmd_buffer_active(Session *sess, const char *text)
     sess->cmd_prompt.cmd_text = strdupe(text);
     
     if (text != NULL && sess->cmd_prompt.cmd_text == NULL) {
-        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to set prompt text");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to set prompt text");
     }
 
     sess->cmd_prompt.cancelled = 0;
-    return clear_buffer(sess->cmd_prompt.cmd_buffer);
+    return bf_clear(sess->cmd_prompt.cmd_buffer);
 }
 
-int end_cmd_buffer_active(Session *sess)
+int se_end_cmd_buffer_active(Session *sess)
 {
-    if (sess->active_buffer == NULL || 
-        sess->cmd_prompt.cmd_buffer == NULL) {
+    assert(sess->active_buffer != NULL);
+
+    if (sess->active_buffer == NULL) {
         return 0;
     }
 
@@ -247,46 +262,47 @@ int end_cmd_buffer_active(Session *sess)
     return 1;
 }
 
-int cmd_buffer_active(Session *sess)
+int se_cmd_buffer_active(const Session *sess)
 {
-    if (sess->active_buffer == NULL || 
-        sess->cmd_prompt.cmd_buffer == NULL) {
+    assert(sess->active_buffer != NULL);
+
+    if (sess->active_buffer == NULL) {
         return 0;
     }
 
     return sess->active_buffer == sess->cmd_prompt.cmd_buffer;
 }
 
-char *get_cmd_buffer_text(Session *sess)
+char *se_get_cmd_buffer_text(const Session *sess)
 {
-    return get_buffer_as_string(sess->cmd_prompt.cmd_buffer);
+    return bf_to_string(sess->cmd_prompt.cmd_buffer);
 }
 
-void set_clipboard(Session *sess, TextSelection clipboard)
+void se_set_clipboard(Session *sess, TextSelection clipboard)
 {
     if (sess->clipboard.str != NULL) {
-        free_textselection(&sess->clipboard);
+        bf_free_textselection(&sess->clipboard);
     }
 
     sess->clipboard = clipboard;
 }
 
-void exclude_command_type(Session *sess, CommandType cmd_type)
+void se_exclude_command_type(Session *sess, CommandType cmd_type)
 {
     sess->exclude_cmd_types |= cmd_type;
 }
 
-void enable_command_type(Session *sess, CommandType cmd_type)
+void se_enable_command_type(Session *sess, CommandType cmd_type)
 {
     sess->exclude_cmd_types &= ~cmd_type;
 }
 
-int command_type_excluded(Session *sess, CommandType cmd_type)
+int se_command_type_excluded(const Session *sess, CommandType cmd_type)
 {
     return sess->exclude_cmd_types & cmd_type;
 }
 
-int add_error(Session *sess, Status error)
+int se_add_error(Session *sess, Status error)
 {
     if (STATUS_IS_SUCCESS(error)) {
         return 0;
@@ -296,29 +312,31 @@ int add_error(Session *sess, Status error)
     char error_msg[MAX_ERROR_MSG_SIZE];
 
     snprintf(error_msg, MAX_ERROR_MSG_SIZE, "Error %d: %s", error.error_code, error.msg);    
-    free_status(error);
+    st_free_status(error);
 
-    if (!bufferpos_at_buffer_start(error_buffer->pos)) {
-        insert_character(error_buffer, "\n", 1);
+    if (!bp_at_buffer_start(&error_buffer->pos)) {
+        bf_insert_character(error_buffer, "\n", 1);
     }
 
-    insert_string(error_buffer, error_msg, strnlen(error_msg, MAX_ERROR_MSG_SIZE), 1);
+    bf_insert_string(error_buffer, error_msg, strnlen(error_msg, MAX_ERROR_MSG_SIZE), 1);
 
     return 1;
 }
 
-int has_errors(Session *sess)
+int se_has_errors(const Session *sess)
 {
-    return !buffer_is_empty(sess->error_buffer);
+    return !bf_is_empty(sess->error_buffer);
 }
 
-void clear_errors(Session *sess)
+void se_clear_errors(Session *sess)
 {
-    clear_buffer(sess->error_buffer);
+    bf_clear(sess->error_buffer);
 }
 
-int add_msg(Session *sess, const char *msg)
+int se_add_msg(Session *sess, const char *msg)
 {
+    assert(!is_null_or_empty(msg));
+
     if (msg == NULL) {
         return 0; 
     } else if (!sess->msgs_enabled) {
@@ -327,105 +345,104 @@ int add_msg(Session *sess, const char *msg)
 
     Buffer *msg_buffer = sess->msg_buffer;
 
-    if (!bufferpos_at_buffer_start(msg_buffer->pos)) {
-        insert_character(msg_buffer, "\n", 1);
+    if (!bp_at_buffer_start(&msg_buffer->pos)) {
+        bf_insert_character(msg_buffer, "\n", 1);
     }
 
-    insert_string(msg_buffer, msg, strnlen(msg, MAX_MSG_SIZE), 1);
+    bf_insert_string(msg_buffer, msg, strnlen(msg, MAX_MSG_SIZE), 1);
 
     return 1;
 }
 
-int has_msgs(Session *sess)
+int se_has_msgs(const Session *sess)
 {
-    return !buffer_is_empty(sess->msg_buffer);
+    return !bf_is_empty(sess->msg_buffer);
 }
 
-void clear_msgs(Session *sess)
+void se_clear_msgs(Session *sess)
 {
-    clear_buffer(sess->msg_buffer);
+    bf_clear(sess->msg_buffer);
 }
 
-Status add_new_buffer(Session *sess, const char *file_path)
+Status se_add_new_buffer(Session *sess, const char *file_path)
 {
     if (file_path == NULL || strnlen(file_path, 1) == 0) {
-        return get_error(ERR_INVALID_FILE_PATH, "Invalid file path - \"%s\"", file_path);
+        return st_get_error(ERR_INVALID_FILE_PATH, "Invalid file path - \"%s\"", file_path);
     }
 
     FileInfo file_info;
     Buffer *buffer = NULL;
     Status status;
 
-    RETURN_IF_FAIL(init_fileinfo(&file_info, file_path));
+    RETURN_IF_FAIL(fi_init(&file_info, file_path));
 
-    if (file_is_directory(file_info)) {
-        status = get_error(ERR_FILE_IS_DIRECTORY, "%s is a directory", file_info.file_name);
+    if (fi_is_directory(&file_info)) {
+        status = st_get_error(ERR_FILE_IS_DIRECTORY, "%s is a directory", file_info.file_name);
         goto cleanup;
-    } else if (file_is_special(file_info)) {
-        status = get_error(ERR_FILE_IS_SPECIAL, "%s is not a regular file", file_info.file_name);
+    } else if (fi_is_special(&file_info)) {
+        status = st_get_error(ERR_FILE_IS_SPECIAL, "%s is not a regular file", file_info.file_name);
         goto cleanup;
     }
 
-    buffer = new_buffer(file_info);
+    buffer = bf_new(&file_info);
 
     if (buffer == NULL) {
-        status = get_error(ERR_OUT_OF_MEMORY, 
+        status = st_get_error(ERR_OUT_OF_MEMORY, 
                            "Out of memory - Unable to "
                            "create buffer for file %s", 
                            file_info.file_name);
         goto cleanup;
     }
 
-    status = load_buffer(buffer);
+    status = bf_load_file(buffer);
 
     if (!STATUS_IS_SUCCESS(status)) {
         goto cleanup;
     }
 
-    add_buffer(sess, buffer);
+    se_add_buffer(sess, buffer);
 
     return STATUS_SUCCESS;
 
 cleanup:
-    free_fileinfo(file_info);
-    free_buffer(buffer);
+    fi_free(&file_info);
+    bf_free(buffer);
 
     return status;
 }
 
-Status add_new_empty_buffer(Session *sess)
+Status se_add_new_empty_buffer(Session *sess)
 {
     char empty_buf_name[MAX_EMPTY_BUFFER_NAME_SIZE];
     snprintf(empty_buf_name, MAX_EMPTY_BUFFER_NAME_SIZE, "[new %zu]", ++sess->empty_buffer_num);
 
-    Buffer *buffer = new_empty_buffer(empty_buf_name);
+    Buffer *buffer = bf_new_empty(empty_buf_name);
 
     if (buffer == NULL) {
-        return get_error(ERR_OUT_OF_MEMORY, 
+        return st_get_error(ERR_OUT_OF_MEMORY, 
                          "Out of memory - Unable to "
                          "create empty buffer");
     }   
 
-    add_buffer(sess, buffer);
+    se_add_buffer(sess, buffer);
 
     return STATUS_SUCCESS;
 }
 
-Status get_buffer_index(Session *sess, const char *file_path, int *buffer_index_ptr)
+Status se_get_buffer_index(const Session *sess, const char *file_path, int *buffer_index_ptr)
 {
-    if (file_path == NULL || strnlen(file_path, 1) == 0 || buffer_index_ptr == NULL) {
-        return STATUS_SUCCESS;
-    }
+    assert(is_null_or_empty(file_path));
+    assert(buffer_index_ptr != NULL);
 
     FileInfo file_info;
-    RETURN_IF_FAIL(init_fileinfo(&file_info, file_path));
+    RETURN_IF_FAIL(fi_init(&file_info, file_path));
 
     Buffer *buffer = sess->buffers;
     *buffer_index_ptr = -1;
     int buffer_index = 0;
 
     while (buffer != NULL) {
-        if (file_info_equal(buffer->file_info, file_info)) {
+        if (fi_equal(&buffer->file_info, &file_info)) {
             *buffer_index_ptr = buffer_index; 
             break;
         } 
@@ -434,7 +451,7 @@ Status get_buffer_index(Session *sess, const char *file_path, int *buffer_index_
         buffer_index++;
     }
 
-    free_fileinfo(file_info);
+    fi_free(&file_info);
 
     return STATUS_SUCCESS;
 }

@@ -33,8 +33,8 @@
 
 #define MAX_KEY_STR_SIZE 50
 
-static void handle_keypress(Session *, TermKeyKey *, char *, int *);
-static void handle_error(Session *);
+static void ip_handle_keypress(Session *, TermKeyKey *, char *, int *);
+static void ip_handle_error(Session *);
 
 static TermKey *termkey = NULL;
 static int volatile window_resize_required = 0;
@@ -46,7 +46,7 @@ static void sigwinch_handler(int signal)
     window_resize_required = 1;
 }
 
-void edit(Session *sess)
+void ip_edit(Session *sess)
 {
     termkey = termkey_new(STDIN_FILENO, TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
 
@@ -70,16 +70,16 @@ void edit(Session *sess)
 
     init_display();
     init_all_window_info(sess);
-    handle_error(sess);
+    ip_handle_error(sess);
     update_display(sess);
 
-    process_input(sess);
+    ip_process_input(sess);
 
     end_display();
     termkey_destroy(termkey);
 }
 
-void process_input(Session *sess)
+void ip_process_input(Session *sess)
 {
     char keystr[MAX_KEY_STR_SIZE];
     TermKeyResult ret;
@@ -109,7 +109,7 @@ void process_input(Session *sess)
             /* TODO Handle general failure of pselect */
         } else if (pselect_res == 0) {
             if (termkey_getkey_force(termkey, &key) == TERMKEY_RES_KEY) {
-                handle_keypress(sess, &key, keystr, &finished);
+                ip_handle_keypress(sess, &key, keystr, &finished);
                 timeout = NULL;
             }
         } else if (pselect_res > 0) {
@@ -118,7 +118,7 @@ void process_input(Session *sess)
             }
 
             while ((ret = termkey_getkey(termkey, &key)) == TERMKEY_RES_KEY) {
-                handle_keypress(sess, &key, keystr, &finished);
+                ip_handle_keypress(sess, &key, keystr, &finished);
             }
 
             if (ret == TERMKEY_RES_AGAIN) {
@@ -129,25 +129,25 @@ void process_input(Session *sess)
     }
 }
 
-static void handle_keypress(Session *sess, TermKeyKey *key, char *keystr, int *finished)
+static void ip_handle_keypress(Session *sess, TermKeyKey *key, char *keystr, int *finished)
 {
     termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE, key, TERMKEY_FORMAT_VIM);
-    add_error(sess, do_command(sess, keystr, finished));
-    handle_error(sess);
+    se_add_error(sess, cm_do_command(sess, keystr, finished));
+    ip_handle_error(sess);
 
     if (!*finished) {
         update_display(sess);
     }
 }
 
-static void handle_error(Session *sess)
+static void ip_handle_error(Session *sess)
 {
-    if (!has_errors(sess)) {
+    if (!se_has_errors(sess)) {
         return;
     }
 
     TermKeyKey key;
     draw_errors(sess);
     termkey_waitkey(termkey, &key);
-    clear_errors(sess);
+    se_clear_errors(sess);
 }

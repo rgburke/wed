@@ -43,7 +43,7 @@ int parse_args(int argc, char *argv[], Session *sess)
  * print an error message to stderr. */
 int main(int argc, char *argv[])
 {
-    Session *sess = new_session();
+    Session *sess = se_new();
 
     if (sess == NULL) {
         fatal("Out of memory - Unable to create Session");
@@ -55,18 +55,18 @@ int main(int argc, char *argv[])
 
     setlocale(LC_ALL, "");
 
-    if (!STATUS_IS_SUCCESS(init_config())) {
+    if (!STATUS_IS_SUCCESS(cf_init_config())) {
         fatal("Unable to initialise config");
     }
 
-    if (!init_session(sess, argv, argc)) {
+    if (!se_init(sess, argv, argc)) {
         fatal("Unable to initialise session");
     }
 
-    edit(sess);
+    ip_edit(sess);
 
-    free_session(sess);
-    end_config();
+    se_free(sess);
+    cf_end_config();
     
     return 0;
 }

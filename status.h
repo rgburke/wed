@@ -23,12 +23,24 @@
 #include <stdarg.h>
 
 #define RETURN_IF_NULL(ptr) if ((ptr) == NULL) { return NULL; }
-#define STATUS_ERROR(ecode, emsg, emliteral) (Status)\
-                    { .error_code = (ecode), .msg = (emsg), .msg_literal = (emliteral) }
+
+#define STATUS_ERROR(ecode, emsg, emliteral) \
+                        (Status) { \
+                            .error_code = (ecode), \
+                            .msg = (emsg), \
+                            .msg_literal = (emliteral) \
+                        }
+
 #define STATUS_SUCCESS STATUS_ERROR(ERR_NONE, NULL, 0)
+
 #define STATUS_IS_SUCCESS(status) ((status).error_code == ERR_NONE)
-#define RETURN_IF_FAIL(status) { Status _wed_status = (status);\
-                               if (!STATUS_IS_SUCCESS(_wed_status)) return _wed_status; }
+
+#define RETURN_IF_FAIL(status) { \
+                                   Status _wed_status = (status);\
+                                   if (!STATUS_IS_SUCCESS(_wed_status)) { \
+                                       return _wed_status; \
+                                   } \
+                               }
 
 #define STATUS_QUEUE_MAX_SIZE 10
 #define MAX_ERROR_MSG_SIZE 1024
@@ -68,9 +80,9 @@ typedef struct {
     int msg_literal;
 } Status;
 
-Status get_error(ErrorCode, const char *, ...);
-Status get_custom_error(ErrorCode, const char *, va_list);
-void free_status(Status);
+Status st_get_error(ErrorCode, const char *, ...);
+Status st_get_custom_error(ErrorCode, const char *, va_list);
+void st_free_status(Status);
 
 #endif
 

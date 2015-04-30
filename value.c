@@ -18,6 +18,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 #include "value.h"
 #include "util.h"
 #include "status.h"
@@ -31,12 +32,14 @@ static const char *value_types[] = {
     "String"
 };
 
-const char *get_value_type(Value value)
+const char *va_get_value_type(Value value)
 {
+    assert(value.type < (sizeof(value_types) / sizeof(char *)));
+
     return value_types[value.type];
 }
 
-Status deep_copy_value(Value value, Value *new_val)
+Status va_deep_copy_value(Value value, Value *new_val)
 {
     *new_val = value;
 
@@ -47,13 +50,13 @@ Status deep_copy_value(Value value, Value *new_val)
     new_val->val.sval = strdupe(value.val.sval);
 
     if (new_val->val.sval == NULL) {
-        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to copy value");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to copy value");
     }
 
     return STATUS_SUCCESS;
 }
 
-char *to_string(Value value)
+char *va_to_string(Value value)
 {
     switch (value.type) {
         case VAL_TYPE_STR:
@@ -82,7 +85,7 @@ char *to_string(Value value)
     return NULL;
 }
 
-void free_value(Value value)
+void va_free_value(Value value)
 {
     if (value.type != VAL_TYPE_STR || value.val.sval == NULL) {
         return;

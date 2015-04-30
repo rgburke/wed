@@ -41,19 +41,19 @@ typedef struct {
     FileAttributes file_attrs;
 } FileInfo;
 
-Status init_fileinfo(FileInfo *, const char *);
-int init_empty_fileinfo(FileInfo *, const char *);
-void free_fileinfo(FileInfo);
-int file_is_directory(FileInfo);
-int file_is_special(FileInfo);
-int file_exists(FileInfo);
-int has_file_path(FileInfo);
-int check_file_exists(FileInfo *);
-int can_read_file(FileInfo);
-int check_can_read_file(FileInfo *);
-int can_write_file(FileInfo);
-int check_can_write_file(FileInfo *);
-int refresh_file_attributes(FileInfo *);
-int file_info_equal(FileInfo, FileInfo);
+Status fi_init(FileInfo *, const char *);
+int fi_init_empty(FileInfo *, const char *);
+void fi_free(FileInfo *);
+int fi_is_directory(const FileInfo *);
+int fi_is_special(const FileInfo *);
+int fi_file_exists(const FileInfo *);
+int fi_has_file_path(const FileInfo *);
+int fi_check_file_exists(FileInfo *);
+int fi_can_read_file(const FileInfo *);
+int fi_check_can_read_file(FileInfo *);
+int fi_can_write_file(const FileInfo *);
+int fi_check_can_write_file(FileInfo *);
+int fi_refresh_file_attributes(FileInfo *);
+int fi_equal(const FileInfo *, const FileInfo *);
 
 #endif

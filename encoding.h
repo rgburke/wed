@@ -48,6 +48,6 @@ typedef struct {
 
 typedef CharacterEncodingFunctions CEF;
 
-int init_char_enc_funcs(CharacterEncodingType, CharacterEncodingFunctions *);
+int en_init_char_enc_funcs(CharacterEncodingType, CharacterEncodingFunctions *);
 
 #endif

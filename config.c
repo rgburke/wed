@@ -22,6 +22,7 @@
 #include <ctype.h>
 #include <limits.h>
 #include <errno.h>
+#include <assert.h>
 #include "config.h"
 #include "value.h"
 #include "hashmap.h"
@@ -41,55 +42,54 @@
 static Session *curr_sess = NULL;
 static HashMap *config_vars = NULL;
 
-static int is_valid_var(const char *);
-static ConfigVariableDescriptor *clone_config_var_descriptor(const char *);
-static int populate_default_config(HashMap *);
-static const ConfigVariableDescriptor *get_variable(const char *);
-static Status set_config_var(HashMap *, char *, Value);
-static Status tabwidth_validator(Value);
-static Status on_tabwidth_change(Session *, Value, Value);
+static int cf_is_valid_var(const char *);
+static ConfigVariableDescriptor *cf_clone_config_var_descriptor(const char *);
+static int cf_populate_default_config(HashMap *);
+static const ConfigVariableDescriptor *cf_get_variable(const char *);
+static Status cf_set_config_var(HashMap *, char *, Value);
+static Status cf_tabwidth_validator(Value);
 
 static const ConfigVariableDescriptor default_config[] = {
     { "linewrap", "lw", BOOL_VAL_STRUCT(1), NULL              , NULL               },
     { "lineno"  , "ln", BOOL_VAL_STRUCT(1), NULL              , NULL               },
-    { "tabwidth", "tw", INT_VAL_STRUCT(8) , tabwidth_validator, on_tabwidth_change }
+    { "tabwidth", "tw", INT_VAL_STRUCT(8) , cf_tabwidth_validator, NULL               }
 };
 
-void set_config_session(Session *sess)
+void cf_set_config_session(Session *sess)
 {
     curr_sess = sess;
 }
 
-Status init_config(void)
+Status cf_init_config(void)
 {
     size_t var_num = sizeof(default_config) / sizeof(ConfigVariableDescriptor);
     config_vars = new_sized_hashmap(var_num * 4);
 
-    if (!populate_default_config(config_vars)) {
-        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to load config");
+    if (!cf_populate_default_config(config_vars)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to load config");
     }
 
     return STATUS_SUCCESS;
 }
 
-void end_config(void)
+void cf_end_config(void)
 {
-    free_config(config_vars); 
+    cf_free_config(config_vars); 
 }
 
-static int is_valid_var(const char *var_name)
+static int cf_is_valid_var(const char *var_name)
 {
     return hashmap_get(config_vars, var_name) != NULL;
 }
 
-static ConfigVariableDescriptor *clone_config_var_descriptor(const char *var_name)
+static ConfigVariableDescriptor *cf_clone_config_var_descriptor(const char *var_name)
 {
     ConfigVariableDescriptor *var = hashmap_get(config_vars, var_name);
     ConfigVariableDescriptor *clone = malloc(sizeof(ConfigVariableDescriptor));
     RETURN_IF_NULL(clone);
     memcpy(clone, var, sizeof(ConfigVariableDescriptor));
 
-    if (!STATUS_IS_SUCCESS(deep_copy_value(clone->default_value, &clone->default_value))) {
+    if (!STATUS_IS_SUCCESS(va_deep_copy_value(clone->default_value, &clone->default_value))) {
         free(clone);
         return NULL;
     }
@@ -97,7 +97,7 @@ static ConfigVariableDescriptor *clone_config_var_descriptor(const char *var_nam
     return clone;
 }
 
-Status init_session_config(Session *sess)
+Status cf_init_session_config(Session *sess)
 {
     HashMap *config = sess->config;
 
@@ -106,14 +106,14 @@ Status init_session_config(Session *sess)
         config = sess->config = new_sized_hashmap(var_num * 4);
     }
 
-    if (!populate_default_config(config)) {
-        return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to load config");
+    if (!cf_populate_default_config(config)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to load config");
     }
     
     char *system_config_path = CFG_SYSTEM_DIR "/" CFG_FILE_NAME;
 
     if (access(system_config_path, F_OK) != -1) {
-        add_error(sess, load_config(sess, system_config_path));
+        se_add_error(sess, cf_load_config(sess, system_config_path));
     }
 
     Status status = STATUS_SUCCESS;
@@ -125,14 +125,14 @@ Status init_session_config(Session *sess)
         char *user_config_path = malloc(user_config_path_size);
 
         if (user_config_path == NULL) {
-            return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to check for config file in HOME directory"); 
+            return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to check for config file in HOME directory"); 
         }
 
         snprintf(user_config_path, user_config_path_size, "%s/.%s", home_path, CFG_FILE_NAME);
         *(user_config_path + user_config_path_size - 1) = '\0';
 
         if (access(user_config_path, F_OK) != -1) {
-            status = load_config(sess, user_config_path);
+            status = cf_load_config(sess, user_config_path);
         }
 
         free(user_config_path);
@@ -141,7 +141,7 @@ Status init_session_config(Session *sess)
     return status;
 }
 
-void free_config(HashMap *config)
+void cf_free_config(HashMap *config)
 {
     if (config == NULL) {
         return;
@@ -157,14 +157,14 @@ void free_config(HashMap *config)
             continue;
         }
 
-        free_value(cvd->default_value);
+        va_free_value(cvd->default_value);
         free(cvd);
     }
 
     free_hashmap(config);
 }
 
-static int populate_default_config(HashMap *config)
+static int cf_populate_default_config(HashMap *config)
 {
     size_t var_num = sizeof(default_config) / sizeof(ConfigVariableDescriptor);
     ConfigVariableDescriptor *clone;
@@ -178,7 +178,7 @@ static int populate_default_config(HashMap *config)
 
         memcpy(clone, &default_config[k], sizeof(ConfigVariableDescriptor));
 
-        if (!STATUS_IS_SUCCESS(deep_copy_value(clone->default_value, &clone->default_value))) {
+        if (!STATUS_IS_SUCCESS(va_deep_copy_value(clone->default_value, &clone->default_value))) {
             return 0;
         }
 
@@ -191,48 +191,48 @@ static int populate_default_config(HashMap *config)
     return 1;
 }
 
-Status load_config(Session *sess, char *config_file_path)
+Status cf_load_config(Session *sess, char *config_file_path)
 {
-    return parse_config_file(sess, CL_SESSION, config_file_path);
+    return cp_parse_config_file(sess, CL_SESSION, config_file_path);
 }
 
-Status set_var(Session *sess, ConfigLevel config_level, char *var_name, Value value)
+Status cf_set_var(Session *sess, ConfigLevel config_level, char *var_name, Value value)
 {
     if (config_level == CL_SESSION) {
-        return set_session_var(sess, var_name, value);
+        return cf_set_session_var(sess, var_name, value);
     }
 
-    return set_buffer_var(sess->active_buffer, var_name, value);
+    return cf_set_buffer_var(sess->active_buffer, var_name, value);
 }
 
-Status set_session_var(Session *sess, char *var_name, Value value)
+Status cf_set_session_var(Session *sess, char *var_name, Value value)
 {
-    return set_config_var(sess->config, var_name, value);
+    return cf_set_config_var(sess->config, var_name, value);
 }
 
-Status set_buffer_var(Buffer *buffer, char *var_name, Value value)
+Status cf_set_buffer_var(Buffer *buffer, char *var_name, Value value)
 {
-    return set_config_var(buffer->config, var_name, value);
+    return cf_set_config_var(buffer->config, var_name, value);
 }
 
-static Status set_config_var(HashMap *config, char *var_name, Value value)
+static Status cf_set_config_var(HashMap *config, char *var_name, Value value)
 {
     if (config == NULL || var_name == NULL) {
-        return get_error(ERR_INVALID_VAR, "Invalid property");
+        return st_get_error(ERR_INVALID_VAR, "Invalid property");
     }
 
-    if (!is_valid_var(var_name)) {
-        return get_error(ERR_INVALID_VAR, "Invalid property %s", var_name);
+    if (!cf_is_valid_var(var_name)) {
+        return st_get_error(ERR_INVALID_VAR, "Invalid property %s", var_name);
     }
 
     ConfigVariableDescriptor *var = hashmap_get(config, var_name);
     int existing_var = (var != NULL);
 
     if (!existing_var) {
-        var = clone_config_var_descriptor(var_name);
+        var = cf_clone_config_var_descriptor(var_name);
 
         if (var == NULL) {
-            return get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to set config value");
+            return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to set config value");
         }
     }
 
@@ -241,8 +241,8 @@ static Status set_config_var(HashMap *config, char *var_name, Value value)
             value.type = VAL_TYPE_BOOL; 
             value.val.ival = value.val.ival ? 1 : 0;
         } else {
-            return get_error(ERR_INVALID_VAL, "%s must have value of type %s", 
-                             var->name, get_value_type(var->default_value));
+            return st_get_error(ERR_INVALID_VAL, "%s must have value of type %s", 
+                             var->name, va_get_value_type(var->default_value));
         }
     }
 
@@ -264,18 +264,18 @@ static Status set_config_var(HashMap *config, char *var_name, Value value)
         status = var->on_change_event(curr_sess, old_value, value);
     }
 
-    free_value(old_value);
+    va_free_value(old_value);
 
     char config_msg[MAX_MSG_SIZE];
-    char *value_str = to_string(value);
+    char *value_str = va_to_string(value);
     snprintf(config_msg, MAX_MSG_SIZE, "Set %s=%s", var->name, value_str);
     free(value_str);
-    add_msg(curr_sess, config_msg);
+    se_add_msg(curr_sess, config_msg);
 
     return status;
 }
 
-static const ConfigVariableDescriptor *get_variable(const char *var_name)
+static const ConfigVariableDescriptor *cf_get_variable(const char *var_name)
 {
     Buffer *buffer = curr_sess->active_buffer;
 
@@ -292,65 +292,50 @@ static const ConfigVariableDescriptor *get_variable(const char *var_name)
     return var;
 }
 
-Status print_var(Session *sess, const char *var_name)
+Status cf_print_var(Session *sess, const char *var_name)
 {
     if (var_name == NULL) {
-        return get_error(ERR_INVALID_VAR, "Invalid property");
-    } else if (!is_valid_var(var_name)) {
-        return get_error(ERR_INVALID_VAR, "Invalid property %s", var_name);
+        return st_get_error(ERR_INVALID_VAR, "Invalid property");
+    } else if (!cf_is_valid_var(var_name)) {
+        return st_get_error(ERR_INVALID_VAR, "Invalid property %s", var_name);
     }
 
-    const ConfigVariableDescriptor *var = get_variable(var_name);
+    const ConfigVariableDescriptor *var = cf_get_variable(var_name);
 
     char var_msg[MAX_MSG_SIZE];
-    char *value_str = to_string(var->default_value);
+    char *value_str = va_to_string(var->default_value);
     snprintf(var_msg, MAX_MSG_SIZE, "%s=%s", var->name, value_str);
     free(value_str);
-    add_msg(sess, var_msg);
+    se_add_msg(sess, var_msg);
 
     return STATUS_SUCCESS;
 }
 
-int config_bool(char *var_name)
+int cf_bool(char *var_name)
 {
-    const ConfigVariableDescriptor *var = get_variable(var_name);
+    const ConfigVariableDescriptor *var = cf_get_variable(var_name);
 
-    if (var == NULL || var->default_value.type != VAL_TYPE_BOOL) {
-        /* TODO Add error to session error queue */
-        return 0;
-    }
+    assert(var != NULL);
+    assert(var->default_value.type == VAL_TYPE_BOOL);
 
     return var->default_value.val.ival;
 }
 
-long config_int(char *var_name)
+long cf_int(char *var_name)
 {
-    const ConfigVariableDescriptor *var = get_variable(var_name);
+    const ConfigVariableDescriptor *var = cf_get_variable(var_name);
 
-    if (var == NULL || var->default_value.type != VAL_TYPE_INT) {
-        /* TODO Add error to session error queue */
-        return 0;
-    }
+    assert(var != NULL);
+    assert(var->default_value.type == VAL_TYPE_INT);
 
     return var->default_value.val.ival;
 }
 
-static Status tabwidth_validator(Value value)
+static Status cf_tabwidth_validator(Value value)
 {
     if (value.val.ival < CFG_TABWIDTH_MIN || value.val.ival > CFG_TABWIDTH_MAX) {
-        return get_error(ERR_INVALID_TABWIDTH, "tabwidth value must be in range %d - %d inclusive",
+        return st_get_error(ERR_INVALID_TABWIDTH, "tabwidth value must be in range %d - %d inclusive",
                          CFG_TABWIDTH_MIN, CFG_TABWIDTH_MAX);
-    }
-
-    return STATUS_SUCCESS;
-}
-
-static Status on_tabwidth_change(Session *sess, Value old_value, Value new_value)
-{
-    (void)sess;
-
-    if (old_value.val.ival == new_value.val.ival) {
-        return STATUS_SUCCESS;
     }
 
     return STATUS_SUCCESS;

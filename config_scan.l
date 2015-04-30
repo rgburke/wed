@@ -26,7 +26,7 @@ static int yycolumn = 1;
 static YY_BUFFER_STATE buf_state;
 
 #define YY_DECL int yylex(Session *sess, const char *file_path)
-#define YY_USER_ACTION update_parser_location(&yycolumn, yylineno, yyleng);
+#define YY_USER_ACTION cp_update_parser_location(&yycolumn, yylineno, yyleng);
 
 %}
 
@@ -46,16 +46,16 @@ true|false      { yylval.string = strdupe(yytext); return TKN_BOOLEAN; }
 [[:alpha:]_]+   { yylval.string = strdupe(yytext); return TKN_NAME;    }
 "="             { return TKN_ASSIGN;     }
 ";"             { return TKN_SEMI_COLON; }
-.               { add_error(sess, get_config_error(ERR_INVALID_CONFIG_CHARACTERS, file_path, "Invalid character \"%s\"", yytext)); }
+.               { se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_CHARACTERS, file_path, "Invalid character \"%s\"", yytext)); }
 
 %%
 
-void start_scan_string(const char *str)
+void cp_start_scan_string(const char *str)
 {
     buf_state = yy_scan_string(str);
 }
 
-void finish_scan_string(void)
+void cp_finish_scan_string(void)
 {
     yy_delete_buffer(buf_state);
 }

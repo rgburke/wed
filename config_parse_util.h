@@ -60,23 +60,22 @@ struct StatementNode {
     StatementNode *next;
 };
 
-ValueNode *new_valuenode(Value);
-VariableNode *new_variablenode(const char *);
-ExpressionNode *new_expressionnode(ASTNodeType, ASTNode *, ASTNode *);
-StatementNode *new_statementnode(ASTNode *);
-int convert_to_bool_value(const char *, Value *);
-int convert_to_int_value(const char *, Value *);
-int convert_to_string_value(const char *, Value *);
-int add_statement_to_list(ASTNode *, ASTNode *);
-int eval_ast(Session *, ConfigLevel, ASTNode *);
-void free_ast(ASTNode *);
-void print_ast(ASTNode *);
-void update_parser_location(int *, int, int);
-Status get_config_error(ErrorCode, const char *, const char *, ...);
+ValueNode *cp_new_valuenode(Value);
+VariableNode *cp_new_variablenode(const char *);
+ExpressionNode *cp_new_expressionnode(ASTNodeType, ASTNode *, ASTNode *);
+StatementNode *cp_new_statementnode(ASTNode *);
+int cp_convert_to_bool_value(const char *, Value *);
+int cp_convert_to_int_value(const char *, Value *);
+int cp_convert_va_to_string_value(const char *, Value *);
+int cp_add_statement_to_list(ASTNode *, ASTNode *);
+int cp_eval_ast(Session *, ConfigLevel, ASTNode *);
+void cp_free_ast(ASTNode *);
+void cp_update_parser_location(int *, int, int);
+Status cp_get_config_error(ErrorCode, const char *, const char *, ...);
 void yyerror(Session *, ConfigLevel, const char *, char const *);
-Status parse_config_file(Session *, ConfigLevel, const char *);
-Status parse_config_string(Session *, ConfigLevel, const char *);
-void start_scan_string(const char *);
-void finish_scan_string(void);
+Status cp_parse_config_file(Session *, ConfigLevel, const char *);
+Status cp_parse_config_string(Session *, ConfigLevel, const char *);
+void cp_start_scan_string(const char *);
+void cp_finish_scan_string(void);
 
 #endif

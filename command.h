@@ -34,8 +34,8 @@ typedef struct {
     CommandType cmd_type; /* What type of action does this command perform */
 } Command;
 
-int init_keymap(Session *);
-void free_keymap(Session *);
-Status do_command(Session *, const char *, int *);
+int cm_init_keymap(Session *);
+void cm_free_keymap(Session *);
+Status cm_do_command(Session *, const char *, int *);
 
 #endif

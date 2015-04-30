@@ -23,7 +23,7 @@
 #include "encoding.h"
 
 struct BufferPos {
-    GapBuffer *data;
+    const GapBuffer *data;
     const CEF *cef;
     size_t offset;
     size_t line_no;
@@ -32,7 +32,7 @@ struct BufferPos {
 
 typedef struct BufferPos BufferPos;
 
-int bp_init(BufferPos *, GapBuffer *, const CEF *);
+int bp_init(BufferPos *, const GapBuffer *, const CEF *);
 char bp_get_char(const BufferPos *);
 unsigned char bp_get_uchar(const BufferPos *);
 int bp_compare(const BufferPos *, const BufferPos *);

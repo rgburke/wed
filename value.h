@@ -45,10 +45,10 @@ typedef struct {
 #define STR_VAL(svalue)  (Value) STR_VAL_STRUCT(svalue)
 #define BOOL_VAL(bvalue) (Value) BOOL_VAL_STRUCT(bvalue)
 
-const char *get_value_type(Value);
-Status deep_copy_value(Value, Value *);
-char *to_string(Value);
-void free_value(Value);
+const char *va_get_value_type(Value);
+Status va_deep_copy_value(Value, Value *);
+char *va_to_string(Value);
+void va_free_value(Value);
 
 #endif
 

@@ -1,5 +1,5 @@
 CC=cc
-CFLAGS=-c -std=c99 -Wall -Wextra -Werror -pedantic -g -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
+CFLAGS=-c -std=c99 -Wall -Wextra -pedantic -O2 -DNDEBUG -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
 LDFLAGS=-lncursesw
 LEX=lex
 YACC=yacc
@@ -9,7 +9,16 @@ LIBTERMKEYLIB=libtermkey.a
 OBJECTS=$(SOURCES:.c=.o)
 BINARY=wed
 
+ifeq ($(.DEFAULT_GOAL),)
+ifeq ($(DEBUG),1)
+.DEFAULT_GOAL := dev
+endif
+endif
+
 all: $(SOURCES) libtermkey $(BINARY)
+
+dev: CFLAGS=-c -std=c99 -Wall -Wextra -Werror -pedantic -g -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
+dev: all
 
 $(BINARY): $(OBJECTS)
 	$(CC) $(OBJECTS) $(LIBTERMKEYDIR)/$(LIBTERMKEYLIB) -o $@ $(LDFLAGS)
