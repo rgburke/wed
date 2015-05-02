@@ -1,4 +1,6 @@
 *.o
+*.d
+*.t
 *.lo
 *.so*
 *.la*
@@ -6,6 +8,7 @@
 .*.sw*
 tags
 wed
+test
 demo
 demo-async
 demo-glib

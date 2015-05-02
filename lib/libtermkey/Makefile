@@ -5,6 +5,7 @@ SOURCES=termkey.c driver-ti.c driver-csi.c
 OBJECTS=$(SOURCES:.c=.o)
 LIBRARY=libtermkey.a
 
+.PHONY: all
 all: $(SOURCES) $(LIBRARY)
 
 $(LIBRARY): $(OBJECTS)
@@ -13,6 +14,7 @@ $(LIBRARY): $(OBJECTS)
 .c.o:
 	$(CC) $(CFLAGS) $< -o $@
 
+.PHONY: clean
 clean:
 	rm -rf *.o $(LIBRARY)
 

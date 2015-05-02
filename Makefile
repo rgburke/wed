@@ -1,12 +1,23 @@
 CC=cc
-CFLAGS=-c -std=c99 -Wall -Wextra -pedantic -O2 -DNDEBUG -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
+CFLAGS=-std=c99 -Wall -Wextra -pedantic -O2 -MMD -MP -DNDEBUG -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
 LDFLAGS=-lncursesw
 LEX=lex
 YACC=yacc
+AR=ar
+
 SOURCES=wed.c display.c buffer.c util.c input.c session.c status.c command.c file.c value.c list.c hashmap.c config.c encoding.c config_parse_util.c config_parse.c config_scan.c gap_buffer.c buffer_pos.c
-LIBTERMKEYDIR=lib/libtermkey
-LIBTERMKEYLIB=libtermkey.a
 OBJECTS=$(SOURCES:.c=.o)
+LIBOBJECTS=$(filter-out wed.o, $(OBJECTS))
+DEPENDENCIES=$(OBJECTS:.o=.d)
+
+TESTSOURCES=$(wildcard t/*.c)
+TESTOBJECTS=$(TESTSOURCES:.c=.t)
+TESTS=$(filter-out t/tap.t, $(TESTOBJECTS))
+TESTDEPENDENCIES=$(TESTSOURCES:.c=.d)
+
+LIBTERMKEYDIR=lib/libtermkey
+LIBTERMKEYLIB=$(LIBTERMKEYDIR)/libtermkey.a
+LIBWED=wedlib.a
 BINARY=wed
 
 ifeq ($(.DEFAULT_GOAL),)
@@ -15,19 +26,26 @@ ifeq ($(DEBUG),1)
 endif
 endif
 
-all: $(SOURCES) libtermkey $(BINARY)
+.PHONY: all
+all: $(SOURCES) $(BINARY)
 
-dev: CFLAGS=-c -std=c99 -Wall -Wextra -Werror -pedantic -g -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
-dev: all
+.PHONY: dev
+dev: CFLAGS=-std=c99 -Wall -Wextra -Werror -pedantic -g -MMD -MP -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
+dev: all test
 
-$(BINARY): $(OBJECTS)
-	$(CC) $(OBJECTS) $(LIBTERMKEYDIR)/$(LIBTERMKEYLIB) -o $@ $(LDFLAGS)
+$(BINARY): $(LIBTERMKEYLIB) $(LIBWED) wed.o
+	$(CC) wed.o $(LIBWED) $(LIBTERMKEYLIB) -o $@ $(LDFLAGS)
 
-libtermkey:
+$(LIBWED): $(OBJECTS)
+	$(AR) rcs $(LIBWED) $(LIBOBJECTS)
+
+$(LIBTERMKEYLIB):
 	make -C $(LIBTERMKEYDIR)
 
 .c.o:
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) -c $(CFLAGS) $< -o $@
+
+-include $(DEPENDENCIES)
 
 config_scan.o: config_scan.c config_parse.c
 
@@ -37,7 +55,21 @@ config_scan.c: config_scan.l
 config_parse.c: config_parse.y
 	$(YACC) -y -d -o $@ $^
 
-clean:
-	rm -rf *.o $(BINARY) config_parse.c config_parse.h config_scan.c
-	make -C $(LIBTERMKEYDIR) clean
+test: $(TESTS)
+	@echo Running tests:
+	@prove -e ""
+	@touch test
 
+-include $(TESTDEPENDENCIES)
+
+t/%.t: t/%.c t/tap.o $(LIBWED) $(LIBTERMKEYLIB)
+	$(CC) $(CFLAGS) $< t/tap.o $(LIBWED) $(LIBTERMKEYLIB) -o $@
+
+t/tap.o:
+	$(CC) -c $(CFLAGS) t/tap.c -o $@
+
+.PHONY: clean
+clean:
+	rm -f *.o *.d $(LIBWED) $(BINARY) config_parse.c config_parse.h config_scan.c
+	rm -f t/*.o t/*.t t/*.d
+	make -C $(LIBTERMKEYDIR) clean
