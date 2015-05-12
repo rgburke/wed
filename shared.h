@@ -33,4 +33,7 @@ typedef enum {
     WIN_STATUS
 } DrawWindow;
 
+typedef unsigned int uint;
+typedef unsigned char uchar;
+
 #endif

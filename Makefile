@@ -5,7 +5,7 @@ LEX=lex
 YACC=yacc
 AR=ar
 
-SOURCES=wed.c display.c buffer.c util.c input.c session.c status.c command.c file.c value.c list.c hashmap.c config.c encoding.c config_parse_util.c config_parse.c config_scan.c gap_buffer.c buffer_pos.c
+SOURCES=wed.c display.c buffer.c util.c input.c session.c status.c command.c file.c value.c list.c hashmap.c config.c encoding.c config_parse_util.c config_parse.c config_scan.c gap_buffer.c buffer_pos.c search.c
 OBJECTS=$(SOURCES:.c=.o)
 LIBOBJECTS=$(filter-out wed.o, $(OBJECTS))
 DEPENDENCIES=$(OBJECTS:.o=.d)

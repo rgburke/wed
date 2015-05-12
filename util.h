@@ -21,6 +21,9 @@
 
 #include <stddef.h>
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 void fatal(const char *);
 
 int roundup_div(size_t, size_t);

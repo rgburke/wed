@@ -17,6 +17,7 @@
  */
 
 #include "buffer_pos.h"
+#include "util.h"
 #include <assert.h>
 
 static void calc_new_col(BufferPos *, size_t);
@@ -207,16 +208,19 @@ static void calc_new_col(BufferPos *pos, size_t new_offset)
     }
 }
 
-void bp_next_line(BufferPos *pos)
+int bp_next_line(BufferPos *pos)
 {
     if (gb_find_next(pos->data, pos->offset, &pos->offset, '\n')) {
         pos->offset++;
         pos->line_no++;
         pos->col_no = 1;
+        return 1;
     }
+
+    return 0;
 }
 
-void bp_prev_line(BufferPos *pos)
+int bp_prev_line(BufferPos *pos)
 {
     size_t offset;
 
@@ -225,7 +229,10 @@ void bp_prev_line(BufferPos *pos)
         pos->offset = offset + 1;
         pos->line_no--;
         pos->col_no = 1;
+        return 1;
     }
+
+    return 0;
 }
 
 void bp_advance_to_col(BufferPos *pos, size_t col_no)
@@ -242,3 +249,68 @@ void bp_reverse_to_col(BufferPos *pos, size_t col_no)
     }
 }
 
+void bp_to_buffer_start(BufferPos *pos)
+{
+    pos->offset = 0;
+    pos->line_no = 1;
+    pos->col_no = 1;
+}
+
+void bp_to_buffer_end(BufferPos *pos)
+{
+    pos->offset = gb_length(pos->data);
+    pos->line_no = gb_lines(pos->data) + 1;
+    bp_recalc_col(pos);
+}
+
+void bp_advance_to_offset(BufferPos *pos, size_t offset)
+{
+    BufferPos tmp = *pos;
+    offset = MIN(offset, gb_length(pos->data));
+
+    while (tmp.offset < offset) {
+        *pos = tmp;
+
+        if (!bp_next_line(&tmp)) {
+            break;
+        }
+    }
+
+    pos->offset = offset;
+    bp_recalc_col(pos);
+}
+
+void bp_reverse_to_offset(BufferPos *pos, size_t offset)
+{
+    BufferPos tmp = *pos;
+
+    while (tmp.offset > offset) {
+        *pos = tmp;
+
+        if (!bp_prev_line(&tmp)) {
+            break;
+        }
+    }
+
+    pos->offset = offset;
+    bp_recalc_col(pos);
+}
+
+BufferPos bp_init_from_offset(size_t offset, const BufferPos *known_pos)
+{
+    size_t buffer_len = gb_length(known_pos->data);
+    offset = MIN(offset, buffer_len);
+    BufferPos pos = *known_pos;
+
+    if (known_pos->offset > offset &&
+        known_pos->offset - offset < offset) {
+        bp_reverse_to_offset(&pos, offset);    
+    } else if (known_pos->offset < offset) {
+        bp_advance_to_offset(&pos, offset);
+    } else if (known_pos->offset != offset) {
+        bp_to_buffer_start(&pos);
+        bp_advance_to_offset(&pos, offset);
+    }
+
+    return pos;
+}

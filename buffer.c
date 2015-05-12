@@ -95,6 +95,7 @@ void bf_free(Buffer *buffer)
         return;
     }
 
+    bs_free(&buffer->search);
     fi_free(&buffer->file_info);
     cf_free_config(buffer->config);
     gb_free(buffer->data);
@@ -396,6 +397,21 @@ static void bf_default_movement_selection_handler(Buffer *buffer, int is_select,
     } else if (bf_selection_started(buffer)) {
         bf_select_reset(buffer);
     }
+}
+
+Status bf_set_bp(Buffer *buffer, const BufferPos *pos)
+{
+    assert(pos->data == buffer->data);
+    assert(pos->offset <= gb_length(pos->data));
+
+    if (pos->data != buffer->data ||
+        pos->offset > gb_length(pos->data)) {
+        return st_get_error(ERR_INVALID_BUFFERPOS, "Invalid Buffer Position");
+    }
+
+    buffer->pos = *pos;
+
+    return STATUS_SUCCESS;
 }
 
 /* Move cursor up or down a line keeping the offset into the line the same 

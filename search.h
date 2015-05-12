@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Richard Burke
+ * Copyright (C) 2015 Richard Burke
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,37 +16,26 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_ENCODING_H
-#define WED_ENCODING_H
+#ifndef WED_SEARCH_H
+#define WED_SEARCH_H
 
-#include <stddef.h>
 #include "shared.h"
+#include "buffer_pos.h"
 
-struct BufferPos;
-
-typedef enum {
-    ENC_UTF8
-} CharacterEncodingType;
-
-typedef enum {
-    CIP_DEFAULT,
-    CIP_SCREEN_LENGTH   
-} CharInfoProperties;
+#define ALPHABET_SIZE 256
 
 typedef struct {
-    int is_valid;
-    size_t byte_length;
-    size_t screen_length;
-    int is_printable;
-} CharInfo;
+    char *pattern;
+    size_t pattern_len;
+    BufferPos start_pos;
+    BufferPos last_match_pos;
+    size_t bad_char_table[ALPHABET_SIZE];
+    int case_insensitive;
+} BufferSearch;
 
-typedef struct {
-    int (*char_info)(CharInfo *, CharInfoProperties, struct BufferPos);
-    size_t (*previous_char_offset)(struct BufferPos);
-} CharacterEncodingFunctions;
-
-typedef CharacterEncodingFunctions CEF;
-
-int en_init_char_enc_funcs(CharacterEncodingType, CharacterEncodingFunctions *);
+int bs_init(BufferSearch *, const char *, size_t, const BufferPos *, int);
+int bs_reinit(BufferSearch *, const char *, size_t, const BufferPos *, int);
+void bs_free(BufferSearch *);
+int bs_find_next(BufferSearch *);
 
 #endif

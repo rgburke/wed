@@ -28,6 +28,7 @@
 #include "encoding.h"
 #include "gap_buffer.h"
 #include "buffer_pos.h"
+#include "search.h"
 
 typedef enum {
     CCLASS_WHITESPACE,
@@ -82,6 +83,7 @@ struct Buffer {
     CharacterEncodingFunctions cef;
     int is_dirty;
     GapBuffer *data;
+    BufferSearch search;
 };
 
 Buffer *bf_new(const FileInfo *);
@@ -102,6 +104,7 @@ int bf_bp_at_screen_line_start(const BufferPos *, const WindowInfo *);
 int bf_bp_at_screen_line_end(const BufferPos *, const WindowInfo *);
 int bf_bp_move_past_buffer_extremes(const BufferPos *, Direction);
 int bf_selection_started(const Buffer *);
+Status bf_set_bp(Buffer *, const BufferPos *);
 Status bf_change_line(Buffer *, BufferPos *, Direction, int);
 Status bf_change_multi_line(Buffer *, BufferPos *, Direction, size_t, int);
 Status bf_change_char(Buffer *, BufferPos *, Direction, int);

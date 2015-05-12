@@ -52,7 +52,8 @@ static const ErrorCodeMsg default_error_messages[] = {
     { ERR_FAILED_TO_PARSE_CONFIG_FILE , "Failed to parse config file"       },
     { ERR_FAILED_TO_PARSE_CONFIG_INPUT, "Failed to parse config input"      },
     { ERR_INVALID_STREAM              , "Invalid stream"                    },
-    { ERR_INVALID_ARGUMENTS           , "Invalid arguments"                 }
+    { ERR_INVALID_ARGUMENTS           , "Invalid arguments"                 },
+    { ERR_INVALID_BUFFERPOS           , "Invalid Buffer Position"           }
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

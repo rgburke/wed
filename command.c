@@ -33,6 +33,7 @@
 #include "input.h"
 #include "config.h"
 #include "config_parse_util.h"
+#include "search.h"
 
 static void cm_free_command(void *);
 
@@ -56,6 +57,7 @@ static Status cm_buffer_copy_selected_text(Session *, Value, const char *, int *
 static Status cm_buffer_cut_selected_text(Session *, Value, const char *, int *);
 static Status cm_buffer_paste_text(Session *, Value, const char *, int *);
 static Status cm_buffer_save_file(Session *, Value, const char *, int *);
+static Status cm_buffer_find(Session *, Value, const char *, int *);
 static Status cm_session_open_file(Session *, Value, const char *, int *);
 static Status cm_session_add_empty_buffer(Session *, Value, const char *, int *);
 static Status cm_session_change_tab(Session *, Value, const char *, int *);
@@ -109,6 +111,7 @@ static const Command commands[] = {
     { "<C-x>"        , cm_buffer_cut_selected_text , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-v>"        , cm_buffer_paste_text        , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-s>"        , cm_buffer_save_file         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<C-f>"        , cm_buffer_find              , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-o>"        , cm_session_open_file        , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-n>"        , cm_session_add_empty_buffer , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
     { "<M-C-Right>"  , cm_session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
@@ -423,6 +426,51 @@ static Status cm_buffer_save_file(Session *sess, Value param, const char *keystr
 
     return status;
 }
+
+static Status cm_buffer_find(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    cm_cmd_input_prompt(sess, "Find:");
+
+    if (sess->cmd_prompt.cancelled) {
+        return STATUS_SUCCESS;
+    }
+
+    char *pattern = se_get_cmd_buffer_text(sess);
+
+    if (pattern == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+    } else if (*pattern == '\0') {
+        free(pattern);
+        return STATUS_SUCCESS;
+    } 
+
+    Buffer *buffer = sess->active_buffer;
+
+    if (!bs_reinit(&buffer->search, pattern, strlen(pattern), &buffer->pos, 1)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+    }
+
+    free(pattern);
+
+    if (bs_find_next(&buffer->search)) {
+        RETURN_IF_FAIL(bf_set_bp(buffer, &buffer->search.last_match_pos));
+
+        if (bp_compare(&buffer->search.last_match_pos, &buffer->search.start_pos) == -1) {
+            se_add_msg(sess, "Search wrapped");
+        }
+    } else {
+        char msg[MAX_MSG_SIZE];
+        snprintf(msg, MAX_MSG_SIZE, "Unable to find text: \"%s\"", buffer->search.pattern);
+        se_add_msg(sess, msg);
+    }
+
+    return STATUS_SUCCESS;
+}
+
 
 static Status cm_session_open_file(Session *sess, Value param, const char *keystr, int *finished)
 {

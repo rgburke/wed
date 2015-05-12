@@ -50,9 +50,14 @@ void bp_prev_char(BufferPos *);
 void bp_to_line_start(BufferPos *);
 void bp_to_line_end(BufferPos *);
 void bp_recalc_col(BufferPos *);
-void bp_next_line(BufferPos *);
-void bp_prev_line(BufferPos *);
+int bp_next_line(BufferPos *);
+int bp_prev_line(BufferPos *);
 void bp_advance_to_col(BufferPos *, size_t);
 void bp_reverse_to_col(BufferPos *, size_t);
+void bp_to_buffer_start(BufferPos *);
+void bp_to_buffer_end(BufferPos *);
+void bp_advance_to_offset(BufferPos *, size_t);
+void bp_reverse_to_offset(BufferPos *, size_t);
+BufferPos bp_init_from_offset(size_t, const BufferPos *);
 
 #endif
