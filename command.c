@@ -58,6 +58,8 @@ static Status cm_buffer_cut_selected_text(Session *, Value, const char *, int *)
 static Status cm_buffer_paste_text(Session *, Value, const char *, int *);
 static Status cm_buffer_save_file(Session *, Value, const char *, int *);
 static Status cm_buffer_find(Session *, Value, const char *, int *);
+static Status cm_buffer_find_next(Session *, Value, const char *, int *);
+static Status cm_buffer_find_prev(Session *, Value, const char *, int *);
 static Status cm_session_open_file(Session *, Value, const char *, int *);
 static Status cm_session_add_empty_buffer(Session *, Value, const char *, int *);
 static Status cm_session_change_tab(Session *, Value, const char *, int *);
@@ -112,6 +114,8 @@ static const Command commands[] = {
     { "<C-v>"        , cm_buffer_paste_text        , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-s>"        , cm_buffer_save_file         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-f>"        , cm_buffer_find              , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<F3>"         , cm_buffer_find_next         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<F15>"        , cm_buffer_find_prev         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-o>"        , cm_session_open_file        , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-n>"        , cm_session_add_empty_buffer , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
     { "<M-C-Right>"  , cm_session_change_tab       , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
@@ -450,18 +454,33 @@ static Status cm_buffer_find(Session *sess, Value param, const char *keystr, int
 
     Buffer *buffer = sess->active_buffer;
 
-    if (!bs_reinit(&buffer->search, pattern, strlen(pattern), &buffer->pos, 1)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+    if (!bs_reinit(&buffer->search, pattern, strlen(pattern), 1)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to init search");
     }
 
     free(pattern);
 
-    if (bs_find_next(&buffer->search)) {
-        RETURN_IF_FAIL(bf_set_bp(buffer, &buffer->search.last_match_pos));
+    return cm_buffer_find_next(sess, param, keystr, finished);
+}
 
-        if (bp_compare(&buffer->search.last_match_pos, &buffer->search.start_pos) == -1) {
+static Status cm_buffer_find_next(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    Buffer *buffer = sess->active_buffer;
+
+    if (buffer->search.pattern == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    if (bs_find_next(&buffer->search, &buffer->pos)) {
+        if (bp_compare(&buffer->search.last_match_pos, &buffer->pos) == -1) {
             se_add_msg(sess, "Search wrapped");
         }
+
+        RETURN_IF_FAIL(bf_set_bp(buffer, &buffer->search.last_match_pos));
     } else {
         char msg[MAX_MSG_SIZE];
         snprintf(msg, MAX_MSG_SIZE, "Unable to find text: \"%s\"", buffer->search.pattern);
@@ -471,6 +490,32 @@ static Status cm_buffer_find(Session *sess, Value param, const char *keystr, int
     return STATUS_SUCCESS;
 }
 
+static Status cm_buffer_find_prev(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    Buffer *buffer = sess->active_buffer;
+
+    if (buffer->search.pattern == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    if (bs_find_prev(&buffer->search, &buffer->pos)) {
+        if (bp_compare(&buffer->search.last_match_pos, &buffer->pos) == 1) {
+            se_add_msg(sess, "Search wrapped");
+        }
+
+        RETURN_IF_FAIL(bf_set_bp(buffer, &buffer->search.last_match_pos));
+    } else {
+        char msg[MAX_MSG_SIZE];
+        snprintf(msg, MAX_MSG_SIZE, "Unable to find text: \"%s\"", buffer->search.pattern);
+        se_add_msg(sess, msg);
+    }
+
+    return STATUS_SUCCESS;
+}
 
 static Status cm_session_open_file(Session *sess, Value param, const char *keystr, int *finished)
 {

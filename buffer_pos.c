@@ -162,6 +162,7 @@ void bp_prev_char(BufferPos *pos)
 void bp_to_line_start(BufferPos *pos)
 {
     if (bp_at_line_start(pos)) {
+        pos->col_no = 1;
         return;
     }
 
@@ -276,6 +277,10 @@ void bp_advance_to_offset(BufferPos *pos, size_t offset)
         }
     }
 
+    if (tmp.offset == offset) {
+        pos->line_no = tmp.line_no;
+    }
+
     pos->offset = offset;
     bp_recalc_col(pos);
 }
@@ -290,6 +295,10 @@ void bp_reverse_to_offset(BufferPos *pos, size_t offset)
         if (!bp_prev_line(&tmp)) {
             break;
         }
+    }
+
+    if (tmp.offset <= offset) {
+        pos->line_no = tmp.line_no;
     }
 
     pos->offset = offset;

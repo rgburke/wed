@@ -27,15 +27,15 @@
 typedef struct {
     char *pattern;
     size_t pattern_len;
-    BufferPos start_pos;
     BufferPos last_match_pos;
     size_t bad_char_table[ALPHABET_SIZE];
     int case_insensitive;
 } BufferSearch;
 
-int bs_init(BufferSearch *, const char *, size_t, const BufferPos *, int);
-int bs_reinit(BufferSearch *, const char *, size_t, const BufferPos *, int);
+int bs_init(BufferSearch *, const char *, size_t, int);
+int bs_reinit(BufferSearch *, const char *, size_t, int);
 void bs_free(BufferSearch *);
-int bs_find_next(BufferSearch *);
+int bs_find_next(BufferSearch *, const BufferPos *);
+int bs_find_prev(BufferSearch *, const BufferPos *);
 
 #endif

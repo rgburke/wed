@@ -364,8 +364,8 @@ static size_t draw_status_pos_info(Session *sess, size_t max_segment_width)
     }
 
     int pos_info_size = snprintf(status_text, STATUS_TEXT_SIZE, 
-                                 "Length: %zu Lines: %zu | Line: %zu Col: %zu | %s ",
-                                 bf_length(buffer), line_num, pos.line_no, pos.col_no,
+                                 "Length: %zu Lines: %zu | Offset: %zu Line: %zu Col: %zu | %s ",
+                                 bf_length(buffer), line_num, pos.offset, pos.line_no, pos.col_no,
                                  rel_pos);
 
     if (pos_info_size < 0 || (size_t)pos_info_size > max_segment_width) {

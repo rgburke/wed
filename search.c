@@ -23,8 +23,11 @@
 #include "shared.h"
 #include "util.h"
 
+#define SEARCH_BUFFER 8192
+
 static size_t bs_gb_internal_point(const GapBuffer *, size_t);
 static size_t bs_gb_external_point(const GapBuffer *, size_t);
+static int bs_find_prev_str(const GapBuffer *, size_t, size_t *, size_t, const BufferSearch *);
 static int bs_find_next_str(const GapBuffer *, size_t, size_t *, size_t, const BufferSearch *);
 static int bs_find_next_str_in_range(const char *, size_t *, size_t, size_t *, const BufferSearch *);
 static void bs_populate_bad_char_table(size_t bad_char_table[ALPHABET_SIZE], const char *, size_t);
@@ -67,13 +70,11 @@ static uchar search_chars[] = {
     0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF
 };
 
-int bs_init(BufferSearch *search, const char *pattern, size_t pattern_len,
-            const BufferPos *start_pos, int case_insensitive)
+int bs_init(BufferSearch *search, const char *pattern, size_t pattern_len, int case_insensitive)
 {
     assert(search != NULL);
     assert(pattern_len > 0);
     assert(!is_null_or_empty(pattern));
-    assert(start_pos != NULL);
 
     memset(search, 0, sizeof(BufferSearch));
 
@@ -85,6 +86,7 @@ int bs_init(BufferSearch *search, const char *pattern, size_t pattern_len,
         return 0;
     }
 
+    search->pattern_len = pattern_len;
     search->case_insensitive = case_insensitive;
 
     if (case_insensitive) {
@@ -96,17 +98,13 @@ int bs_init(BufferSearch *search, const char *pattern, size_t pattern_len,
         }
     }
 
-    search->pattern_len = pattern_len;
-    search->start_pos = *start_pos;
-
     return 1;
 }
 
-int bs_reinit(BufferSearch *search, const char *pattern, size_t pattern_len,
-              const BufferPos *start_pos, int case_insensitive)
+int bs_reinit(BufferSearch *search, const char *pattern, size_t pattern_len, int case_insensitive)
 {
     bs_free(search);
-    return bs_init(search, pattern, pattern_len, start_pos, case_insensitive);
+    return bs_init(search, pattern, pattern_len, case_insensitive);
 }
 
 void bs_free(BufferSearch *search)
@@ -114,31 +112,76 @@ void bs_free(BufferSearch *search)
     free(search->pattern);
 }
 
-int bs_find_next(BufferSearch *search)
+int bs_find_next(BufferSearch *search, const BufferPos *start_pos)
 {
-    BufferPos start_pos;
+    BufferPos pos = *start_pos;
 
-    if (search->last_match_pos.line_no == 0) {
-        start_pos = search->start_pos; 
-    } else {
-        start_pos = search->last_match_pos;
-        bp_next_char(&start_pos);
+    if (bp_compare(&pos, &search->last_match_pos) == 0) {
+        bp_next_char(&pos);
     }
 
     bs_update_search_chars(search->case_insensitive);
 
     size_t next;
 
-    if (bs_find_next_str(start_pos.data, start_pos.offset, &next, gb_length(start_pos.data), search)) {
-        search->last_match_pos = bp_init_from_offset(next, &start_pos);
+    if (bs_find_next_str(pos.data, pos.offset, &next, gb_length(pos.data), search)) {
+        search->last_match_pos = bp_init_from_offset(next, &pos);
         return 1;
     }
 
-    bp_to_buffer_start(&start_pos);
+    bp_to_buffer_start(&pos);
 
-    if (bs_find_next_str(start_pos.data, start_pos.offset, &next, search->start_pos.offset, search)) {
-        search->last_match_pos = bp_init_from_offset(next, &start_pos);
+    if (bs_find_next_str(pos.data, pos.offset, &next, start_pos->offset, search)) {
+        search->last_match_pos = bp_init_from_offset(next, &pos);
         return 1;
+    }
+
+    return 0;
+}
+
+int bs_find_prev(BufferSearch *search, const BufferPos *start_pos)
+{
+    BufferPos pos = *start_pos;
+
+    bs_update_search_chars(search->case_insensitive);
+
+    size_t prev;
+
+    if (bs_find_prev_str(pos.data, pos.offset, &prev, 0, search)) {
+        search->last_match_pos = bp_init_from_offset(prev, &pos);
+        return 1;
+    }
+
+    bp_to_buffer_end(&pos);
+
+    if (bs_find_prev_str(pos.data, pos.offset, &prev, start_pos->offset, search)) {
+        search->last_match_pos = bp_init_from_offset(prev, &pos);
+        return 1;
+    }
+
+    return 0;
+}
+
+static int bs_find_prev_str(const GapBuffer *buffer, size_t point, size_t *prev, size_t limit, const BufferSearch *search)
+{
+    size_t search_length, search_point;
+    size_t buffer_len = gb_length(buffer);
+    int found = 0;
+
+    while (point > limit) {
+        search_length = MIN(point - limit, SEARCH_BUFFER);
+        point -= search_length;
+        search_length = MIN(search_length + search->pattern_len - 2, buffer_len - point);
+        search_point = point;
+
+        while (bs_find_next_str(buffer, search_point, prev, point + search_length, search)) {
+            found = 1;
+            search_point = *prev + 1;
+        }
+
+        if (found) {
+            return 1;
+        }
     }
 
     return 0;
@@ -186,7 +229,7 @@ static int bs_find_next_str(const GapBuffer *buffer, size_t point, size_t *next,
         }
     }
 
-    if (!(point < limit)) {
+    if (point + search->pattern_len > limit) {
         return 0;
     }
 
@@ -212,7 +255,7 @@ static int bs_find_next_str(const GapBuffer *buffer, size_t point, size_t *next,
         point = buffer->gap_end;
     }
 
-    if (!(point < limit)) {
+    if (point + search->pattern_len > limit) {
         return 0;
     }
 
