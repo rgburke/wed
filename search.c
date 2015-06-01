@@ -16,316 +16,112 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include "search.h"
-#include "shared.h"
 #include "util.h"
 
-#define SEARCH_BUFFER 8192
-
-static size_t bs_gb_internal_point(const GapBuffer *, size_t);
-static size_t bs_gb_external_point(const GapBuffer *, size_t);
-static int bs_find_prev_str(const GapBuffer *, size_t, size_t *, size_t, const BufferSearch *);
-static int bs_find_next_str(const GapBuffer *, size_t, size_t *, size_t, const BufferSearch *);
-static int bs_find_next_str_in_range(const char *, size_t *, size_t, size_t *, const BufferSearch *);
-static void bs_populate_bad_char_table(size_t bad_char_table[ALPHABET_SIZE], const char *, size_t);
-static void bs_update_search_chars(int);
-
-static int search_chars_lc = 0;
-
-static uchar search_chars[] = {
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-    0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
-    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
-    0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
-    0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
-    0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
-    0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
-    0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F,
-    0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57,
-    0x58, 0x59, 0x5A, 0x5B, 0x5C, 0x5D, 0x5E, 0x5F,
-    0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67,
-    0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F,
-    0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77,
-    0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F,
-    0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
-    0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F,
-    0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97,
-    0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F,
-    0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
-    0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF,
-    0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7,
-    0xB8, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF,
-    0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7,
-    0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF,
-    0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7,
-    0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF,
-    0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7,
-    0xE8, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF,
-    0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7,
-    0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF
-};
-
-int bs_init(BufferSearch *search, const char *pattern, size_t pattern_len, int case_insensitive)
+Status bs_init(BufferSearch *search, const char *pattern, size_t pattern_len)
 {
     assert(search != NULL);
     assert(pattern_len > 0);
     assert(!is_null_or_empty(pattern));
 
-    memset(search, 0, sizeof(BufferSearch));
+    search->opt.pattern = strdupe(pattern);
 
-    bs_populate_bad_char_table(search->bad_char_table, pattern, pattern_len);
-
-    search->pattern = strdupe(pattern);
-
-    if (search->pattern == NULL) {
-        return 0;
+    if (search->opt.pattern == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - Unable to copy pattern");
     }
 
-    search->pattern_len = pattern_len;
-    search->case_insensitive = case_insensitive;
+    search->opt.pattern_len = pattern_len;
 
-    if (case_insensitive) {
-        bs_update_search_chars(case_insensitive);
-        uchar *pat = (uchar *)search->pattern;
+    Status status;
 
-        for (size_t k = 0; k < pattern_len; k++) {
-            pat[k] = search_chars[pat[k]];
-        }
+    if (search->search_type == BST_TEXT) {
+        status = ts_init(&search->type.text, &search->opt);
+    } else if (search->search_type == BST_REGEX) {
+        status = rs_init(&search->type.regex, &search->opt);
     }
 
-    return 1;
+    if (!STATUS_IS_SUCCESS(status)) {
+        free(search->opt.pattern);
+        search->opt.pattern = NULL;
+    }
+
+    search->last_search_type = search->search_type;
+
+    return status;
 }
 
-int bs_reinit(BufferSearch *search, const char *pattern, size_t pattern_len, int case_insensitive)
+Status bs_reinit(BufferSearch *search, const char *pattern, size_t pattern_len)
 {
     bs_free(search);
-    return bs_init(search, pattern, pattern_len, case_insensitive);
+    return bs_init(search, pattern, pattern_len);
+}
+
+Status bs_init_default_opt(BufferSearch *search)
+{
+    search->search_type = BST_TEXT;
+    search->opt.forward = 1;
+    search->opt.case_insensitive = 1;
+
+    return STATUS_SUCCESS;
 }
 
 void bs_free(BufferSearch *search)
 {
-    free(search->pattern);
+    if (search == NULL) {
+        return;
+    }
+
+    free(search->opt.pattern);
+
+    if (search->last_search_type == BST_TEXT) {
+        ts_free(&search->type.text);
+    } else if (search->last_search_type == BST_REGEX) {
+        rs_free(&search->type.regex);
+    }
+
+    search->opt.pattern = NULL;
+    search->opt.pattern_len = 0;
 }
 
-int bs_find_next(BufferSearch *search, const BufferPos *start_pos)
+Status bs_find_next(BufferSearch *search, const BufferPos *start_pos, int *found_match)
 {
+    assert(search != NULL);
+    assert(start_pos != NULL);
+    assert(found_match != NULL);
+
+    *found_match = 0;
+
     BufferPos pos = *start_pos;
 
-    if (bp_compare(&pos, &search->last_match_pos) == 0) {
+    if (search->opt.forward && bp_compare(&pos, &search->last_match_pos) == 0) {
         bp_next_char(&pos);
     }
 
-    bs_update_search_chars(search->case_insensitive);
+    size_t match_point;
+    Status status;
 
-    size_t next;
-
-    if (bs_find_next_str(pos.data, pos.offset, &next, gb_length(pos.data), search)) {
-        search->last_match_pos = bp_init_from_offset(next, &pos);
-        return 1;
-    }
-
-    bp_to_buffer_start(&pos);
-
-    if (bs_find_next_str(pos.data, pos.offset, &next, start_pos->offset, search)) {
-        search->last_match_pos = bp_init_from_offset(next, &pos);
-        return 1;
-    }
-
-    return 0;
-}
-
-int bs_find_prev(BufferSearch *search, const BufferPos *start_pos)
-{
-    BufferPos pos = *start_pos;
-
-    bs_update_search_chars(search->case_insensitive);
-
-    size_t prev;
-
-    if (bs_find_prev_str(pos.data, pos.offset, &prev, 0, search)) {
-        search->last_match_pos = bp_init_from_offset(prev, &pos);
-        return 1;
-    }
-
-    bp_to_buffer_end(&pos);
-
-    if (bs_find_prev_str(pos.data, pos.offset, &prev, start_pos->offset, search)) {
-        search->last_match_pos = bp_init_from_offset(prev, &pos);
-        return 1;
-    }
-
-    return 0;
-}
-
-static int bs_find_prev_str(const GapBuffer *buffer, size_t point, size_t *prev, size_t limit, const BufferSearch *search)
-{
-    size_t search_length, search_point;
-    size_t buffer_len = gb_length(buffer);
-    int found = 0;
-
-    while (point > limit) {
-        search_length = MIN(point - limit, SEARCH_BUFFER);
-        point -= search_length;
-        search_length = MIN(search_length + search->pattern_len - 2, buffer_len - point);
-        search_point = point;
-
-        while (bs_find_next_str(buffer, search_point, prev, point + search_length, search)) {
-            found = 1;
-            search_point = *prev + 1;
-        }
-
-        if (found) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-static size_t bs_gb_internal_point(const GapBuffer *buffer, size_t external_point)
-{
-    if (external_point > buffer->gap_start) {
-        external_point += gb_gap_size(buffer);
-    }
-
-    return external_point;
-}
-
-static size_t bs_gb_external_point(const GapBuffer *buffer, size_t internal_point)
-{
-    if (internal_point == buffer->gap_end) {
-        return buffer->gap_start; 
-    } else if (internal_point > buffer->gap_end) {
-        return internal_point - gb_gap_size(buffer);
-    }
-
-    return internal_point;
-}
-
-static int bs_find_next_str(const GapBuffer *buffer, size_t point, size_t *next, size_t limit, const BufferSearch *search)
-{
-    size_t buffer_len = gb_length(buffer);
-
-    if (next == NULL || point >= buffer_len || limit < point + search->pattern_len ||
-        search->pattern_len == 0 || point + search->pattern_len > buffer_len) {
-        return 0;
-    }
-
-    if (limit > buffer_len) {
-        limit = buffer_len;
-    }
-
-    point = bs_gb_internal_point(buffer, point);
-    limit = bs_gb_internal_point(buffer, limit);
-
-    if (point + search->pattern_len <= buffer->gap_start) {
-        if (bs_find_next_str_in_range(buffer->text, &point, MIN(limit, buffer->gap_start), next, search)) {
-            return 1;
-        }
-    }
-
-    if (point + search->pattern_len > limit) {
-        return 0;
-    }
-
-    if (point < buffer->gap_start) {
-        size_t gap_bridge_size = MIN(buffer->gap_start - point + search->pattern_len, buffer_len);
-        char gap_bridge[gap_bridge_size];
-        size_t copied = gb_get_range(buffer, point, gap_bridge, gap_bridge_size);
-
-        if (copied != gap_bridge_size) {
-            return 0;
-        }
-
-        size_t bridge_point = 0;
-        size_t bridge_limit = MIN(limit - point, gap_bridge_size);
-        
-        if (bs_find_next_str_in_range(gap_bridge, &bridge_point, bridge_limit, next, search)) {
-            *next += point;
-            return 1;            
-        }
-
-        point = buffer->gap_end;
-    } else if (point == buffer->gap_start) {
-        point = buffer->gap_end;
-    }
-
-    if (point + search->pattern_len > limit) {
-        return 0;
-    }
-
-    if (point + search->pattern_len <= buffer->allocated) {
-        if (bs_find_next_str_in_range(buffer->text, &point, MIN(limit, buffer->allocated), next, search)) {
-            *next = bs_gb_external_point(buffer, *next);
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-static int bs_find_next_str_in_range(const char *text, size_t *start_point, size_t limit, size_t *next, const BufferSearch *search)
-{
-    const uchar *txt = (const uchar *)text;
-    const uchar *pattern = (const uchar *)search->pattern;
-    size_t point = *start_point + search->pattern_len - 1;
-    size_t pattern_idx;
-    size_t sub_start_point;
-
-    while (point <= limit) {
-        pattern_idx = search->pattern_len;
-        sub_start_point = point;
-
-        while (pattern_idx != 0 && 
-               search_chars[*(txt + point)] == pattern[pattern_idx - 1]) {
-            pattern_idx--;
-            point--;
-        }
-
-        if (pattern_idx == 0) {
-            *next = sub_start_point - (search->pattern_len - 1);
-            return 1;
+    if (search->search_type == BST_TEXT) {
+        if (search->opt.forward) {
+            status = ts_find_next(&search->type.text, &search->opt, &pos, found_match, &match_point);
         } else {
-            point = sub_start_point + search->bad_char_table[search_chars[*(txt + sub_start_point)]];
+            status = ts_find_prev(&search->type.text, &search->opt, &pos, found_match, &match_point);
+        }
+    } else if (search->search_type == BST_REGEX) {
+        if (search->opt.forward) {
+            status = rs_find_next(&search->type.regex, &search->opt, &pos, found_match, &match_point);
+        } else {
+            status = rs_find_prev(&search->type.regex, &search->opt, &pos, found_match, &match_point);
         }
     }
 
-    *start_point = sub_start_point;
+    RETURN_IF_FAIL(status);
 
-    return 0;
-}
-
-static void bs_populate_bad_char_table(size_t bad_char_table[ALPHABET_SIZE], const char *pattern, size_t pattern_len)
-{
-    for (size_t k = 0; k < ALPHABET_SIZE; k++) {
-        bad_char_table[k] = pattern_len; 
+    if (*found_match) {
+        search->last_match_pos = bp_init_from_offset(match_point, &pos);
     }
 
-    const uchar *pat = (const uchar *)pattern;
-
-    for (size_t k = 0; k < pattern_len - 1; k++) {
-        bad_char_table[pat[k]] = pattern_len - 1 - k;
-    }
-}
-
-static void bs_update_search_chars(int case_insensitive)
-{
-    if (case_insensitive && !search_chars_lc) {
-        for (int k = 'A'; k <= 'Z'; k++) {
-            search_chars[k] += 32;
-        }
-
-        search_chars_lc = 1;
-    } else if (!case_insensitive && search_chars_lc) {
-        for (int k = 'A'; k <= 'Z'; k++) {
-            search_chars[k] -= 32;
-        }
-
-        search_chars_lc = 0;
-    }
+    return STATUS_SUCCESS;
 }

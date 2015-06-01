@@ -38,6 +38,7 @@
 static Status reset_buffer(Buffer *);
 static int is_selection(Direction *);
 static void bf_default_movement_selection_handler(Buffer *, int, Direction *);
+static void bf_free_search_history(Buffer *);
 static Status bf_change_real_line(Buffer *, BufferPos *, Direction, int);
 static Status bf_change_screen_line(Buffer *, BufferPos *, Direction, int);
 static Status bf_advance_bp_to_line_offset(Buffer *, BufferPos *, int);
@@ -53,13 +54,17 @@ Buffer *bf_new(const FileInfo *file_info)
     memset(buffer, 0, sizeof(Buffer));
 
     if ((buffer->config = new_hashmap()) == NULL) {
-        free(buffer);
+        bf_free(buffer);
         return NULL;
     }
 
     if ((buffer->data = gb_new(GAP_INCREMENT)) == NULL) {
-        cf_free_config(buffer->config);
-        free(buffer);
+        bf_free(buffer);
+        return NULL;
+    }
+
+    if ((buffer->search_history = list_new()) == NULL) {
+        bf_free(buffer);
         return NULL;
     }
 
@@ -71,6 +76,7 @@ Buffer *bf_new(const FileInfo *file_info)
     bp_init(&buffer->select_start, buffer->data, &buffer->cef);
     bf_select_reset(buffer);
     init_window_info(&buffer->win_info);
+    bs_init_default_opt(&buffer->search);
 
     return buffer;
 }
@@ -99,6 +105,7 @@ void bf_free(Buffer *buffer)
     fi_free(&buffer->file_info);
     cf_free_config(buffer->config);
     gb_free(buffer->data);
+    bf_free_search_history(buffer);
 
     free(buffer);
 }
@@ -124,8 +131,9 @@ static Status reset_buffer(Buffer *buffer)
 
     bp_init(&buffer->pos, buffer->data, &buffer->cef);
     bp_init(&buffer->screen_start, buffer->data, &buffer->cef);
-    bf_update_line_col_offset(buffer, &buffer->pos);
+    bp_init(&buffer->select_start, buffer->data, &buffer->cef);
     bf_select_reset(buffer);
+    bf_update_line_col_offset(buffer, &buffer->pos);
 
     return STATUS_SUCCESS;
 }
@@ -397,6 +405,39 @@ static void bf_default_movement_selection_handler(Buffer *buffer, int is_select,
     } else if (bf_selection_started(buffer)) {
         bf_select_reset(buffer);
     }
+}
+
+Status bf_add_search_to_history(Buffer *buffer, char *search_text)
+{
+    assert(!is_null_or_empty(search_text));
+
+    if (!list_add(buffer->search_history, search_text)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable save search history");
+    }
+
+    return STATUS_SUCCESS;
+}
+
+const char *bf_get_last_search(const Buffer *buffer)
+{
+    size_t search_entries = list_size(buffer->search_history);
+
+    if (search_entries > 0) {
+        return list_get(buffer->search_history, search_entries - 1);
+    }
+
+    return NULL;
+}
+
+static void bf_free_search_history(Buffer *buffer)
+{
+    size_t search_entries = list_size(buffer->search_history);
+
+    for (size_t k = 0; k < search_entries; k++) {
+        free(list_get(buffer->search_history, k));
+    }
+
+    list_free(buffer->search_history);
 }
 
 Status bf_set_bp(Buffer *buffer, const BufferPos *pos)
@@ -1086,6 +1127,17 @@ Status bf_delete_prev_word(Buffer *buffer)
 
     bf_get_range(buffer, &range);
     RETURN_IF_FAIL(bf_delete_range(buffer, &range));
+
+    return STATUS_SUCCESS;
+}
+
+Status bf_set_text(Buffer *buffer, const char *text)
+{
+    RETURN_IF_FAIL(bf_clear(buffer));
+
+    if (text != NULL) {
+        return bf_insert_string(buffer, text, strlen(text), 1);
+    }
 
     return STATUS_SUCCESS;
 }

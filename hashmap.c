@@ -32,9 +32,6 @@ static int resize_hashmap(HashMap *, size_t);
 static void free_hashmapnodes(HashMap *);
 static void free_hashmapnode(HashMapNode *);
 
-/* Code in this file doesn't use alloc and ralloc from
- * util.c in order to make it easier to reuse elsewhere */
-
 HashMap *new_hashmap(void)
 {
     return new_sized_hashmap(HM_BUCKET_NUM_BLOCK);
@@ -52,7 +49,7 @@ HashMap *new_sized_hashmap(size_t size)
         return NULL;
     }
 
-    hashmap->buckets = new_sized_list(size);
+    hashmap->buckets = list_new_sized(size);
 
     if (hashmap->buckets == NULL) {
         free(hashmap);
@@ -263,7 +260,7 @@ static int resize_required(HashMap *hashmap)
 
 static int resize_hashmap(HashMap *hashmap, size_t size)
 {
-    List *buckets = new_sized_list(size); 
+    List *buckets = list_new_sized(size); 
 
     if (buckets == NULL) {
         return 0;
@@ -284,7 +281,7 @@ static int resize_hashmap(HashMap *hashmap, size_t size)
         } 
     }
 
-    free_list(hashmap->buckets);
+    list_free(hashmap->buckets);
 
     hashmap->buckets = buckets;
     hashmap->bucket_num = size;
@@ -299,7 +296,7 @@ void free_hashmap(HashMap *hashmap)
     }
 
     free_hashmapnodes(hashmap);
-    free_list(hashmap->buckets);
+    list_free(hashmap->buckets);
     free(hashmap);
 }
 

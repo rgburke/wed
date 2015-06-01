@@ -20,22 +20,34 @@
 #define WED_SEARCH_H
 
 #include "shared.h"
+#include "status.h"
 #include "buffer_pos.h"
+#include "text_search.h"
+#include "regex_search.h"
+#include "search_options.h"
 
-#define ALPHABET_SIZE 256
+typedef enum {
+    BST_TEXT,
+    BST_REGEX
+} BufferSearchType;
 
-typedef struct {
-    char *pattern;
-    size_t pattern_len;
+struct BufferSearch {
+    SearchOptions opt;
     BufferPos last_match_pos;
-    size_t bad_char_table[ALPHABET_SIZE];
-    int case_insensitive;
-} BufferSearch;
+    BufferSearchType search_type;
+    BufferSearchType last_search_type;
+    union {
+        TextSearch text;
+        RegexSearch regex;
+    } type;
+};
 
-int bs_init(BufferSearch *, const char *, size_t, int);
-int bs_reinit(BufferSearch *, const char *, size_t, int);
+typedef struct BufferSearch BufferSearch;
+
+Status bs_init(BufferSearch *, const char *, size_t);
+Status bs_reinit(BufferSearch *, const char *, size_t);
+Status bs_init_default_opt(BufferSearch *);
 void bs_free(BufferSearch *);
-int bs_find_next(BufferSearch *, const BufferPos *);
-int bs_find_prev(BufferSearch *, const BufferPos *);
+Status bs_find_next(BufferSearch *, const BufferPos *, int *);
 
 #endif

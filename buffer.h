@@ -84,6 +84,7 @@ struct Buffer {
     int is_dirty;
     GapBuffer *data;
     BufferSearch search;
+    List *search_history;
 };
 
 Buffer *bf_new(const FileInfo *);
@@ -104,6 +105,8 @@ int bf_bp_at_screen_line_start(const BufferPos *, const WindowInfo *);
 int bf_bp_at_screen_line_end(const BufferPos *, const WindowInfo *);
 int bf_bp_move_past_buffer_extremes(const BufferPos *, Direction);
 int bf_selection_started(const Buffer *);
+Status bf_add_search_to_history(Buffer *, char *);
+const char *bf_get_last_search(const Buffer *);
 Status bf_set_bp(Buffer *, const BufferPos *);
 Status bf_change_line(Buffer *, BufferPos *, Direction, int);
 Status bf_change_multi_line(Buffer *, BufferPos *, Direction, size_t, int);
@@ -133,5 +136,6 @@ Status bf_insert_textselection(Buffer *, TextSelection *);
 void bf_free_textselection(TextSelection *);
 Status bf_delete_word(Buffer *);
 Status bf_delete_prev_word(Buffer *);
+Status bf_set_text(Buffer *, const char *);
 
 #endif

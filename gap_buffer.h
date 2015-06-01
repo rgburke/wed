@@ -40,6 +40,7 @@ size_t gb_length(const GapBuffer *);
 size_t gb_lines(const GapBuffer *);
 size_t gb_gap_size(const GapBuffer *);
 int gb_preallocate(GapBuffer *, size_t);
+void gb_contiguous_storage(GapBuffer *);
 int gb_insert(GapBuffer *, const char *, size_t);
 int gb_add(GapBuffer *, const char *, size_t);
 int gb_delete(GapBuffer *, size_t);

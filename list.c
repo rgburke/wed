@@ -20,21 +20,21 @@
 #include <string.h>
 #include "list.h"
 
-static int grow_required(List *);
-static int shrink_required(List *);
-static int resize_list(List *, int);
+static int list_grow_required(List *);
+static int list_shrink_required(List *);
+static int list_resize(List *, int);
 
 /* Code in this file doesn't use alloc and ralloc from
  * util.c in order to make it easier to reuse elsewhere */
 
-List *new_list()
+List *list_new()
 {
-    List* list = new_sized_list(LIST_ALLOC);        
+    List* list = list_new_sized(LIST_ALLOC);        
     list->size = 0;
     return list;
 }
 
-List *new_sized_list(size_t size)
+List *list_new_sized(size_t size)
 {
     List *list = calloc(1, sizeof(List));
 
@@ -54,17 +54,17 @@ List *new_sized_list(size_t size)
     return list; 
 }
 
-static int grow_required(List *list)
+static int list_grow_required(List *list)
 {
     return list->size == list->allocated;
 }
 
-static int shrink_required(List *list)
+static int list_shrink_required(List *list)
 {
     return list->size < (list->allocated / 2);
 }
 
-static int resize_list(List *list, int resize_type)
+static int list_resize(List *list, int resize_type)
 {
     /* In case an empty list is created */
     if (resize_type == LIST_EXPAND && list->size < 2) {
@@ -112,7 +112,7 @@ void list_set(List *list, void *value, size_t index)
 
 int list_add(List *list, void *value)
 {
-    if (grow_required(list) && !resize_list(list, LIST_EXPAND)) {
+    if (list_grow_required(list) && !list_resize(list, LIST_EXPAND)) {
         return 0;
     }
 
@@ -127,7 +127,7 @@ int list_add_at(List *list, void *value, size_t index)
         return 0;
     }
 
-    if (grow_required(list) && !resize_list(list, LIST_EXPAND)) {
+    if (list_grow_required(list) && !list_resize(list, LIST_EXPAND)) {
         return 0;
     }
 
@@ -147,7 +147,7 @@ void *list_pop(List *list)
     if (list->size > 0) {
         value = list->values[--list->size];
 
-        if (shrink_required(list) && !resize_list(list, LIST_SHRINK)) {
+        if (list_shrink_required(list) && !list_resize(list, LIST_SHRINK)) {
             return NULL;
         }
     }
@@ -168,7 +168,7 @@ void *list_remove_at(List *list, size_t index)
 
         list->size--;
 
-        if (shrink_required(list) && !resize_list(list, LIST_SHRINK)) {
+        if (list_shrink_required(list) && !list_resize(list, LIST_SHRINK)) {
             return NULL;
         }
     }
@@ -182,7 +182,7 @@ void list_clear(List *list)
     list->size = 0;
 }
 
-void free_list(List *list)
+void list_free(List *list)
 {
     if (list) {
         free(list->values);

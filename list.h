@@ -34,8 +34,8 @@ typedef struct {
     size_t allocated;
 } List;
 
-List *new_list();
-List *new_sized_list(size_t);
+List *list_new();
+List *list_new_sized(size_t);
 size_t list_size(List *);
 void *list_get(List *, size_t);
 void list_set(List *, void *, size_t);
@@ -44,6 +44,6 @@ int list_add_at(List *, void *, size_t);
 void *list_pop(List *);
 void *list_remove_at(List *, size_t);
 void list_clear(List *);
-void free_list(List *);
+void list_free(List *);
 
 #endif

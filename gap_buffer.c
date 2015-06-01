@@ -127,6 +127,12 @@ int gb_preallocate(GapBuffer *buffer, size_t size)
     return gb_increase_gap_if_required(buffer, size);
 }
 
+void gb_contiguous_storage(GapBuffer *buffer)
+{
+    gb_set_point(buffer, gb_length(buffer));
+    gb_move_gap_to_point(buffer);
+}
+
 static int gb_increase_gap_if_required(GapBuffer *buffer, size_t new_size)
 {
     size_t new_alloc;

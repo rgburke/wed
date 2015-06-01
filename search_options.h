@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Richard Burke
+ * Copyright (C) 2015 Richard Burke
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,25 +16,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_SHARED_H
-#define WED_SHARED_H
+#ifndef WED_SEARCH_OPTIONS_H
+#define WED_SEARCH_OPTIONS_H
 
-typedef enum {
-    CMDT_BUFFER_MOVE = 1,
-    CMDT_BUFFER_MOD = 1 << 1,
-    CMDT_CMD_INPUT = 1 << 2,
-    CMDT_EXIT = 1 << 3,
-    CMDT_SESS_MOD = 1 << 4,
-    CMDT_CMD_MOD = 1 << 5
-} CommandType;
-
-typedef enum {
-    WIN_MENU,
-    WIN_TEXT,
-    WIN_STATUS
-} DrawWindow;
-
-typedef unsigned int uint;
-typedef unsigned char uchar;
+typedef struct {
+    char *pattern;
+    size_t pattern_len;
+    int case_insensitive;
+    int forward;
+} SearchOptions;
 
 #endif

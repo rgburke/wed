@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Richard Burke
+ * Copyright (C) 2015 Richard Burke
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,25 +16,26 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_SHARED_H
-#define WED_SHARED_H
+#ifndef WED_TEXT_SEARCH_H
+#define WED_TEXT_SEARCH_H
 
-typedef enum {
-    CMDT_BUFFER_MOVE = 1,
-    CMDT_BUFFER_MOD = 1 << 1,
-    CMDT_CMD_INPUT = 1 << 2,
-    CMDT_EXIT = 1 << 3,
-    CMDT_SESS_MOD = 1 << 4,
-    CMDT_CMD_MOD = 1 << 5
-} CommandType;
+#include "shared.h"
+#include "buffer_pos.h"
+#include "search_options.h"
+#include "status.h"
 
-typedef enum {
-    WIN_MENU,
-    WIN_TEXT,
-    WIN_STATUS
-} DrawWindow;
+#define ALPHABET_SIZE 256
 
-typedef unsigned int uint;
-typedef unsigned char uchar;
+typedef struct {
+    char *pattern;
+    size_t pattern_len;
+    size_t bad_char_table[ALPHABET_SIZE];
+} TextSearch;
+
+Status ts_init(TextSearch *, const SearchOptions *);
+Status ts_reinit(TextSearch *, const SearchOptions *);
+void ts_free(TextSearch *);
+Status ts_find_next(TextSearch *, const SearchOptions *, const BufferPos *, int *, size_t *);
+Status ts_find_prev(TextSearch *, const SearchOptions *, const BufferPos *, int *, size_t *);
 
 #endif

@@ -70,7 +70,9 @@ typedef enum {
     ERR_FAILED_TO_PARSE_CONFIG_INPUT,
     ERR_INVALID_STREAM,
     ERR_INVALID_ARGUMENTS,
-    ERR_INVALID_BUFFERPOS
+    ERR_INVALID_BUFFERPOS,
+    ERR_INVALID_REGEX,
+    ERR_REGEX_EXECUTION_FAILED
 } ErrorCode;
 
 /* Used to determine the success of an action.

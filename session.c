@@ -228,12 +228,21 @@ int se_remove_buffer(Session *sess, Buffer *to_remove)
     return 1;
 }
 
-Status se_make_cmd_buffer_active(Session *sess, const char *text)
+Status se_make_cmd_buffer_active(Session *sess, const char *prompt_text, const char *cmd_text)
 {
-    assert(!is_null_or_empty(text));
+    RETURN_IF_FAIL(se_update_cmd_prompt_text(sess, prompt_text));
 
     sess->cmd_prompt.cmd_buffer->next = sess->active_buffer;
     sess->active_buffer = sess->cmd_prompt.cmd_buffer;
+
+    sess->cmd_prompt.cancelled = 0;
+
+    return bf_set_text(sess->cmd_prompt.cmd_buffer, cmd_text);
+}
+
+Status se_update_cmd_prompt_text(Session *sess, const char *text)
+{
+    assert(!is_null_or_empty(text));
 
     if (sess->cmd_prompt.cmd_text != NULL) {
         free(sess->cmd_prompt.cmd_text);
@@ -245,8 +254,7 @@ Status se_make_cmd_buffer_active(Session *sess, const char *text)
         return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to set prompt text");
     }
 
-    sess->cmd_prompt.cancelled = 0;
-    return bf_clear(sess->cmd_prompt.cmd_buffer);
+    return STATUS_SUCCESS;
 }
 
 int se_end_cmd_buffer_active(Session *sess)
@@ -431,7 +439,7 @@ Status se_add_new_empty_buffer(Session *sess)
 
 Status se_get_buffer_index(const Session *sess, const char *file_path, int *buffer_index_ptr)
 {
-    assert(is_null_or_empty(file_path));
+    assert(!is_null_or_empty(file_path));
     assert(buffer_index_ptr != NULL);
 
     FileInfo file_info;
