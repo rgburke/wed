@@ -44,6 +44,7 @@ int list_add_at(List *, void *, size_t);
 void *list_pop(List *);
 void *list_remove_at(List *, size_t);
 void list_clear(List *);
+void list_free_all(List *, void (*)(void *));
 void list_free(List *);
 
 #endif

@@ -38,6 +38,8 @@ typedef struct {
         Buffer *cmd_buffer; /* Used for command input e.g. Find & Replace, file name input, etc... */
         char *cmd_text; /* Command instruction/description */
         int cancelled; /* Did the user quit the last prompt */
+        List *history;
+        size_t history_index;
     } cmd_prompt; 
     CommandType exclude_cmd_types; /* Types of commands that shouldn't run */
     size_t buffer_num;
@@ -45,6 +47,8 @@ typedef struct {
     size_t menu_first_buffer_index;
     size_t empty_buffer_num;
     int msgs_enabled;
+    List *search_history;
+    List *command_history;
 } Session;
 
 Session *se_new(void);
@@ -54,7 +58,7 @@ int se_add_buffer(Session *, Buffer *);
 int se_set_active_buffer(Session *, size_t);
 Buffer *se_get_buffer(const Session *, size_t);
 int se_remove_buffer(Session *, Buffer *);
-Status se_make_cmd_buffer_active(Session *, const char *, const char *);
+Status se_make_cmd_buffer_active(Session *, const char *, List *, int);
 Status se_update_cmd_prompt_text(Session *, const char *);
 int se_end_cmd_buffer_active(Session *);
 int se_cmd_buffer_active(const Session *);
@@ -72,5 +76,7 @@ void se_clear_msgs(Session *);
 Status se_add_new_buffer(Session *, const char *);
 Status se_add_new_empty_buffer(Session *);
 Status se_get_buffer_index(const Session *, const char *, int *);
+Status se_add_search_to_history(Session *, char *);
+Status se_add_cmd_to_history(Session *, char *);
 
 #endif

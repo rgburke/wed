@@ -23,6 +23,7 @@
 static int list_grow_required(List *);
 static int list_shrink_required(List *);
 static int list_resize(List *, int);
+static void list_free_entry(void *);
 
 /* Code in this file doesn't use alloc and ralloc from
  * util.c in order to make it easier to reuse elsewhere */
@@ -180,6 +181,30 @@ void list_clear(List *list)
 {
     memset(list->values, 0, sizeof(void *) * list->allocated);
     list->size = 0;
+}
+
+static void list_free_entry(void *entry)
+{
+    if (entry) {
+        free(entry);
+    }
+}
+
+void list_free_all(List *list, void (*free_entry)(void *))
+{
+    if (!list) {
+        return;
+    }
+
+    if (free_entry == NULL) {
+        free_entry = list_free_entry;
+    }
+
+    for (size_t k = 0; k < list->size; k++) {
+        free_entry(list->values[k]);
+    }
+
+    list_free(list);
 }
 
 void list_free(List *list)

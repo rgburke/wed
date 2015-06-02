@@ -38,7 +38,6 @@
 static Status reset_buffer(Buffer *);
 static int is_selection(Direction *);
 static void bf_default_movement_selection_handler(Buffer *, int, Direction *);
-static void bf_free_search_history(Buffer *);
 static Status bf_change_real_line(Buffer *, BufferPos *, Direction, int);
 static Status bf_change_screen_line(Buffer *, BufferPos *, Direction, int);
 static Status bf_advance_bp_to_line_offset(Buffer *, BufferPos *, int);
@@ -59,11 +58,6 @@ Buffer *bf_new(const FileInfo *file_info)
     }
 
     if ((buffer->data = gb_new(GAP_INCREMENT)) == NULL) {
-        bf_free(buffer);
-        return NULL;
-    }
-
-    if ((buffer->search_history = list_new()) == NULL) {
         bf_free(buffer);
         return NULL;
     }
@@ -105,7 +99,6 @@ void bf_free(Buffer *buffer)
     fi_free(&buffer->file_info);
     cf_free_config(buffer->config);
     gb_free(buffer->data);
-    bf_free_search_history(buffer);
 
     free(buffer);
 }
@@ -405,39 +398,6 @@ static void bf_default_movement_selection_handler(Buffer *buffer, int is_select,
     } else if (bf_selection_started(buffer)) {
         bf_select_reset(buffer);
     }
-}
-
-Status bf_add_search_to_history(Buffer *buffer, char *search_text)
-{
-    assert(!is_null_or_empty(search_text));
-
-    if (!list_add(buffer->search_history, search_text)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable save search history");
-    }
-
-    return STATUS_SUCCESS;
-}
-
-const char *bf_get_last_search(const Buffer *buffer)
-{
-    size_t search_entries = list_size(buffer->search_history);
-
-    if (search_entries > 0) {
-        return list_get(buffer->search_history, search_entries - 1);
-    }
-
-    return NULL;
-}
-
-static void bf_free_search_history(Buffer *buffer)
-{
-    size_t search_entries = list_size(buffer->search_history);
-
-    for (size_t k = 0; k < search_entries; k++) {
-        free(list_get(buffer->search_history, k));
-    }
-
-    list_free(buffer->search_history);
 }
 
 Status bf_set_bp(Buffer *buffer, const BufferPos *pos)
@@ -1012,6 +972,10 @@ Status bf_delete_range(Buffer *buffer, const Range *range)
 
 Status bf_select_all_text(Buffer *buffer)
 {
+    if (gb_length(buffer->data) == 0) {
+        return STATUS_SUCCESS;
+    }
+
     BufferPos *pos = &buffer->pos, *select_start = &buffer->select_start;
 
     select_start->line_no = gb_lines(buffer->data) + 1;

@@ -70,10 +70,12 @@ static Status cm_session_add_empty_buffer(Session *, Value, const char *, int *)
 static Status cm_session_change_tab(Session *, Value, const char *, int *);
 static Status cm_session_close_buffer(Session *, Value, const char *, int *);
 static Status cm_session_run_command(Session *, Value, const char *, int *);
+static Status cm_previous_cmd_entry(Session *, Value, const char *, int *);
+static Status cm_next_cmd_entry(Session *, Value, const char *, int *);
 static Status cm_finished_processing_input(Session *, Value, const char *, int *);
 static Status cm_session_end(Session *, Value, const char *, int *);
 
-static Status cm_cmd_input_prompt(Session *sess, const char *, const char *);
+static Status cm_cmd_input_prompt(Session *, const char *, List *, int);
 static Status cm_cancel_cmd_input_prompt(Session *, Value, const char *, int *);
 static int cm_update_command_function(Session *, const char *, CommandHandler);
 
@@ -388,7 +390,7 @@ static Status cm_buffer_save_file(Session *sess, Value param, const char *keystr
     char *file_path;
 
     if (!file_path_exists) {
-        cm_cmd_input_prompt(sess, "Save As:", NULL);
+        cm_cmd_input_prompt(sess, "Save As:", NULL, 0);
 
         if (sess->cmd_prompt.cancelled) {
             return STATUS_SUCCESS;
@@ -453,10 +455,10 @@ static void cm_generate_find_prompt(const BufferSearch *search, char prompt_text
         direction = " (backwards)";
     }
 
-    const char *case_sensitive = " (case insensitive)";
+    const char *case_sensitive = "";
 
     if (!search->opt.case_insensitive) {
-        case_sensitive = "";
+        case_sensitive = " (case sensitive)";
     }
 
     snprintf(prompt_text, MAX_CMD_PROMPT_LENGTH, "Find%s%s%s:", type, direction, case_sensitive);
@@ -473,9 +475,7 @@ static Status cm_buffer_find(Session *sess, Value param, const char *keystr, int
     char prompt_text[MAX_CMD_PROMPT_LENGTH];
     cm_generate_find_prompt(&buffer->search, prompt_text);
 
-    const char *prev_pattern = bf_get_last_search(buffer);
-
-    cm_cmd_input_prompt(sess, prompt_text, prev_pattern);
+    cm_cmd_input_prompt(sess, prompt_text, sess->search_history, 1);
 
     if (sess->cmd_prompt.cancelled) {
         return STATUS_SUCCESS;
@@ -490,9 +490,14 @@ static Status cm_buffer_find(Session *sess, Value param, const char *keystr, int
         return STATUS_SUCCESS;
     } 
 
-    RETURN_IF_FAIL(bs_reinit(&buffer->search, pattern, strlen(pattern)));
+    Status status = se_add_search_to_history(sess, pattern);
 
-    RETURN_IF_FAIL(bf_add_search_to_history(buffer, pattern));
+    if (!STATUS_IS_SUCCESS(status)) {
+        free(pattern);    
+        return status;
+    }
+
+    RETURN_IF_FAIL(bs_reinit(&buffer->search, pattern, strlen(pattern)));
 
     return cm_buffer_find_next(sess, param, keystr, finished);
 }
@@ -611,7 +616,7 @@ static Status cm_session_open_file(Session *sess, Value param, const char *keyst
     (void)keystr;
     (void)finished;
 
-    cm_cmd_input_prompt(sess, "Open:", NULL);
+    cm_cmd_input_prompt(sess, "Open:", NULL, 0);
 
     if (sess->cmd_prompt.cancelled) {
         return STATUS_SUCCESS;
@@ -695,7 +700,7 @@ static Status cm_session_close_buffer(Session *sess, Value param, const char *ke
         snprintf(prompt_text, sizeof(prompt_text), fmt, 
                  sizeof(prompt_text) - strlen(fmt) + 3, buffer->file_info.file_name);
 
-        cm_cmd_input_prompt(sess, prompt_text, NULL); 
+        cm_cmd_input_prompt(sess, prompt_text, NULL, 0);
 
         if (sess->cmd_prompt.cancelled) {
             return STATUS_SUCCESS;
@@ -733,7 +738,7 @@ static Status cm_session_run_command(Session *sess, Value param, const char *key
     (void)keystr;
     (void)finished;
 
-    cm_cmd_input_prompt(sess, "Command:", NULL);
+    cm_cmd_input_prompt(sess, "Command:", sess->command_history, 0);
 
     if (sess->cmd_prompt.cancelled) {
         return STATUS_SUCCESS;
@@ -745,12 +750,62 @@ static Status cm_session_run_command(Session *sess, Value param, const char *key
     if (input == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
     } else if (*input != '\0') {
+        status = se_add_cmd_to_history(sess, input);
+
+        if (!STATUS_IS_SUCCESS(status)) {
+            free(input);
+            return status;
+        }
+
         status = cp_parse_config_string(sess, CL_BUFFER, input);
     }
 
-    free(input);
-
     return status;
+}
+
+static Status cm_previous_cmd_entry(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    if (sess->cmd_prompt.history == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    if (sess->cmd_prompt.history_index > 0) {
+        const char *cmd_text = list_get(sess->cmd_prompt.history, --sess->cmd_prompt.history_index);
+        return bf_set_text(sess->cmd_prompt.cmd_buffer, cmd_text);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static Status cm_next_cmd_entry(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    if (sess->cmd_prompt.history == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    size_t cmd_entries = list_size(sess->cmd_prompt.history);
+
+    if (sess->cmd_prompt.history_index < cmd_entries) {
+        const char *cmd_text;
+
+        if (++sess->cmd_prompt.history_index == cmd_entries) {
+            cmd_text = "";
+        } else {
+            cmd_text = list_get(sess->cmd_prompt.history, sess->cmd_prompt.history_index);
+        }
+
+        return bf_set_text(sess->cmd_prompt.cmd_buffer, cmd_text);
+    }
+
+    return STATUS_SUCCESS;
 }
 
 static Status cm_finished_processing_input(Session *sess, Value param, const char *keystr, int *finished)
@@ -782,9 +837,11 @@ static Status cm_session_end(Session *sess, Value param, const char *keystr, int
     return STATUS_SUCCESS;
 }
 
-static Status cm_cmd_input_prompt(Session *sess, const char *prompt_text, const char *cmd_text)
+static Status cm_cmd_input_prompt(Session *sess, const char *prompt_text, List *history, int show_last_cmd)
 {
-    RETURN_IF_FAIL(se_make_cmd_buffer_active(sess, prompt_text, cmd_text));
+    RETURN_IF_FAIL(se_make_cmd_buffer_active(sess, prompt_text, history, show_last_cmd));
+    cm_update_command_function(sess, "<Up>", cm_previous_cmd_entry);
+    cm_update_command_function(sess, "<Down>", cm_next_cmd_entry);
     cm_update_command_function(sess, "<Enter>", cm_finished_processing_input);
     cm_update_command_function(sess, "<Escape>", cm_cancel_cmd_input_prompt);
     se_exclude_command_type(sess, CMDT_CMD_INPUT);
@@ -793,6 +850,8 @@ static Status cm_cmd_input_prompt(Session *sess, const char *prompt_text, const 
     ip_process_input(sess);
 
     se_enable_command_type(sess, CMDT_CMD_INPUT);
+    cm_update_command_function(sess, "<Up>", cm_bp_change_line);
+    cm_update_command_function(sess, "<Down>", cm_bp_change_line);
     cm_update_command_function(sess, "<Enter>", cm_buffer_insert_line);
     cm_update_command_function(sess, "<Escape>", cm_session_end);
     se_end_cmd_buffer_active(sess);

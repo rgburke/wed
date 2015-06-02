@@ -28,6 +28,8 @@
 
 #define MAX_EMPTY_BUFFER_NAME_SIZE 20
 
+static Status se_add_to_history(List *, char *);
+
 Session *se_new(void)
 {
     Session *sess = malloc(sizeof(Session));
@@ -48,6 +50,14 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
     }
 
     if ((sess->msg_buffer = bf_new_empty("messages")) == NULL) {
+        return 0;
+    }
+
+    if ((sess->search_history = list_new()) == NULL) {
+        return 0;
+    }
+
+    if ((sess->command_history = list_new()) == NULL) {
         return 0;
     }
 
@@ -99,6 +109,8 @@ void se_free(Session *sess)
     free(sess->cmd_prompt.cmd_text);
     bf_free(sess->error_buffer);
     bf_free(sess->msg_buffer);
+    list_free_all(sess->search_history, NULL);
+    list_free_all(sess->command_history, NULL);
 
     free(sess);
 }
@@ -228,7 +240,7 @@ int se_remove_buffer(Session *sess, Buffer *to_remove)
     return 1;
 }
 
-Status se_make_cmd_buffer_active(Session *sess, const char *prompt_text, const char *cmd_text)
+Status se_make_cmd_buffer_active(Session *sess, const char *prompt_text, List *history, int show_last_cmd)
 {
     RETURN_IF_FAIL(se_update_cmd_prompt_text(sess, prompt_text));
 
@@ -236,8 +248,21 @@ Status se_make_cmd_buffer_active(Session *sess, const char *prompt_text, const c
     sess->active_buffer = sess->cmd_prompt.cmd_buffer;
 
     sess->cmd_prompt.cancelled = 0;
+    sess->cmd_prompt.history = history;
+    
+    const char *cmd_text = NULL;
+    
+    if (history != NULL) {
+        sess->cmd_prompt.history_index = list_size(history);
 
-    return bf_set_text(sess->cmd_prompt.cmd_buffer, cmd_text);
+        if (show_last_cmd && sess->cmd_prompt.history_index > 0) {
+            cmd_text = list_get(history, --sess->cmd_prompt.history_index); 
+        }
+    }
+
+    RETURN_IF_FAIL(bf_set_text(sess->cmd_prompt.cmd_buffer, cmd_text));
+
+    return bf_select_all_text(sess->cmd_prompt.cmd_buffer);
 }
 
 Status se_update_cmd_prompt_text(Session *sess, const char *text)
@@ -462,4 +487,31 @@ Status se_get_buffer_index(const Session *sess, const char *file_path, int *buff
     fi_free(&file_info);
 
     return STATUS_SUCCESS;
+}
+
+static Status se_add_to_history(List *history, char *text)
+{
+    assert(!is_null_or_empty(text));
+
+    size_t size = list_size(history);
+
+    if (size > 0 && strcmp(list_get(history, size - 1), text) == 0) {
+        return STATUS_SUCCESS;
+    }
+
+    if (!list_add(history, text)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable save search history");
+    }
+
+    return STATUS_SUCCESS;
+}
+
+Status se_add_search_to_history(Session *sess, char *search_text)
+{
+    return se_add_to_history(sess->search_history, search_text);
+}
+
+Status se_add_cmd_to_history(Session *sess, char *cmd_text)
+{
+    return se_add_to_history(sess->command_history, cmd_text);
 }
