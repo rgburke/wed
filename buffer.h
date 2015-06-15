@@ -122,6 +122,7 @@ Status bf_to_buffer_end(Buffer *, int);
 Status bf_change_page(Buffer *, Direction);
 Status bf_insert_character(Buffer *, const char *, int);
 Status bf_insert_string(Buffer *, const char *, size_t, int);
+Status bf_replace_string(Buffer *, size_t, const char *, size_t, int);
 Status bf_delete_character(Buffer *);
 Status bf_select_continue(Buffer *);
 Status bf_select_reset(Buffer *);

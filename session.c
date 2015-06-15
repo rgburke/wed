@@ -57,6 +57,10 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
+    if ((sess->replace_history = list_new()) == NULL) {
+        return 0;
+    }
+
     if ((sess->command_history = list_new()) == NULL) {
         return 0;
     }
@@ -110,6 +114,7 @@ void se_free(Session *sess)
     bf_free(sess->error_buffer);
     bf_free(sess->msg_buffer);
     list_free_all(sess->search_history, NULL);
+    list_free_all(sess->replace_history, NULL);
     list_free_all(sess->command_history, NULL);
 
     free(sess);
@@ -509,6 +514,11 @@ static Status se_add_to_history(List *history, char *text)
 Status se_add_search_to_history(Session *sess, char *search_text)
 {
     return se_add_to_history(sess->search_history, search_text);
+}
+
+Status se_add_replace_to_history(Session *sess, char *replace_text)
+{
+    return se_add_to_history(sess->replace_history, replace_text);
 }
 
 Status se_add_cmd_to_history(Session *sess, char *cmd_text)

@@ -12,13 +12,14 @@ static void gap_buffer_insert_2(GapBuffer *, const char *, size_t);
 static void gap_buffer_movement(GapBuffer *);
 static void gap_buffer_retrieval(GapBuffer *, const char *, size_t);
 static void gap_buffer_delete(GapBuffer *);
+static void gap_buffer_replace(GapBuffer *);
 
 int main(int argc, char *argv[])
 {
     (void)argc;
     (void)argv;
 
-    plan(52);
+    plan(70);
 
     GapBuffer *buffer = gb_new(GAP_INCREMENT);
 
@@ -35,6 +36,7 @@ int main(int argc, char *argv[])
     gap_buffer_movement(buffer);
     gap_buffer_retrieval(buffer, str, str_len);
     gap_buffer_delete(buffer);
+    gap_buffer_replace(buffer);
 
     return exit_status();
 }
@@ -135,4 +137,33 @@ static void gap_buffer_delete(GapBuffer *buffer)
     ok(gb_length(buffer) == point, "Buffer length decreased");
     ok(buffer->allocated - gb_gap_size(buffer) == gb_length(buffer), "All allocated space accounted for");
     ok(gb_lines(buffer) == 0, "No more lines in buffer");
+}
+
+static void gap_buffer_replace(GapBuffer *buffer)
+{
+    msg("Replace:");
+    size_t buffer_len = gb_length(buffer);
+    char buf_start[buffer_len], buf_end[buffer_len];
+    memset(buf_start, 0, sizeof(buf_start));
+    memset(buf_end, 0, sizeof(buf_end));
+    ok(gb_get_range(buffer, 0, buf_start, buffer_len) == buffer_len, "Retrieved text range from buffer");
+
+    ok(gb_set_point(buffer, 0), "Point is at buffer start");
+    ok(gb_replace(buffer, 5, "", 0), "Replace first 5 bytes with empty string");
+    ok(buffer_len - 5 == gb_length(buffer) && gb_get_at(buffer, 0) == 'i', "Replace with empty string correct");
+    ok(gb_set_point(buffer, 0), "Point is at buffer start");
+    ok(gb_replace(buffer, 0, "This ", 5), "Replace empty string with 5 bytes");
+    ok(buffer_len == gb_length(buffer) && gb_get_at(buffer, 0) == 'T', "Replace empty string correct");
+    ok(gb_set_point(buffer, 0), "Point is at buffer start");
+    ok(gb_replace(buffer, 4, "is", 2), "Replace first 4 bytes with 2 bytes");
+    ok(buffer_len - 2 == gb_length(buffer) && gb_get_at(buffer, 0) == 'i', "Replace with fewer bytes correct");
+    ok(gb_set_point(buffer, 0), "Point is at buffer start");
+    ok(gb_replace(buffer, 2, "This", 4), "Replaced first 2 bytes with 4 bytes");
+    ok(buffer_len == gb_length(buffer) && gb_get_at(buffer, 0) == 'T', "Replace with more bytes correct");
+    ok(gb_set_point(buffer, 0), "Point is at buffer start");
+    ok(gb_replace(buffer, 4, "This", 4), "Replaced first 4 bytes with 4 bytes");
+    ok(buffer_len == gb_length(buffer) && gb_get_at(buffer, 0) == 'T', "Replace with equal bytes correct");
+
+    ok(gb_get_range(buffer, 0, buf_end, buffer_len) == buffer_len, "Retrieved text range from buffer");
+    ok(strncmp(buf_start, buf_end, buffer_len) == 0, "Text range retrieved matches starting text");
 }

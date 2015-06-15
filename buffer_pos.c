@@ -289,6 +289,8 @@ void bp_reverse_to_offset(BufferPos *pos, size_t offset)
 {
     BufferPos tmp = *pos;
 
+    bp_to_line_start(&tmp);
+
     while (tmp.offset > offset) {
         *pos = tmp;
 

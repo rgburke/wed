@@ -111,21 +111,39 @@ void ts_free(TextSearch *search)
 }
 
 Status ts_find_next(TextSearch *search, const SearchOptions *opt, 
-                    const BufferPos *start_pos, int *found_match,
-                    size_t *match_point)
+                    const BufferPos *search_start_pos, const BufferPos *current_start_pos,
+                    int *found_match, size_t *match_point)
 {
     ts_update_search_chars(opt->case_insensitive);
 
-    BufferPos pos = *start_pos;
+    BufferPos pos = *current_start_pos;
+    int wrapped = search_start_pos != NULL && bp_compare(search_start_pos, current_start_pos) == 1;
+    size_t limit;
 
-    if (ts_find_next_str(pos.data, pos.offset, match_point, gb_length(pos.data), search)) {
+    if (wrapped) {
+        limit = search_start_pos->offset + opt->pattern_len - 1;
+    } else {
+        limit = gb_length(pos.data);
+    }
+
+    if (ts_find_next_str(pos.data, pos.offset, match_point, limit, search)) {
         *found_match = 1;
         return STATUS_SUCCESS;
     }
 
-    bp_to_buffer_start(&pos);
+    if (wrapped) {
+        return STATUS_SUCCESS;
+    }
 
-    if (ts_find_next_str(pos.data, pos.offset, match_point, start_pos->offset + opt->pattern_len, search)) {
+    bp_to_buffer_start(&pos);
+   
+    if (search_start_pos == NULL) {
+        limit = current_start_pos->offset;
+    } else {
+        limit = search_start_pos->offset;
+    }
+
+    if (ts_find_next_str(pos.data, pos.offset, match_point, limit + opt->pattern_len, search)) {
         *found_match = 1;
     }
 
@@ -133,21 +151,39 @@ Status ts_find_next(TextSearch *search, const SearchOptions *opt,
 }
 
 Status ts_find_prev(TextSearch *search, const SearchOptions *opt, 
-                    const BufferPos *start_pos, int *found_match,
-                    size_t *match_point)
+                    const BufferPos *search_start_pos, const BufferPos *current_start_pos,
+                    int *found_match, size_t *match_point)
 {
     ts_update_search_chars(opt->case_insensitive);
 
-    BufferPos pos = *start_pos;
+    BufferPos pos = *current_start_pos;
+    int wrapped = search_start_pos != NULL && bp_compare(search_start_pos, current_start_pos) == -1;
+    size_t limit;
 
-    if (ts_find_prev_str(pos.data, pos.offset, match_point, 0, search)) {
+    if (wrapped) {
+        limit = search_start_pos->offset;
+    } else {
+        limit = 0;
+    }
+
+    if (ts_find_prev_str(pos.data, pos.offset, match_point, limit, search)) {
         *found_match = 1;
+        return STATUS_SUCCESS;
+    }
+
+    if (wrapped) {
         return STATUS_SUCCESS;
     }
 
     bp_to_buffer_end(&pos);
 
-    if (ts_find_prev_str(pos.data, pos.offset, match_point, start_pos->offset, search)) {
+    if (search_start_pos == NULL) {
+        limit = current_start_pos->offset;
+    } else {
+        limit = search_start_pos->offset;
+    }
+
+    if (ts_find_prev_str(pos.data, pos.offset, match_point, limit, search)) {
         *found_match = 1;
     }
 
@@ -212,6 +248,7 @@ static int ts_find_next_str(const GapBuffer *buffer, size_t point, size_t *next,
         limit = buffer_len;
     }
 
+    size_t limit_ext = limit;
     point = ts_gb_internal_point(buffer, point);
     limit = ts_gb_internal_point(buffer, limit);
 
@@ -235,7 +272,7 @@ static int ts_find_next_str(const GapBuffer *buffer, size_t point, size_t *next,
         }
 
         size_t bridge_point = 0;
-        size_t bridge_limit = MIN(limit - point, gap_bridge_size);
+        size_t bridge_limit = MIN(limit_ext - point, gap_bridge_size);
         
         if (ts_find_next_str_in_range(gap_bridge, &bridge_point, bridge_limit, next, search)) {
             *next += point;

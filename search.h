@@ -33,6 +33,7 @@ typedef enum {
 
 struct BufferSearch {
     SearchOptions opt;
+    BufferPos start_pos;
     BufferPos last_match_pos;
     BufferSearchType search_type;
     BufferSearchType last_search_type;
@@ -44,10 +45,11 @@ struct BufferSearch {
 
 typedef struct BufferSearch BufferSearch;
 
-Status bs_init(BufferSearch *, const char *, size_t);
-Status bs_reinit(BufferSearch *, const char *, size_t);
+Status bs_init(BufferSearch *, const BufferPos *, const char *, size_t);
+Status bs_reinit(BufferSearch *, const BufferPos *, const char *, size_t);
 Status bs_init_default_opt(BufferSearch *);
 void bs_free(BufferSearch *);
 Status bs_find_next(BufferSearch *, const BufferPos *, int *);
+size_t bs_match_length(const BufferSearch *);
 
 #endif

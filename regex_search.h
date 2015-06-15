@@ -25,6 +25,13 @@
 #include "search_options.h"
 
 #define OUTPUT_VECTOR_SIZE 90
+#define MAX_CAPTURE_GROUP_NUM (((OUTPUT_VECTOR_SIZE - (OUTPUT_VECTOR_SIZE / 3)) / 2) - 1)
+#define MAX_BACK_REF_OCCURRENCES 100
+
+typedef struct {
+    size_t back_refs[MAX_BACK_REF_OCCURRENCES][3];
+    size_t back_ref_occurrences;
+} RegexReplace;
 
 typedef struct {
     pcre *regex;
@@ -32,12 +39,13 @@ typedef struct {
     int return_code;
     int output_vector[OUTPUT_VECTOR_SIZE];
     int match_length;
+    RegexReplace regex_replace;
 } RegexSearch;
 
 Status rs_init(RegexSearch *, const SearchOptions *);
 void rs_free(RegexSearch *);
 Status rs_reinit(RegexSearch *, const SearchOptions *);
-Status rs_find_next(RegexSearch *, const SearchOptions *, const BufferPos *, int *, size_t *);
-Status rs_find_prev(RegexSearch *, const SearchOptions *, const BufferPos *, int *, size_t *);
+Status rs_find_next(RegexSearch *, const SearchOptions *, const BufferPos *, const BufferPos *, int *, size_t *);
+Status rs_find_prev(RegexSearch *, const SearchOptions *, const BufferPos *, const BufferPos *, int *, size_t *);
 
 #endif

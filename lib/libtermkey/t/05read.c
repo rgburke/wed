@@ -34,10 +34,10 @@ int main(int argc, char *argv[])
 
   is_int(termkey_getkey(tk, &key), TERMKEY_RES_KEY, "getkey yields RES_KEY after h");
 
-  is_int(key.type,        TERMKEY_TYPE_UNICODE, "key.type after h");
-  is_int(key.code.number, 'h',                  "key.code.number after h");
-  is_int(key.modifiers,   0,                    "key.modifiers after h");
-  is_str(key.utf8,        "h",                  "key.utf8 after h");
+  is_int(key.type,           TERMKEY_TYPE_UNICODE, "key.type after h");
+  is_int(key.code.codepoint, 'h',                  "key.code.codepoint after h");
+  is_int(key.modifiers,      0,                    "key.modifiers after h");
+  is_str(key.utf8,           "h",                  "key.utf8 after h");
 
   is_int(termkey_get_buffer_remaining(tk), 256, "buffer free 256 after getkey");
 

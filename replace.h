@@ -16,26 +16,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_TEXT_SEARCH_H
-#define WED_TEXT_SEARCH_H
+#ifndef WED_REPLACE_H
+#define WED_REPLACE_H
 
-#include "shared.h"
-#include "buffer_pos.h"
-#include "search_options.h"
-#include "status.h"
+#include "buffer.h"
 
-#define ALPHABET_SIZE 256
-
-typedef struct {
-    char *pattern;
-    size_t pattern_len;
-    size_t bad_char_table[ALPHABET_SIZE];
-} TextSearch;
-
-Status ts_init(TextSearch *, const SearchOptions *);
-Status ts_reinit(TextSearch *, const SearchOptions *);
-void ts_free(TextSearch *);
-Status ts_find_next(TextSearch *, const SearchOptions *, const BufferPos *, const BufferPos *, int *, size_t *);
-Status ts_find_prev(TextSearch *, const SearchOptions *, const BufferPos *, const BufferPos *, int *, size_t *);
+Status rp_replace_init(BufferSearch *, const char *, size_t);
+Status rp_replace_current_match(Buffer *, const char *, size_t);
 
 #endif

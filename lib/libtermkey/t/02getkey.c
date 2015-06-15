@@ -20,10 +20,10 @@ int main(int argc, char *argv[])
 
   is_int(termkey_getkey(tk, &key), TERMKEY_RES_KEY, "getkey yields RES_KEY after h");
 
-  is_int(key.type,        TERMKEY_TYPE_UNICODE, "key.type after h");
-  is_int(key.code.number, 'h',                  "key.code.number after h");
-  is_int(key.modifiers,   0,                    "key.modifiers after h");
-  is_str(key.utf8,        "h",                  "key.utf8 after h");
+  is_int(key.type,           TERMKEY_TYPE_UNICODE, "key.type after h");
+  is_int(key.code.codepoint, 'h',                  "key.code.codepoint after h");
+  is_int(key.modifiers,      0,                    "key.modifiers after h");
+  is_str(key.utf8,           "h",                  "key.utf8 after h");
 
   is_int(termkey_get_buffer_remaining(tk), 256, "buffer free 256 after getkey");
 
@@ -33,9 +33,9 @@ int main(int argc, char *argv[])
 
   is_int(termkey_getkey(tk, &key), TERMKEY_RES_KEY, "getkey yields RES_KEY after C-a");
 
-  is_int(key.type,        TERMKEY_TYPE_UNICODE, "key.type after C-a");
-  is_int(key.code.number, 'a',                  "key.code.number after C-a");
-  is_int(key.modifiers,   TERMKEY_KEYMOD_CTRL,  "key.modifiers after C-a");
+  is_int(key.type,           TERMKEY_TYPE_UNICODE, "key.type after C-a");
+  is_int(key.code.codepoint, 'a',                  "key.code.codepoint after C-a");
+  is_int(key.modifiers,      TERMKEY_KEYMOD_CTRL,  "key.modifiers after C-a");
 
   termkey_push_bytes(tk, "\033OA", 3);
 

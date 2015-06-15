@@ -44,6 +44,7 @@ void gb_contiguous_storage(GapBuffer *);
 int gb_insert(GapBuffer *, const char *, size_t);
 int gb_add(GapBuffer *, const char *, size_t);
 int gb_delete(GapBuffer *, size_t);
+int gb_replace(GapBuffer *, size_t, const char *, size_t);
 size_t gb_get_point(const GapBuffer *);
 int gb_set_point(GapBuffer *, size_t);
 char gb_get(const GapBuffer *);

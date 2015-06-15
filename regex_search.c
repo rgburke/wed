@@ -74,49 +74,83 @@ Status rs_reinit(RegexSearch *search, const SearchOptions *opt)
 }
 
 Status rs_find_next(RegexSearch *search, const SearchOptions *opt,
-                    const BufferPos *start_pos, int *found_match,
-                    size_t *match_point)
+                    const BufferPos *search_start_pos, const BufferPos *current_start_pos,
+                    int *found_match, size_t *match_point)
 {
-    BufferPos pos = *start_pos;
+    BufferPos pos = *current_start_pos;
+    int wrapped = search_start_pos != NULL && bp_compare(search_start_pos, current_start_pos) == 1;
     size_t buffer_len = gb_length(pos.data);
+    size_t limit;
     (void)opt;
 
     gb_contiguous_storage((GapBuffer *)pos.data);
 
-    RETURN_IF_FAIL(rs_find_next_str(pos.data->text, pos.offset, buffer_len, 
+    if (wrapped) {
+        limit = MIN(search_start_pos->offset + REGEX_BUFFER_SIZE, buffer_len);
+    } else {
+        limit = buffer_len;
+    }
+
+    RETURN_IF_FAIL(rs_find_next_str(pos.data->text, pos.offset, limit, 
                                     match_point, found_match, search));
 
-    if (*found_match) {
+    if (*found_match || wrapped) {
         return STATUS_SUCCESS;
     }
 
     bp_to_buffer_start(&pos);
 
-    RETURN_IF_FAIL(rs_find_next_str(pos.data->text, pos.offset, MIN(start_pos->offset + REGEX_BUFFER_SIZE, buffer_len), 
+    if (search_start_pos == NULL) {
+        limit = current_start_pos->offset;
+    } else {
+        limit = search_start_pos->offset;
+    }
+
+    RETURN_IF_FAIL(rs_find_next_str(pos.data->text, pos.offset, 
+                                    MIN(limit + REGEX_BUFFER_SIZE, buffer_len), 
                                     match_point, found_match, search));
 
     return STATUS_SUCCESS;
 }
 
 Status rs_find_prev(RegexSearch *search, const SearchOptions *opt,
-                    const BufferPos *start_pos, int *found_match,
-                    size_t *match_point)
+                    const BufferPos *search_start_pos, const BufferPos *current_start_pos,
+                    int *found_match, size_t *match_point)
 {
-    BufferPos pos = *start_pos;
+    BufferPos pos = *current_start_pos;
     size_t buffer_len = gb_length(pos.data);
+    int wrapped = search_start_pos != NULL && bp_compare(search_start_pos, current_start_pos) == -1;
+    size_t limit;
     (void)opt;
+
+    if (wrapped) {
+        limit = search_start_pos->offset;
+    } else {
+        limit = 0;
+    }
 
     gb_contiguous_storage((GapBuffer *)pos.data);
 
     RETURN_IF_FAIL(rs_find_prev_str(pos.data->text, buffer_len, pos.offset, 
-                                    0, match_point, found_match, search));
+                                    limit, match_point, found_match, search));
 
-    if (*found_match) {
+    if (*found_match || wrapped) {
+        if (*found_match && wrapped && 
+            *match_point < search_start_pos->offset) {
+            *found_match = 0;
+        }
+
         return STATUS_SUCCESS;
     }
 
+    if (search_start_pos == NULL) {
+        limit = current_start_pos->offset;
+    } else {
+        limit = search_start_pos->offset;
+    }
+
     RETURN_IF_FAIL(rs_find_prev_str(pos.data->text, buffer_len, buffer_len, 
-                                    start_pos->offset, match_point, found_match, search));
+                                    limit, match_point, found_match, search));
 
     return STATUS_SUCCESS;
 }
@@ -153,7 +187,7 @@ static Status rs_find_prev_str(const char *str, size_t str_len, size_t point, si
         } while (STATUS_IS_SUCCESS(status) && search_point < start_point);
 
         if (*found_match || !STATUS_IS_SUCCESS(status)) {
-            if (*found_match && mpoint != *match_point) {
+            if (*found_match && (mpoint != *match_point || search->return_code < 1)) {
                 status = rs_find_next_str(str, mpoint, mpoint + mlength, 
                                           match_point, found_match, search);
             }

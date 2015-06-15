@@ -18,6 +18,7 @@
 
 /* For memrchr */
 #define _GNU_SOURCE
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 #include <stdlib.h>
 #include <string.h>
@@ -282,6 +283,62 @@ int gb_delete(GapBuffer *buffer, size_t byte_num)
     buffer->gap_end += byte_num;
 
     gb_decrease_gap_if_required(buffer);
+
+    return 1;
+}
+
+int gb_replace(GapBuffer *buffer, size_t num_bytes, const char *str, size_t str_len)
+{
+    /* | T | e | s | t |   |   |   |   |   | */
+    /* 0   1   2   3   4   5   6   7   8   9 */
+    /*                PGS                 GE */
+
+    /* | T | e |   |   |   |   |   | s | t | */
+    /* 0   1   2   3   4   5   6   7   8   9 */
+    /*        PGS                 GE         */
+
+    assert(str != NULL);
+
+    if (str == NULL) {
+        return 0;
+    }
+
+    gb_move_gap_to_point(buffer);
+
+    size_t buffer_len = gb_length(buffer);
+
+    if (buffer->point + num_bytes > buffer_len) {
+        num_bytes = buffer_len - buffer->point;
+    }
+
+    size_t after_gap_bytes = buffer->allocated - buffer->gap_end;
+    size_t replace_bytes = MIN(after_gap_bytes, MIN(num_bytes, str_len));
+    char *text = buffer->text + buffer->gap_end;
+
+    for (size_t k = 0; k < replace_bytes; k++) {
+        if (*text == '\n') {
+            buffer->lines--; 
+        } 
+
+        if (str[k] == '\n') {
+            buffer->lines++;
+        }
+
+        *text++ = str[k];
+    }
+
+    if (replace_bytes > 0) {
+        buffer->point += gb_gap_size(buffer) + replace_bytes;
+    }
+
+    if (str_len - replace_bytes > 0 && 
+       !gb_add(buffer, str + replace_bytes, str_len - replace_bytes)) {
+        return 0;
+    }
+
+    if (num_bytes > str_len) {
+        return gb_delete(buffer, num_bytes - str_len);
+    }
 
     return 1;
 }

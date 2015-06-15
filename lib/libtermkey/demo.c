@@ -46,6 +46,11 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
+  if(termkey_get_flags(tk) & TERMKEY_FLAG_UTF8)
+    printf("Termkey in UTF-8 mode\n");
+  else if(termkey_get_flags(tk) & TERMKEY_FLAG_RAW)
+    printf("Termkey in RAW mode\n");
+
   TermKeyResult ret;
   TermKeyKey key;
 
@@ -81,7 +86,7 @@ int main(int argc, char *argv[])
         printf("Unrecognised CSI %c %ld;%ld %c%c\n", (char)(command >> 8), args[0], args[1], (char)(command >> 16), (char)command);
       }
       else {
-        printf("%s\n", buffer);
+        printf("Key %s\n", buffer);
       }
 
       if(key.type == TERMKEY_TYPE_UNICODE &&

@@ -412,6 +412,10 @@ Status bf_set_bp(Buffer *buffer, const BufferPos *pos)
 
     buffer->pos = *pos;
 
+    if (bf_selection_started(buffer)) {
+        bf_select_reset(buffer);
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -908,6 +912,30 @@ Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length
     return STATUS_SUCCESS;
 } 
 
+Status bf_replace_string(Buffer *buffer, size_t replace_length, const char *string, 
+                         size_t string_length, int advance_cursor)
+{
+    if (string == NULL) {
+        return st_get_error(ERR_INVALID_CHARACTER, "Cannot insert NULL string");
+    }
+
+    BufferPos *pos = &buffer->pos;
+
+    gb_set_point(buffer->data, pos->offset);
+
+    if (!gb_replace(buffer->data, replace_length, string, string_length)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to replace text");
+    }
+
+    buffer->is_dirty = 1;
+
+    if (advance_cursor) {
+        bp_advance_to_offset(pos, gb_get_point(buffer->data));
+    }
+
+    return STATUS_SUCCESS;
+}
+
 Status bf_delete_character(Buffer *buffer)
 {
     Range range;
@@ -998,9 +1026,8 @@ Status bf_copy_selected_text(Buffer *buffer, TextSelection *text_selection)
         return STATUS_SUCCESS;
     }
 
+    assert(range.end.offset > range.start.offset);
     size_t range_size = range.end.offset - range.start.offset;
-
-    assert(range_size > 0);
 
     text_selection->str = malloc(range_size + 1);
 

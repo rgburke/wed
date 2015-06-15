@@ -48,6 +48,7 @@ typedef struct {
     size_t empty_buffer_num;
     int msgs_enabled;
     List *search_history;
+    List *replace_history;
     List *command_history;
 } Session;
 
@@ -77,6 +78,7 @@ Status se_add_new_buffer(Session *, const char *);
 Status se_add_new_empty_buffer(Session *);
 Status se_get_buffer_index(const Session *, const char *, int *);
 Status se_add_search_to_history(Session *, char *);
+Status se_add_replace_to_history(Session *, char *);
 Status se_add_cmd_to_history(Session *, char *);
 
 #endif
