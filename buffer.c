@@ -71,6 +71,7 @@ Buffer *bf_new(const FileInfo *file_info)
     bf_select_reset(buffer);
     init_window_info(&buffer->win_info);
     bs_init_default_opt(&buffer->search);
+    bc_init(&buffer->changes);
 
     return buffer;
 }
@@ -99,6 +100,7 @@ void bf_free(Buffer *buffer)
     fi_free(&buffer->file_info);
     cf_free_config(buffer->config);
     gb_free(buffer->data);
+    bc_free(&buffer->changes);
 
     free(buffer);
 }
@@ -871,14 +873,26 @@ Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length
         return STATUS_SUCCESS;
     }
 
+    Status status = STATUS_SUCCESS;
+
     Range range;
+    int grouped_changes_started = 0;
 
     if (bf_get_range(buffer, &range)) {
-        Status status = bf_delete_range(buffer, &range);
-        RETURN_IF_FAIL(status);
+        if (!bc_grouped_changes_started(&buffer->changes)) {
+            RETURN_IF_FAIL(bc_start_grouped_changes(&buffer->changes));
+            grouped_changes_started = 1;
+        }
+
+        status = bf_delete_range(buffer, &range);
+        
+        if (!STATUS_IS_SUCCESS(status)) {
+            goto cleanup;
+        }
     }
 
     BufferPos *pos = &buffer->pos;
+    BufferPos start_pos = *pos;
     gb_set_point(buffer->data, pos->offset);
     size_t lines_before;
 
@@ -887,10 +901,18 @@ Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length
     }
 
     if (!gb_insert(buffer->data, string, string_length)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to insert text");
+        status = st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to insert text");
+        goto cleanup;
     }
 
     buffer->is_dirty = 1;
+
+    status = bc_add_text_change(&buffer->changes, TCT_INSERT, string, 
+                                string_length, &start_pos);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        goto cleanup;
+    }
 
     if (advance_cursor) {
         /* TODO Somewhat arbitrary */
@@ -903,13 +925,18 @@ Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length
         } else {
             size_t end_offset = pos->offset + string_length;
 
-            while (pos->offset < end_offset) {
-                RETURN_IF_FAIL(bf_change_char(buffer, pos, DIRECTION_RIGHT, 1));
+            while (STATUS_IS_SUCCESS(status) && pos->offset < end_offset) {
+                status = bf_change_char(buffer, pos, DIRECTION_RIGHT, 1);
             }
         }
     }
 
-    return STATUS_SUCCESS;
+cleanup:
+    if (grouped_changes_started) {
+        bc_end_grouped_changes(&buffer->changes);
+    }
+
+    return status;
 } 
 
 Status bf_replace_string(Buffer *buffer, size_t replace_length, const char *string, 
@@ -919,24 +946,35 @@ Status bf_replace_string(Buffer *buffer, size_t replace_length, const char *stri
         return st_get_error(ERR_INVALID_CHARACTER, "Cannot insert NULL string");
     }
 
-    BufferPos *pos = &buffer->pos;
+    int grouped_changes_started = bc_grouped_changes_started(&buffer->changes);
 
-    gb_set_point(buffer->data, pos->offset);
-
-    if (!gb_replace(buffer->data, replace_length, string, string_length)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to replace text");
+    if (!grouped_changes_started) {
+        RETURN_IF_FAIL(bc_start_grouped_changes(&buffer->changes));
     }
 
-    buffer->is_dirty = 1;
+    Status status = bf_delete(buffer, replace_length);
+
+    if (STATUS_IS_SUCCESS(status)) {
+        buffer->is_dirty = 1;
+        status = bf_insert_string(buffer, string, string_length, 1);
+    }
+
+    if (!grouped_changes_started) {
+        status = bc_end_grouped_changes(&buffer->changes);
+    }
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        return status;
+    }
 
     if (advance_cursor) {
-        bp_advance_to_offset(pos, gb_get_point(buffer->data));
+        bp_advance_to_offset(&buffer->pos, gb_get_point(buffer->data));
     }
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
-Status bf_delete_character(Buffer *buffer)
+Status bf_delete(Buffer *buffer, size_t byte_num)
 {
     Range range;
 
@@ -946,22 +984,44 @@ Status bf_delete_character(Buffer *buffer)
 
     BufferPos *pos = &buffer->pos;
 
-    if (bp_at_buffer_end(pos)) {
+    if (bp_at_buffer_end(pos) || byte_num == 0) {
         return STATUS_SUCCESS;
     }
 
-    CharInfo char_info;
-    buffer->cef.char_info(&char_info, CIP_DEFAULT, *pos);
+    assert(gb_length(buffer->data) - pos->offset >= byte_num);
+
+    char *deleted_str = malloc(byte_num);
+
+    if (deleted_str == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
+                            "Unable to save deletion");
+    }
+
+    gb_get_range(buffer->data, pos->offset, deleted_str, byte_num);
 
     gb_set_point(buffer->data, pos->offset);
 
-    if (!gb_delete(buffer->data, char_info.byte_length)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to delete character");
+    if (!gb_delete(buffer->data, byte_num)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
+                            "Unable to delete character");
     }
 
     buffer->is_dirty = 1;
 
-    return STATUS_SUCCESS;
+    Status status = bc_add_text_change(&buffer->changes, TCT_DELETE, deleted_str, 
+                                       byte_num, pos);
+
+    free(deleted_str);
+
+    return status;
+}
+
+Status bf_delete_character(Buffer *buffer)
+{
+    CharInfo char_info;
+    buffer->cef.char_info(&char_info, CIP_DEFAULT, buffer->pos);
+
+    return bf_delete(buffer, char_info.byte_length);
 }
 
 Status bf_select_continue(Buffer *buffer)
@@ -986,16 +1046,9 @@ Status bf_delete_range(Buffer *buffer, const Range *range)
     *pos = range->start;
 
     size_t delete_byte_num = range->end.offset - range->start.offset;
-
     assert(delete_byte_num > 0);
 
-    gb_set_point(buffer->data, pos->offset);
-
-    if (!gb_delete(buffer->data, delete_byte_num)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to delete text");
-    }
-
-    return STATUS_SUCCESS;
+    return bf_delete(buffer, delete_byte_num);
 }
 
 Status bf_select_all_text(Buffer *buffer)

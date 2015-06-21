@@ -68,6 +68,8 @@ static Status cm_buffer_select_all_text(Session *, Value, const char *, int *);
 static Status cm_buffer_copy_selected_text(Session *, Value, const char *, int *);
 static Status cm_buffer_cut_selected_text(Session *, Value, const char *, int *);
 static Status cm_buffer_paste_text(Session *, Value, const char *, int *);
+static Status cm_buffer_undo(Session *, Value, const char *, int *);
+static Status cm_buffer_redo(Session *, Value, const char *, int *);
 static Status cm_buffer_save_file(Session *, Value, const char *, int *);
 static void cm_generate_find_prompt(const BufferSearch *, char prompt_text[MAX_CMD_PROMPT_LENGTH]);
 static Status cm_prerpare_search(Session *, const BufferPos *);
@@ -133,6 +135,8 @@ static const Command commands[] = {
     { "<C-c>"        , cm_buffer_copy_selected_text     , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-x>"        , cm_buffer_cut_selected_text      , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-v>"        , cm_buffer_paste_text             , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
+    { "<C-z>"        , cm_buffer_undo                   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  },
+    { "<C-y>"        , cm_buffer_redo                   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  },
     { "<C-s>"        , cm_buffer_save_file              , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-f>"        , cm_buffer_find                   , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<F3>"         , cm_buffer_find_next              , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
@@ -390,6 +394,26 @@ static Status cm_buffer_paste_text(Session *sess, Value param, const char *keyst
     }
 
     return bf_insert_textselection(sess->active_buffer, &sess->clipboard);
+}
+
+static Status cm_buffer_undo(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    Buffer *buffer = sess->active_buffer;
+    return bc_undo(&buffer->changes, buffer);
+}
+
+static Status cm_buffer_redo(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    Buffer *buffer = sess->active_buffer;
+    return bc_redo(&buffer->changes, buffer);
 }
 
 static Status cm_buffer_save_file(Session *sess, Value param, const char *keystr, int *finished)
@@ -725,6 +749,14 @@ static Status cm_buffer_replace(Session *sess, Value param, const char *keystr, 
 
                 response = cm_question_prompt(sess, "Replace (Yes|no|all):", 
                                               QR_YES | QR_NO | QR_ALL, QR_YES);
+
+                if (response == QR_ALL) {
+                    status = bc_start_grouped_changes(&buffer->changes);
+
+                    if (!STATUS_IS_SUCCESS(status)) {
+                        break;
+                    }
+                }
             }
 
             if (response == QR_ERROR) {
@@ -753,6 +785,10 @@ static Status cm_buffer_replace(Session *sess, Value param, const char *keystr, 
     }
 
     bf_select_reset(buffer);
+
+    if (bc_grouped_changes_started(&buffer->changes)) {
+        bc_end_grouped_changes(&buffer->changes);
+    }
 
     if (!STATUS_IS_SUCCESS(status)) {
         return status;

@@ -35,6 +35,7 @@ typedef struct {
 } List;
 
 List *list_new();
+List *list_new_prealloc(size_t);
 List *list_new_sized(size_t);
 size_t list_size(List *);
 void *list_get(List *, size_t);

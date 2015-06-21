@@ -30,8 +30,19 @@ static void list_free_entry(void *);
 
 List *list_new()
 {
-    List* list = list_new_sized(LIST_ALLOC);        
+    return list_new_prealloc(LIST_ALLOC);        
+}
+
+List *list_new_prealloc(size_t size)
+{
+    List* list = list_new_sized(size);
+
+    if (list == NULL) {
+        return NULL;
+    }
+
     list->size = 0;
+
     return list;
 }
 
@@ -73,12 +84,14 @@ static int list_resize(List *list, int resize_type)
     }
 
     size_t new_size = list->allocated + ((list->allocated / 2) * resize_type);
-    list->allocated = new_size;
-    list->values = realloc(list->values, sizeof(void *) * list->allocated);
+    void *new_values = realloc(list->values, sizeof(void *) * new_size);
 
-    if (list->values == NULL) {
+    if (new_values == NULL) {
         return 0;
     }
+
+    list->allocated = new_size;
+    list->values = new_values;
 
     if (resize_type == LIST_EXPAND) {
         /* Zero out the new part of the lists memory */

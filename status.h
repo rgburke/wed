@@ -35,12 +35,12 @@
 
 #define STATUS_IS_SUCCESS(status) ((status).error_code == ERR_NONE)
 
-#define RETURN_IF_FAIL(status) { \
+#define RETURN_IF_FAIL(status) do { \
                                    Status _wed_status = (status);\
                                    if (!STATUS_IS_SUCCESS(_wed_status)) { \
                                        return _wed_status; \
                                    } \
-                               }
+                               } while (0)
 
 #define STATUS_QUEUE_MAX_SIZE 10
 #define MAX_ERROR_MSG_SIZE 1024

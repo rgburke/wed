@@ -29,6 +29,7 @@
 #include "gap_buffer.h"
 #include "buffer_pos.h"
 #include "search.h"
+#include "undo.h"
 
 typedef enum {
     CCLASS_WHITESPACE,
@@ -84,6 +85,7 @@ struct Buffer {
     int is_dirty;
     GapBuffer *data;
     BufferSearch search;
+    BufferChanges changes;
 };
 
 Buffer *bf_new(const FileInfo *);
@@ -123,6 +125,7 @@ Status bf_change_page(Buffer *, Direction);
 Status bf_insert_character(Buffer *, const char *, int);
 Status bf_insert_string(Buffer *, const char *, size_t, int);
 Status bf_replace_string(Buffer *, size_t, const char *, size_t, int);
+Status bf_delete(Buffer *, size_t);
 Status bf_delete_character(Buffer *);
 Status bf_select_continue(Buffer *);
 Status bf_select_reset(Buffer *);
