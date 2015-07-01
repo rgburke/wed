@@ -23,6 +23,7 @@
 #include "buffer.h"
 #include "status.h"
 #include "hashmap.h"
+#include "file_type.h"
 
 /* Top level structure containing all state.
  * A new session is created when wed is invoked. */
@@ -50,6 +51,7 @@ typedef struct {
     List *search_history;
     List *replace_history;
     List *command_history;
+    HashMap *filetypes;
 } Session;
 
 Session *se_new(void);
@@ -80,5 +82,6 @@ Status se_get_buffer_index(const Session *, const char *, int *);
 Status se_add_search_to_history(Session *, char *);
 Status se_add_replace_to_history(Session *, char *);
 Status se_add_cmd_to_history(Session *, char *);
+Status se_add_filetype_def(Session *, FileType *);
 
 #endif

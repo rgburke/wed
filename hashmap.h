@@ -44,7 +44,6 @@ struct HashMapNode {
 
 HashMap *new_hashmap(void);
 HashMap *new_sized_hashmap(size_t);
-uint32_t murmurhash2(const void *, int, uint32_t);
 int hashmap_set(HashMap *, const char *, void *);
 void *hashmap_get(HashMap *, const char *);
 int hashmap_delete(HashMap *, const char *);

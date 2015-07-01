@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Richard Burke
+ * Copyright (C) 2015 Richard Burke
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,39 +16,22 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_SHARED_H
-#define WED_SHARED_H
+#ifndef WED_FILE_TYPE_H
+#define WED_FILE_TYPE_H
 
-#include <ncurses.h>
+#include <pcre.h>
+#include "status.h"
+#include "file.h"
 
-typedef enum {
-    CMDT_BUFFER_MOVE = 1,
-    CMDT_BUFFER_MOD = 1 << 1,
-    CMDT_CMD_INPUT = 1 << 2,
-    CMDT_EXIT = 1 << 3,
-    CMDT_SESS_MOD = 1 << 4,
-    CMDT_CMD_MOD = 1 << 5
-} CommandType;
+typedef struct {
+    char *name;
+    char *display_name;
+    pcre *file_pattern;
+    pcre_extra *file_pattern_study;
+} FileType;
 
-typedef enum {
-    WIN_MENU,
-    WIN_TEXT,
-    WIN_STATUS
-} DrawWindow;
-
-typedef enum {
-    DC_NONE = -1,
-    DC_BLACK = COLOR_BLACK,
-    DC_RED = COLOR_RED,
-    DC_GREEN = COLOR_RED,
-    DC_YELLOW = COLOR_YELLOW,
-    DC_BLUE = COLOR_BLUE,
-    DC_MAGENTA = COLOR_MAGENTA,
-    DC_CYAN = COLOR_CYAN,
-    DC_WHITE = COLOR_WHITE
-} DrawColor;
-
-typedef unsigned int uint;
-typedef unsigned char uchar;
+Status ft_init(FileType **, const char *, const char *, const char *);
+void ft_free(FileType *);
+Status ft_matches(FileType *, FileInfo *, int *);
 
 #endif

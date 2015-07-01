@@ -34,9 +34,14 @@ static const char *value_types[] = {
 
 const char *va_get_value_type(Value value)
 {
-    assert(value.type < (sizeof(value_types) / sizeof(char *)));
+    return va_value_type_string(value.type);
+}
 
-    return value_types[value.type];
+const char *va_value_type_string(ValueType value_type)
+{
+    assert(value_type < (sizeof(value_types) / sizeof(char *)));
+
+    return value_types[value_type];
 }
 
 Status va_deep_copy_value(Value value, Value *new_val)

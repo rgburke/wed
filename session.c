@@ -29,6 +29,7 @@
 #define MAX_EMPTY_BUFFER_NAME_SIZE 20
 
 static Status se_add_to_history(List *, char *);
+static void se_determine_filetype(Session *, Buffer *);
 
 Session *se_new(void)
 {
@@ -66,6 +67,10 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
     }
 
     if (!cm_init_keymap(sess)) {
+        return 0;
+    }
+
+    if ((sess->filetypes = new_hashmap()) == NULL) {
         return 0;
     }
 
@@ -116,6 +121,8 @@ void se_free(Session *sess)
     list_free_all(sess->search_history, NULL);
     list_free_all(sess->replace_history, NULL);
     list_free_all(sess->command_history, NULL);
+    free_hashmap_values(sess->filetypes, (void (*)(void *))ft_free);
+    free_hashmap(sess->filetypes);
 
     free(sess);
 }
@@ -127,6 +134,8 @@ int se_add_buffer(Session *sess, Buffer *buffer)
     if (buffer == NULL) {
         return 0;
     }
+
+    se_determine_filetype(sess, buffer);
 
     sess->buffer_num++;
 
@@ -524,4 +533,67 @@ Status se_add_replace_to_history(Session *sess, char *replace_text)
 Status se_add_cmd_to_history(Session *sess, char *cmd_text)
 {
     return se_add_to_history(sess->command_history, cmd_text);
+}
+
+Status se_add_filetype_def(Session *sess, FileType *file_type)
+{
+    assert(file_type != NULL);    
+
+    FileType *existing = hashmap_get(sess->filetypes, file_type->name);
+
+    if (!hashmap_set(sess->filetypes, file_type->name, file_type)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - Unable to save filetype");
+    }
+
+    Buffer *buffer = sess->buffers;
+    int matches;
+
+    while (buffer != NULL) {
+        if (buffer->file_type == NULL) {
+            se_add_error(sess, ft_matches(file_type, &buffer->file_info, &matches));
+
+            if (matches) {
+                buffer->file_type = file_type;
+            }
+        } else if (existing != NULL && buffer->file_type == existing) {
+            buffer->file_type = file_type;
+        }
+
+        buffer = buffer->next;
+    }
+
+    if (existing != NULL) {
+        ft_free(existing);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static void se_determine_filetype(Session *sess, Buffer *buffer)
+{
+    HashMap *filetypes = sess->filetypes;
+    size_t key_num = hashmap_size(filetypes);
+    char **keys = hashmap_get_keys(filetypes);
+
+    if (key_num == 0) {
+        return;
+    } else if (keys == NULL) {
+        se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                        "Unable to generate filetypes set"));
+    }
+
+    FileType *file_type;
+    int matches;
+
+    for (size_t k = 0; k < key_num; k++) {
+        file_type = hashmap_get(filetypes, keys[k]);
+
+        if (file_type != NULL) {
+            se_add_error(sess, ft_matches(file_type, &buffer->file_info, &matches));
+
+            if (matches) {
+                buffer->file_type = file_type; 
+            }
+        }
+    }
 }

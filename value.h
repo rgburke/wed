@@ -46,6 +46,7 @@ typedef struct {
 #define BOOL_VAL(bvalue) (Value) BOOL_VAL_STRUCT(bvalue)
 
 const char *va_get_value_type(Value);
+const char *va_value_type_string(ValueType);
 Status va_deep_copy_value(Value, Value *);
 char *va_to_string(Value);
 void va_free_value(Value);

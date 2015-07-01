@@ -22,11 +22,10 @@
 #include "config_parse.h"
 #include "util.h"
 
-static int yycolumn = 1;
 static YY_BUFFER_STATE buf_state;
 
 #define YY_DECL int yylex(Session *sess, const char *file_path)
-#define YY_USER_ACTION cp_update_parser_location(&yycolumn, yylineno, yyleng);
+#define YY_USER_ACTION cp_update_parser_location(yytext, file_path);
 
 %}
 
@@ -38,15 +37,18 @@ static YY_BUFFER_STATE buf_state;
 %%
 
 #.*$
-[\n]            { yycolumn = 1; }
-[[:space:]]+
--?[[:digit:]]+  { yylval.string = strdupe(yytext); return TKN_INTEGER; }
-true|false      { yylval.string = strdupe(yytext); return TKN_BOOLEAN; }
-\"(\\.|[^"])*\" { yylval.string = strdupe(yytext); return TKN_STRING;  }
-[[:alpha:]_]+   { yylval.string = strdupe(yytext); return TKN_NAME;    }
-"="             { return TKN_ASSIGN;     }
-";"             { return TKN_SEMI_COLON; }
-.               { se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_CHARACTERS, file_path, "Invalid character \"%s\"", yytext)); }
+[[:space:]]+               
+(-|\+)?[[:digit:]]+        { yylval.string = strdupe(yytext); return TKN_INTEGER; }
+true|false                 { yylval.string = strdupe(yytext); return TKN_BOOLEAN; }
+\"(\\.|[^"])*\"            { yylval.string = strdupe(yytext); return TKN_STRING;  }
+\/(\\\/|[^\/])*\/          { yylval.string = strdupe(yytext); return TKN_REGEX;   }
+:wa
+[[:alpha:]_]+              { yylval.string = strdupe(yytext); return TKN_NAME;    }
+"="                        { return TKN_ASSIGN;        }
+";"                        { return TKN_SEMI_COLON;    }
+"{"                        { return TKN_LEFT_BRACKET;  }
+"}"                        { return TKN_RIGHT_BRACKET; }
+.                          { se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_CHARACTERS, &yylloc, "Invalid character \"%s\"", yytext)); }
 
 %%
 

@@ -26,6 +26,7 @@
 #define HM_MAX_LOAD_FACTOR 0.75
 
 static HashMapNode *new_hashmapnode(const char *, uint32_t, void *);
+static uint32_t murmurhash2(const void *, int, uint32_t);
 static HashMapNode *get_bucket(HashMap *, const char *, uint32_t *, size_t *);
 static int resize_required(HashMap *);
 static int resize_hashmap(HashMap *, size_t);
@@ -81,7 +82,7 @@ static HashMapNode *new_hashmapnode(const char *key, uint32_t hash, void *value)
 /* MurmurHash2 was written by Austin Appleby, and is placed in the public
    domain. The author (Austin Appleby) disclaims copyright to the source code
    of the murmurhash2 function. */
-uint32_t murmurhash2(const void *key, int len, uint32_t seed)
+static uint32_t murmurhash2(const void *key, int len, uint32_t seed)
 {
     const uint32_t m = 0x5bd1e995;
     const int r = 24;

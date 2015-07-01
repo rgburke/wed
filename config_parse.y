@@ -29,6 +29,7 @@ int yylex(Session *, const char *);
 %code requires { 
 #include "session.h"
 #include "config.h"
+#include "config_parse_util.h"
 }
 
 %parse-param { Session *sess } { ConfigLevel config_level } { const char *file_path }
@@ -41,17 +42,20 @@ int yylex(Session *, const char *);
     char *string;
 }
 
-%destructor { free($$);  } <string>
+%destructor { free($$); } <string>
 %destructor { cp_free_ast($$); } <node>
 
 %token<string> TKN_INTEGER "integer"
 %token<string> TKN_STRING "string"
 %token<string> TKN_BOOLEAN "boolean"
+%token<string> TKN_REGEX "regex"
 %token<string> TKN_NAME "identifier"
 %token TKN_ASSIGN "="
 %token TKN_SEMI_COLON ";"
+%token TKN_LEFT_BRACKET "{"
+%token TKN_RIGHT_BRACKET "}"
 
-%type<node> value variable expression statememt statememt_list
+%type<node> value variable expression statememt statememt_list statement_block
 
 %start program
 
@@ -65,20 +69,26 @@ statememt_list: statememt { $$ = $1; }
               | statememt_list statememt { if ($1 == NULL) { $$ = $2; } else { cp_add_statement_to_list($1, $2); $$ = $1; } }
               ;
 
-statememt: expression TKN_SEMI_COLON { $$ = (ASTNode *)cp_new_statementnode($1); }
+statememt: expression TKN_SEMI_COLON { $$ = (ASTNode *)cp_new_statementnode(&@$, $1); }
+         | statement_block { $$ = (ASTNode *)cp_new_statementnode(&@$, $1); }
          | error TKN_SEMI_COLON { $$ = NULL; }
          ;
 
-expression: variable TKN_ASSIGN value { $$ = (ASTNode *)cp_new_expressionnode(NT_ASSIGNMENT, $1, $3); }
-          | variable { $$ = (ASTNode *)cp_new_expressionnode(NT_REFERENCE, $1, NULL); }
+statement_block: TKN_NAME TKN_LEFT_BRACKET statememt_list TKN_RIGHT_BRACKET { $$ = (ASTNode *)cp_new_statementblocknode(&@$, $1, $3); free($1); }
+               | error TKN_RIGHT_BRACKET { $$ = NULL; } 
+               ;
+
+expression: variable TKN_ASSIGN value { $$ = (ASTNode *)cp_new_expressionnode(&@$, NT_ASSIGNMENT, $1, $3); }
+          | variable { $$ = (ASTNode *)cp_new_expressionnode(&@$, NT_REFERENCE, $1, NULL); }
           ;
 
-variable: TKN_NAME { $$ = (ASTNode *)cp_new_variablenode($1); free($1); }
+variable: TKN_NAME { $$ = (ASTNode *)cp_new_variablenode(&@1, $1); free($1); }
         ;
 
-value: TKN_INTEGER { Value value; cp_convert_to_int_value($1, &value); $$ = (ASTNode *)cp_new_valuenode(value); free($1);    }
-     | TKN_STRING  { Value value; cp_convert_va_to_string_value($1, &value); $$ = (ASTNode *)cp_new_valuenode(value); free($1); }
-     | TKN_BOOLEAN { Value value; cp_convert_to_bool_value($1, &value); $$ = (ASTNode *)cp_new_valuenode(value); free($1);   }
+value: TKN_INTEGER { Value value; cp_convert_to_int_value($1, &value); $$ = (ASTNode *)cp_new_valuenode(&@1, value); free($1);    }
+     | TKN_STRING  { Value value; cp_convert_to_string_value($1, &value); $$ = (ASTNode *)cp_new_valuenode(&@1, value); free($1); }
+     | TKN_BOOLEAN { Value value; cp_convert_to_bool_value($1, &value); $$ = (ASTNode *)cp_new_valuenode(&@1, value); free($1);   }
+     | TKN_REGEX   { Value value; cp_convert_to_regex_value($1, &value); $$ = (ASTNode *)cp_new_valuenode(&@1, value); free($1);  }
      ;
 
 %%
