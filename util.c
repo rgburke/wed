@@ -72,6 +72,29 @@ char *strdupe(const char *str)
     return copy;
 }
 
+char *concat(const char *str1, const char *str2)
+{
+    if (str1 == NULL) {
+        str1 = "NULL";
+    }
+
+    if (str2 == NULL) {
+        str2 = "NULL";
+    }
+
+    size_t result_size = strlen(str1) + strlen(str2) + 1;
+
+    char *result = malloc(result_size);
+
+    if (result == NULL) {
+        return NULL;
+    }
+
+    snprintf(result, result_size, "%s%s", str1, str2);
+
+    return result;
+}
+
 int is_null_or_empty(const char *str)
 {
     if (str == NULL) {

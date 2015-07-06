@@ -1,0 +1,8 @@
+# default wed filetype definitions
+
+filetype {
+	name = "c";
+	display_name = "C Source";
+	file_pattern = /\.(c|h)$/;
+}
+

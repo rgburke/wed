@@ -30,7 +30,6 @@
 #include "buffer_pos.h"
 #include "search.h"
 #include "undo.h"
-#include "file_type.h"
 
 typedef enum {
     CCLASS_WHITESPACE,
@@ -87,7 +86,6 @@ struct Buffer {
     GapBuffer *data;
     BufferSearch search;
     BufferChanges changes;
-    const FileType *file_type;
 };
 
 Buffer *bf_new(const FileInfo *);

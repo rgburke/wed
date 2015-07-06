@@ -709,8 +709,8 @@ static Status cm_buffer_replace(Session *sess, Value param, const char *keystr, 
         return STATUS_SUCCESS;
     }
 
-    char *rep_text;
-    size_t rep_length;
+    char *rep_text = NULL;
+    size_t rep_length = 0;
 
     Status status = cm_prepare_replace(sess, &rep_text, &rep_length);
 

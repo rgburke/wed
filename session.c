@@ -91,7 +91,7 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
 
     cf_set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", INT_VAL(0));
 
-    sess->msgs_enabled = 1;
+    se_enable_msgs(sess);
 
     return 1;
 }
@@ -386,7 +386,7 @@ int se_add_msg(Session *sess, const char *msg)
 
     if (msg == NULL) {
         return 0; 
-    } else if (!sess->msgs_enabled) {
+    } else if (!se_msgs_enabled(sess)) {
         return 1;
     }
 
@@ -545,25 +545,28 @@ Status se_add_filetype_def(Session *sess, FileType *file_type)
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - Unable to save filetype");
     }
 
+    if (existing != NULL) {
+        ft_free(existing);
+    }
+
     Buffer *buffer = sess->buffers;
+    int re_enable_msgs = se_disable_msgs(sess);
     int matches;
 
     while (buffer != NULL) {
-        if (buffer->file_type == NULL) {
+        if (is_null_or_empty(cf_bf_string("filetype", buffer))) {
             se_add_error(sess, ft_matches(file_type, &buffer->file_info, &matches));
 
             if (matches) {
-                buffer->file_type = file_type;
+                se_add_error(sess, cf_set_buffer_var(buffer, "filetype", STR_VAL(file_type->name)));
             }
-        } else if (existing != NULL && buffer->file_type == existing) {
-            buffer->file_type = file_type;
         }
 
         buffer = buffer->next;
     }
 
-    if (existing != NULL) {
-        ft_free(existing);
+    if (re_enable_msgs) {
+        se_enable_msgs(sess);
     }
 
     return STATUS_SUCCESS;
@@ -573,7 +576,7 @@ static void se_determine_filetype(Session *sess, Buffer *buffer)
 {
     HashMap *filetypes = sess->filetypes;
     size_t key_num = hashmap_size(filetypes);
-    char **keys = hashmap_get_keys(filetypes);
+    const char **keys = hashmap_get_keys(filetypes);
 
     if (key_num == 0) {
         return;
@@ -583,6 +586,7 @@ static void se_determine_filetype(Session *sess, Buffer *buffer)
     }
 
     FileType *file_type;
+    int re_enable_msgs = se_disable_msgs(sess);
     int matches;
 
     for (size_t k = 0; k < key_num; k++) {
@@ -592,8 +596,34 @@ static void se_determine_filetype(Session *sess, Buffer *buffer)
             se_add_error(sess, ft_matches(file_type, &buffer->file_info, &matches));
 
             if (matches) {
-                buffer->file_type = file_type; 
+                se_add_error(sess, cf_set_buffer_var(buffer, "filetype", STR_VAL(file_type->name)));
+                break;
             }
         }
     }
+
+    if (re_enable_msgs) {
+        se_enable_msgs(sess);
+    }
+
+    free(keys);
+}
+
+int se_msgs_enabled(const Session *sess)
+{
+    return sess->msgs_enabled;
+}
+
+int se_enable_msgs(Session *sess)
+{
+    int currently_enabled = sess->msgs_enabled;
+    sess->msgs_enabled = 1;    
+    return currently_enabled;
+}
+
+int se_disable_msgs(Session *sess)
+{
+    int currently_enabled = sess->msgs_enabled;
+    sess->msgs_enabled = 0;
+    return currently_enabled;
 }

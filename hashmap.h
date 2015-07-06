@@ -49,7 +49,7 @@ void *hashmap_get(HashMap *, const char *);
 int hashmap_delete(HashMap *, const char *);
 void hashmap_clear(HashMap *);
 size_t hashmap_size(HashMap *);
-char **hashmap_get_keys(HashMap *);
+const char **hashmap_get_keys(HashMap *);
 void free_hashmap(HashMap *);
 void free_hashmap_values(HashMap *, void (*)(void *));
 

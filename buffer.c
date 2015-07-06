@@ -62,6 +62,11 @@ Buffer *bf_new(const FileInfo *file_info)
         return NULL;
     }
 
+    if (!cf_populate_default_config(buffer->config, CL_BUFFER, 1)) {
+        bf_free(buffer);
+        return NULL;
+    }
+
     buffer->file_info = *file_info;
     buffer->encoding_type = ENC_UTF8;
     en_init_char_enc_funcs(buffer->encoding_type, &buffer->cef);

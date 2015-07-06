@@ -46,17 +46,19 @@ const char *va_value_type_string(ValueType value_type)
 
 Status va_deep_copy_value(Value value, Value *new_val)
 {
-    *new_val = value;
-
     if (value.type != VAL_TYPE_STR || value.val.sval == NULL) {
+        *new_val = value;
         return STATUS_SUCCESS;
     }
 
-    new_val->val.sval = strdupe(value.val.sval);
+    char *str_val = strdupe(value.val.sval);
 
-    if (new_val->val.sval == NULL) {
+    if (str_val == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to copy value");
     }
+
+    new_val->type = VAL_TYPE_STR;
+    new_val->val.sval = str_val;
 
     return STATUS_SUCCESS;
 }

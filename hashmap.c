@@ -228,9 +228,9 @@ size_t hashmap_size(HashMap *hashmap)
     return hashmap->entry_num;
 }
 
-char **hashmap_get_keys(HashMap *hashmap)
+const char **hashmap_get_keys(HashMap *hashmap)
 {
-    char **keys = malloc(sizeof(char *) * hashmap->entry_num);
+    const char **keys = malloc(sizeof(char *) * hashmap->entry_num);
 
     if (keys == NULL) {
         return NULL;
