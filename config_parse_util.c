@@ -35,7 +35,7 @@ void yyrestart(FILE *);
 typedef struct {
     char *var_name;
     ValueType value_type;
-    void *value;
+    Value *value;
     const ParseLocation *location;
     int value_set;
 } VariableAssignment;
@@ -126,16 +126,18 @@ int cp_convert_to_bool_value(const char *svalue, Value *value)
     if (svalue == NULL || value == NULL) {
         return 0;
     }
+    
+    int bool_val;
 
     if (strncmp(svalue, "true", 5) == 0 || strncmp(svalue, "1", 2) == 0) {
-        value->val.ival = 1;
+        bool_val = 1;
     } else if (strncmp(svalue, "false", 6) == 0 || strncmp(svalue, "0", 2) == 0) {
-        value->val.ival = 0;
+        bool_val = 0;
     } else {
         return 0;
     }
 
-    value->type = VAL_TYPE_BOOL;
+    *value = BOOL_VAL(bool_val);
 
     return 1;
 }
@@ -156,8 +158,7 @@ int cp_convert_to_int_value(const char *svalue, Value *value)
         return 0;
     }
 
-    value->type = VAL_TYPE_INT;
-    value->val.ival = val;
+    *value = INT_VAL(val);
 
     return 1;
 }
@@ -169,10 +170,16 @@ int cp_convert_to_string_value(const char *svalue, Value *value)
     }
 
     size_t length = strlen(svalue);
+
+    if (length < 2 || svalue[0] != '"' || 
+        svalue[length - 1] != '"') {
+        return 0;
+    }
+
     char *processed;
 
     /* Empty string "" */
-    if (length <= 2) {
+    if (length == 2) {
         processed = malloc(sizeof(char));
 
         if (processed == NULL) {
@@ -181,8 +188,7 @@ int cp_convert_to_string_value(const char *svalue, Value *value)
 
         *processed = '\0';
 
-        value->type = VAL_TYPE_STR;
-        value->val.sval = processed;
+        *value = STR_VAL(processed);
 
         return 1;
     } 
@@ -247,8 +253,7 @@ int cp_convert_to_string_value(const char *svalue, Value *value)
 
     *proc = '\0';
 
-    value->type = VAL_TYPE_STR;
-    value->val.sval = processed;
+    *value = STR_VAL(processed);
 
     return 1;
 }
@@ -260,9 +265,20 @@ int cp_convert_to_regex_value(const char *rvalue, Value *value)
     }
 
     size_t length = strlen(rvalue);
+
+    if (length < 2 || rvalue[0] != '/') {
+        return 0;
+    }
+
+    const char *regex_end = memchr(rvalue + 1, '/', length - 1);
+
+    if (regex_end == NULL) {
+        return 0;
+    }
+
     char *processed;
 
-    if (length <= 2) {
+    if (length == 2 || rvalue[1] == '/') {
         processed = malloc(sizeof(char));
 
         if (processed == NULL) {
@@ -271,8 +287,7 @@ int cp_convert_to_regex_value(const char *rvalue, Value *value)
 
         *processed = '\0';
 
-        value->type = VAL_TYPE_STR;
-        value->val.sval = processed;
+        *value = REGEX_VAL(processed, 0);
 
         return 1;
     } 
@@ -280,7 +295,7 @@ int cp_convert_to_regex_value(const char *rvalue, Value *value)
     const char *iter = rvalue;
     size_t esc_count = 0;
 
-    while (*iter++) {
+    while (++iter != regex_end) {
         if (*iter == '\\' && *(iter + 1) == '/') {
             esc_count++;
             iter++;
@@ -294,10 +309,9 @@ int cp_convert_to_regex_value(const char *rvalue, Value *value)
     }
 
     iter = rvalue;
-    const char *end = rvalue + length - 1;
     char *proc = processed;
 
-    while (++iter != end) {
+    while (++iter != regex_end) {
         if (*iter == '\\' && *(iter + 1) == '/') {
             *proc++ = '/';
             iter++;
@@ -308,8 +322,40 @@ int cp_convert_to_regex_value(const char *rvalue, Value *value)
 
     *proc = '\0';
 
-    value->type = VAL_TYPE_STR;
-    value->val.sval = processed;
+    int modifiers = 0;
+    iter = regex_end;
+
+    while (*++iter != '\0') {
+        switch (*iter) {
+            case 'i': 
+                {
+                    modifiers |= PCRE_CASELESS;
+                    break;
+                }
+            case 'x':
+                {
+                    modifiers |= PCRE_EXTENDED;
+                    break;
+                }
+            case 's':
+                {
+                    modifiers |= PCRE_DOTALL;
+                    break;
+                }
+            case 'm':
+                {
+                    modifiers |= PCRE_MULTILINE;
+                    break;
+                }
+            default:
+                {
+                    /* TODO Error on invalid flags */
+                    break;
+                }
+        } 
+    }
+
+    *value = REGEX_VAL(processed, modifiers);
 
     return 1;
 }
@@ -573,14 +619,14 @@ static void cp_process_filetype_block(Session *sess, StatementBlockNode *stmb_no
         return;
     }
 
-    char *name = NULL;
-    char *display_name = NULL;
-    char *file_pattern = NULL;
+    Value name;
+    Value display_name;
+    Value file_pattern;
 
     VariableAssignment expected_vars[] = {
-        { "name"        , VAL_TYPE_STR, &name        , NULL, 0 },
-        { "display_name", VAL_TYPE_STR, &display_name, NULL, 0 },
-        { "file_pattern", VAL_TYPE_STR, &file_pattern, NULL, 0 }
+        { "name"        , VAL_TYPE_STR  , &name        , NULL, 0 },
+        { "display_name", VAL_TYPE_STR  , &display_name, NULL, 0 },
+        { "file_pattern", VAL_TYPE_REGEX, &file_pattern, NULL, 0 }
     };
 
     size_t expected_vars_num = sizeof(expected_vars) / sizeof(VariableAssignment);
@@ -605,7 +651,7 @@ static void cp_process_filetype_block(Session *sess, StatementBlockNode *stmb_no
     }
 
     FileType *file_type;
-    Status status = ft_init(&file_type, name, display_name, file_pattern);
+    Status status = ft_init(&file_type, SVAL(name), SVAL(display_name), &RVAL(file_pattern));
 
     if (!STATUS_IS_SUCCESS(status)) {
         se_add_error(sess, status);
@@ -649,8 +695,10 @@ static int cp_process_assignment(Session *sess, StatementNode *stm_node,
         return 0;
     }
 
-    if (expected_vars[found_var_idx].value_type != val_node->value.type) {
-        const char *value_type = va_value_type_string(expected_vars[found_var_idx].value_type);
+    VariableAssignment *var_asn = &expected_vars[found_var_idx];
+
+    if (var_asn->value_type != val_node->value.type) {
+        const char *value_type = va_value_type_string(var_asn->value_type);
 
         se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
                                                &var_node->type.location,
@@ -660,13 +708,9 @@ static int cp_process_assignment(Session *sess, StatementNode *stm_node,
         return 0;
     }
 
-    if (val_node->value.type == VAL_TYPE_STR) {
-        char **value = (char **)expected_vars[found_var_idx].value;
-        *value = val_node->value.val.sval;
-    }
-
-    expected_vars[found_var_idx].location = &var_node->type.location;
-    expected_vars[found_var_idx].value_set = 1;
+    *var_asn->value = val_node->value;
+    var_asn->location = &var_node->type.location;
+    var_asn->value_set = 1;
 
     return 1;
 }
@@ -690,15 +734,18 @@ static int cp_validate_block_vars(Session *sess, VariableAssignment *expected_va
 
     if (non_null_empty) {
         for (size_t k = 0; k < expected_vars_num; k++) {
-            if (expected_vars[k].value_set && 
-                expected_vars[k].value_type == VAL_TYPE_STR &&
-                is_null_or_empty(*(char **)expected_vars[k].value)) {
+            if (!expected_vars[k].value_set || 
+                !STR_BASED_VAL(*expected_vars[k].value)) {
+                continue; 
+            }
 
+            const char *val = va_str_val(*expected_vars[k].value);
+
+            if (is_null_or_empty(val)) {
                 se_add_error(sess, cp_get_config_error(ERR_INVALID_VAL,
-                            expected_vars[k].location,
-                            "Invalid value \"%s\" for variable %s in %s defintion",
-                            *(char **)expected_vars[k].value, 
-                            expected_vars[k].var_name, block_name));
+                             expected_vars[k].location,
+                             "Invalid value \"%s\" for variable %s in %s defintion",
+                             val, expected_vars[k].var_name, block_name));
                 valid = 0;
             }
         }

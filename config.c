@@ -295,8 +295,7 @@ static Status cf_set_config_var(HashMap *config, ConfigLevel config_level,
 
     if (var->default_value.type != value.type) {
         if (var->default_value.type == VAL_TYPE_BOOL && value.type == VAL_TYPE_INT) {
-            value.type = VAL_TYPE_BOOL; 
-            value.val.ival = value.val.ival ? 1 : 0;
+            value = BOOL_VAL(IVAL(value) ? 1 : 0);
         } else {
             status = st_get_error(ERR_INVALID_VAL, "%s must have value of type %s", 
                                   var->name, va_get_value_type(var->default_value));
@@ -391,7 +390,7 @@ int cf_bool(const char *var_name)
     assert(var != NULL);
     assert(var->default_value.type == VAL_TYPE_BOOL);
 
-    return var->default_value.val.ival;
+    return BVAL(var->default_value);
 }
 
 long cf_int(const char *var_name)
@@ -401,7 +400,7 @@ long cf_int(const char *var_name)
     assert(var != NULL);
     assert(var->default_value.type == VAL_TYPE_INT);
 
-    return var->default_value.val.ival;
+    return IVAL(var->default_value);
 }
 
 const char *cf_string(const char *var_name)
@@ -411,7 +410,7 @@ const char *cf_string(const char *var_name)
     assert(var != NULL);
     assert(var->default_value.type == VAL_TYPE_STR);
 
-    return var->default_value.val.sval;
+    return SVAL(var->default_value);
 }
 
 int cf_bf_bool(const char *var_name, const Buffer *buffer)
@@ -421,7 +420,7 @@ int cf_bf_bool(const char *var_name, const Buffer *buffer)
     assert(var != NULL);
     assert(var->default_value.type == VAL_TYPE_BOOL);
 
-    return var->default_value.val.ival;
+    return BVAL(var->default_value);
 }
 
 long cf_bf_int(const char *var_name, const Buffer *buffer)
@@ -431,7 +430,7 @@ long cf_bf_int(const char *var_name, const Buffer *buffer)
     assert(var != NULL);
     assert(var->default_value.type == VAL_TYPE_INT);
 
-    return var->default_value.val.ival;
+    return IVAL(var->default_value);
 }
 
 const char *cf_bf_string(const char *var_name, const Buffer *buffer)
@@ -441,14 +440,14 @@ const char *cf_bf_string(const char *var_name, const Buffer *buffer)
     assert(var != NULL);
     assert(var->default_value.type == VAL_TYPE_STR);
 
-    return var->default_value.val.sval;
+    return SVAL(var->default_value);
 }
 
 static Status cf_tabwidth_validator(Session *sess, Value value)
 {
     (void)sess;
 
-    if (value.val.ival < CFG_TABWIDTH_MIN || value.val.ival > CFG_TABWIDTH_MAX) {
+    if (IVAL(value) < CFG_TABWIDTH_MIN || IVAL(value) > CFG_TABWIDTH_MAX) {
         return st_get_error(ERR_INVALID_TABWIDTH, "tabwidth value must be in range %d - %d inclusive",
                          CFG_TABWIDTH_MIN, CFG_TABWIDTH_MAX);
     }
@@ -458,16 +457,16 @@ static Status cf_tabwidth_validator(Session *sess, Value value)
 
 static Status cf_filetype_validator(Session *sess, Value value)
 {
-    if (value.val.sval != NULL && *value.val.sval == '\0') {
+    if (SVAL(value) != NULL && *SVAL(value) == '\0') {
         return STATUS_SUCCESS;
     }
 
-    FileType *file_type = hashmap_get(sess->filetypes, value.val.sval);
+    FileType *file_type = hashmap_get(sess->filetypes, SVAL(value));
 
     if (file_type == NULL) {
         return st_get_error(ERR_INVALID_FILETYPE,
                             "No filetype with name \"%s\" exists",
-                            value.val.sval);
+                            SVAL(value));
     }
 
     return STATUS_SUCCESS;

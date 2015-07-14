@@ -225,70 +225,70 @@ static Status cm_bp_change_line(Session *sess, Value param, const char *keystr, 
 {
     (void)keystr;
     (void)finished;
-    return bf_change_line(sess->active_buffer, &sess->active_buffer->pos, param.val.ival, 1);
+    return bf_change_line(sess->active_buffer, &sess->active_buffer->pos, IVAL(param), 1);
 }
 
 static Status cm_bp_change_char(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)keystr;
     (void)finished;
-    return bf_change_char(sess->active_buffer, &sess->active_buffer->pos, param.val.ival, 1);
+    return bf_change_char(sess->active_buffer, &sess->active_buffer->pos, IVAL(param), 1);
 }
 
 static Status cm_bp_to_line_start(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)keystr;
     (void)finished;
-    return bf_to_line_start(sess->active_buffer, &sess->active_buffer->pos, param.val.ival & DIRECTION_WITH_SELECT, 1);
+    return bf_to_line_start(sess->active_buffer, &sess->active_buffer->pos, IVAL(param) & DIRECTION_WITH_SELECT, 1);
 }
 
 static Status cm_bp_to_line_end(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)keystr;
     (void)finished;
-    return bf_to_line_end(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
+    return bf_to_line_end(sess->active_buffer, IVAL(param) & DIRECTION_WITH_SELECT);
 }
 
 static Status cm_bp_to_next_word(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)keystr;
     (void)finished;
-    return bf_to_next_word(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
+    return bf_to_next_word(sess->active_buffer, IVAL(param) & DIRECTION_WITH_SELECT);
 }
 
 static Status cm_bp_to_prev_word(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)keystr;
     (void)finished;
-    return bf_to_prev_word(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
+    return bf_to_prev_word(sess->active_buffer, IVAL(param) & DIRECTION_WITH_SELECT);
 }
 
 static Status cm_bp_to_buffer_start(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)keystr;
     (void)finished;
-    return bf_to_buffer_start(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
+    return bf_to_buffer_start(sess->active_buffer, IVAL(param) & DIRECTION_WITH_SELECT);
 }
 
 static Status cm_bp_to_buffer_end(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)keystr;
     (void)finished;
-    return bf_to_buffer_end(sess->active_buffer, param.val.ival & DIRECTION_WITH_SELECT);
+    return bf_to_buffer_end(sess->active_buffer, IVAL(param) & DIRECTION_WITH_SELECT);
 }
 
 static Status cm_bp_change_page(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)keystr;
     (void)finished;
-    return bf_change_page(sess->active_buffer, param.val.ival);
+    return bf_change_page(sess->active_buffer, IVAL(param));
 }
 
 static Status cm_buffer_insert_char(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)keystr;
     (void)finished;
-    return bf_insert_character(sess->active_buffer, param.val.sval, 1);
+    return bf_insert_character(sess->active_buffer, SVAL(param), 1);
 }
 
 static Status cm_buffer_delete_char(Session *sess, Value param, const char *keystr, int *finished)
@@ -562,7 +562,7 @@ static Status cm_buffer_find_next(Session *sess, Value param, const char *keystr
         return STATUS_SUCCESS;
     }
 
-    int find_prev = param.val.ival;
+    int find_prev = IVAL(param);
 
     if (find_prev) {
         buffer->search.opt.forward ^= 1;
@@ -718,7 +718,7 @@ static Status cm_buffer_replace(Session *sess, Value param, const char *keystr, 
         return status;
     }
     
-    int find_prev = param.val.ival;
+    int find_prev = IVAL(param);
 
     if (find_prev) {
         buffer->search.opt.forward ^= 1;
@@ -873,7 +873,7 @@ static Status cm_session_change_tab(Session *sess, Value param, const char *keys
 
     size_t new_active_buffer_index;
 
-    if (param.val.ival == DIRECTION_RIGHT) {
+    if (IVAL(param) == DIRECTION_RIGHT) {
         new_active_buffer_index = (sess->active_buffer_index + 1) % sess->buffer_num;
     } else {
         if (sess->active_buffer_index == 0) {
@@ -890,7 +890,7 @@ static Status cm_session_change_tab(Session *sess, Value param, const char *keys
 
 static Status cm_session_close_buffer(Session *sess, Value param, const char *keystr, int *finished)
 {
-    int allow_no_buffers = param.val.ival;
+    int allow_no_buffers = IVAL(param);
     Buffer *buffer = sess->active_buffer;
 
     if (buffer->is_dirty) {

@@ -23,12 +23,14 @@
 
 #define FT_OUTPUT_VECTOR_SIZE 30
 
-Status ft_init(FileType **file_type_ptr, const char *name, const char *display_name, const char *file_pattern)
+Status ft_init(FileType **file_type_ptr, const char *name, 
+               const char *display_name, const Regex *regex)
 {
     assert(file_type_ptr != NULL);
     assert(!is_null_or_empty(name));
     assert(!is_null_or_empty(display_name));
-    assert(!is_null_or_empty(file_pattern));
+    assert(regex != NULL);
+    assert(!is_null_or_empty(regex->regex_pattern));
 
     FileType *file_type = malloc(sizeof(FileType));
 
@@ -38,20 +40,14 @@ Status ft_init(FileType **file_type_ptr, const char *name, const char *display_n
     }
 
     memset(file_type, 0, sizeof(FileType));
-
     Status status = STATUS_SUCCESS;
-    const char *error_str;
-    int error_offset;
 
-    file_type->file_pattern = pcre_compile(file_pattern, PCRE_UTF8, &error_str, &error_offset, NULL);
+    status = re_compile_custom_error_msg(&file_type->file_pattern, regex, 
+                                         "filetype %s ", name);
 
-    if (file_type->file_pattern == NULL) {
-        status =  st_get_error(ERR_INVALID_REGEX, "filetype %s invalid regex - "
-                              "%s - at position %d", name, error_str, error_offset);         
+    if (!STATUS_IS_SUCCESS(status)) {
         goto cleanup;
     }
-
-    file_type->file_pattern_study = pcre_study(file_type->file_pattern, 0, &error_str);
     
     file_type->name = strdupe(name);
 
@@ -89,8 +85,7 @@ void ft_free(FileType *file_type)
 
     free(file_type->name);
     free(file_type->display_name);
-    pcre_free_study(file_type->file_pattern_study);
-    pcre_free(file_type->file_pattern);
+    re_free_instance(&file_type->file_pattern);
     free(file_type);
 }
 
@@ -106,19 +101,17 @@ Status ft_matches(FileType *file_type, FileInfo *file_info, int *matches)
     }
 
     assert(path != NULL); 
+    RegexResult result;
 
-    int output_vector[FT_OUTPUT_VECTOR_SIZE];
+    Status status = re_exec_custom_error_msg(&result, &file_type->file_pattern,
+                                             path, strlen(path), 0,
+                                             "filetype %s - ", file_type->name);
 
-    int return_code = pcre_exec(file_type->file_pattern, file_type->file_pattern_study, 
-                                path, strlen(path), 0, 0, output_vector, FT_OUTPUT_VECTOR_SIZE);
+    if (!STATUS_IS_SUCCESS(status)) {
+        return status;
+    }
 
-    if (return_code < 0) {
-        if (return_code != PCRE_ERROR_NOMATCH) {
-            return st_get_error(ERR_REGEX_EXECUTION_FAILED, 
-                                "Regex execution failed. PCRE exit code: %d", 
-                                return_code);
-        }
-    } else {
+    if (result.match) {
         *matches = 1;
     }
 

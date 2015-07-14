@@ -25,8 +25,14 @@ typedef enum {
     VAL_TYPE_BOOL,
     VAL_TYPE_INT,
     VAL_TYPE_FLOAT,
-    VAL_TYPE_STR
+    VAL_TYPE_STR,
+    VAL_TYPE_REGEX
 } ValueType;
+
+typedef struct {
+    char *regex_pattern;
+    int modifiers;
+} Regex;
 
 /* Used to pass multiple types to a command through a single instance variable */
 typedef struct {
@@ -35,20 +41,33 @@ typedef struct {
         long ival;
         double fval;
         char *sval;
+        Regex rval;
     } val;
 } Value;
 
-#define BOOL_VAL_STRUCT(bvalue) { .type = VAL_TYPE_BOOL, .val = { .ival = (bvalue) } }
-#define INT_VAL_STRUCT(ivalue)  { .type = VAL_TYPE_INT , .val = { .ival = (ivalue) } }
-#define STR_VAL_STRUCT(svalue)  { .type = VAL_TYPE_STR , .val = { .sval = (svalue) } }
-#define INT_VAL(ivalue)  (Value) INT_VAL_STRUCT(ivalue)
-#define STR_VAL(svalue)  (Value) STR_VAL_STRUCT(svalue)
-#define BOOL_VAL(bvalue) (Value) BOOL_VAL_STRUCT(bvalue)
+#define BOOL_VAL_STRUCT(bvalue)       { .type = VAL_TYPE_BOOL , .val = { .ival = (bvalue) } }
+#define INT_VAL_STRUCT(ivalue)        { .type = VAL_TYPE_INT  , .val = { .ival = (ivalue) } }
+#define STR_VAL_STRUCT(svalue)        { .type = VAL_TYPE_STR  , .val = { .sval = (svalue) } }
+#define REGEX_VAL_STRUCT(rvalue,rmod) { .type = VAL_TYPE_REGEX, \
+                                        .val = { .rval = { .regex_pattern = (rvalue), .modifiers = (rmod) } } }
+
+#define BOOL_VAL(bvalue)       (Value) BOOL_VAL_STRUCT(bvalue)
+#define INT_VAL(ivalue)        (Value) INT_VAL_STRUCT(ivalue)
+#define STR_VAL(svalue)        (Value) STR_VAL_STRUCT(svalue)
+#define REGEX_VAL(rvalue,rmod) (Value) REGEX_VAL_STRUCT(rvalue,rmod)
+
+#define BVAL(value) IVAL(value)
+#define IVAL(value) (value).val.ival
+#define SVAL(value) (value).val.sval
+#define RVAL(value) (value).val.rval
+
+#define STR_BASED_VAL(value) ((value).type == VAL_TYPE_STR || (value).type == VAL_TYPE_REGEX)
 
 const char *va_get_value_type(Value);
 const char *va_value_type_string(ValueType);
 Status va_deep_copy_value(Value, Value *);
 char *va_to_string(Value);
+const char *va_str_val(Value);
 void va_free_value(Value);
 
 #endif

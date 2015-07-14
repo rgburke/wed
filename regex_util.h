@@ -16,22 +16,34 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_FILE_TYPE_H
-#define WED_FILE_TYPE_H
+#ifndef WED_REGEX_UTIL_H
+#define WED_REGEX_UTIL_H
 
+#include <stdarg.h>
 #include <pcre.h>
 #include "status.h"
-#include "file.h"
-#include "regex_util.h"
+#include "value.h"
+
+#define RE_OUTPUT_VECTOR_SIZE 90
 
 typedef struct {
-    char *name;
-    char *display_name;
-    RegexInstance file_pattern;
-} FileType;
+    pcre *regex;
+    pcre_extra *regex_study;
+} RegexInstance;
 
-Status ft_init(FileType **, const char *, const char *, const Regex *);
-void ft_free(FileType *);
-Status ft_matches(FileType *, FileInfo *, int *);
+typedef struct {
+    int match;
+    int return_code;
+    int output_vector[RE_OUTPUT_VECTOR_SIZE];
+    /* output_vector[1] - output_vector[0] for convenience */
+    int match_length;
+} RegexResult;
+
+Status re_compile(RegexInstance *, const Regex *);
+Status re_compile_custom_error_msg(RegexInstance *, const Regex *, const char *, ...);
+void re_free_instance(const RegexInstance *);
+Status re_exec(RegexResult *, const RegexInstance *, const char *, size_t, size_t);
+Status re_exec_custom_error_msg(RegexResult *, const RegexInstance *, const char *, 
+                                size_t, size_t, const char *, ...);
 
 #endif

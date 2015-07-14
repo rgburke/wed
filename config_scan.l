@@ -38,17 +38,18 @@ static YY_BUFFER_STATE buf_state;
 
 #.*$
 [[:space:]]+               
-(-|\+)?[[:digit:]]+        { yylval.string = strdupe(yytext); return TKN_INTEGER; }
-true|false                 { yylval.string = strdupe(yytext); return TKN_BOOLEAN; }
-\"(\\.|[^"])*\"            { yylval.string = strdupe(yytext); return TKN_STRING;  }
-\/(\\\/|[^\/])*\/          { yylval.string = strdupe(yytext); return TKN_REGEX;   }
-:wa
-[[:alpha:]_]+              { yylval.string = strdupe(yytext); return TKN_NAME;    }
-"="                        { return TKN_ASSIGN;        }
-";"                        { return TKN_SEMI_COLON;    }
-"{"                        { return TKN_LEFT_BRACKET;  }
-"}"                        { return TKN_RIGHT_BRACKET; }
-.                          { se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_CHARACTERS, &yylloc, "Invalid character \"%s\"", yytext)); }
+(-|\+)?[[:digit:]]+           { yylval.string = strdupe(yytext); return TKN_INTEGER; }
+true|false                    { yylval.string = strdupe(yytext); return TKN_BOOLEAN; }
+\"(\\.|[^"])*\"               { yylval.string = strdupe(yytext); return TKN_STRING;  }
+\/(\\\/|[^\/])*\/[[:lower:]]* { yylval.string = strdupe(yytext); return TKN_REGEX;   }
+[[:alpha:]_]+                 { yylval.string = strdupe(yytext); return TKN_NAME;    }
+"="                           { return TKN_ASSIGN;        }
+";"                           { return TKN_SEMI_COLON;    }
+"{"                           { return TKN_LEFT_BRACKET;  }
+"}"                           { return TKN_RIGHT_BRACKET; }
+.                             { se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_CHARACTERS, 
+                                                                       &yylloc, "Invalid character \"%s\"", 
+                                                                       yytext)); }
 
 %%
 
