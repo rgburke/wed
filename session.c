@@ -30,6 +30,7 @@
 
 static Status se_add_to_history(List *, char *);
 static void se_determine_filetype(Session *, Buffer *);
+static void se_determine_syntaxtype(Session *, Buffer *);
 
 Session *se_new(void)
 {
@@ -71,6 +72,10 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
     }
 
     if ((sess->filetypes = new_hashmap()) == NULL) {
+        return 0;
+    }
+
+    if ((sess->syn_defs = new_hashmap()) == NULL) {
         return 0;
     }
 
@@ -123,6 +128,8 @@ void se_free(Session *sess)
     list_free_all(sess->command_history, NULL);
     free_hashmap_values(sess->filetypes, (void (*)(void *))ft_free);
     free_hashmap(sess->filetypes);
+    free_hashmap_values(sess->syn_defs, (void (*)(void *))sy_free_def);
+    free_hashmap(sess->syn_defs);
 
     free(sess);
 }
@@ -136,6 +143,7 @@ int se_add_buffer(Session *sess, Buffer *buffer)
     }
 
     se_determine_filetype(sess, buffer);
+    se_determine_syntaxtype(sess, buffer);
 
     sess->buffer_num++;
 
@@ -626,4 +634,72 @@ int se_disable_msgs(Session *sess)
     int currently_enabled = sess->msgs_enabled;
     sess->msgs_enabled = 0;
     return currently_enabled;
+}
+
+Status se_add_syn_def(Session *sess, SyntaxDefinition *syn_def)
+{
+    assert(syn_def != NULL);    
+
+    SyntaxDefinition *existing = hashmap_get(sess->syn_defs, syn_def->name);
+
+    if (!hashmap_set(sess->syn_defs, syn_def->name, syn_def)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to save syntax syntax definition");
+    }
+
+    if (existing != NULL) {
+        sy_free_def(existing);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static void se_determine_syntaxtype(Session *sess, Buffer *buffer)
+{
+    if (!cf_bool("syntax")) {
+        return;
+    }
+
+    const char *syn_type = cf_bf_string("syntaxtype", buffer);
+
+    if (!is_null_or_empty(syn_type)) {
+        return;
+    }
+
+    const char *file_type = cf_bf_string("filetype", buffer);
+
+    if (is_null_or_empty(file_type)) {
+        return;
+    }
+
+    if (!se_is_valid_syntaxtype(sess, file_type)) {
+        return;
+    }
+
+    int re_enable_msgs = se_disable_msgs(sess);
+
+    se_add_error(sess, cf_set_buffer_var(buffer, "syntaxtype", STR_VAL((char *)file_type)));
+
+    if (re_enable_msgs) {
+        se_enable_msgs(sess);
+    }
+}
+
+int se_is_valid_syntaxtype(Session *sess, const char *syn_type)
+{
+    if (is_null_or_empty(syn_type)) {
+        return 1;
+    }
+
+    const SyntaxDefinition *syn_def = hashmap_get(sess->syn_defs, syn_type);
+
+    if (syn_def != NULL) {
+        return 1;
+    }
+
+    cf_load_syntax_config(sess, syn_type);
+
+    syn_def = hashmap_get(sess->syn_defs, syn_type);
+
+    return syn_def != NULL;
 }

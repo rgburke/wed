@@ -418,6 +418,7 @@ void draw_errors(Session *sess)
     BufferPos pos;
     size_t screen_lines = 0;
     WindowInfo *win_info = &error_buffer->win_info;
+    WindowInfo win_info_orig = *win_info;
     bp_init(&pos, error_buffer->data, &error_buffer->cef);
 
     while (!bp_at_buffer_end(&pos)) {
@@ -443,6 +444,8 @@ void draw_errors(Session *sess)
     draw_buffer(error_buffer, 1);
     wattroff(text, COLOR_PAIR(CP_ERROR));
     wnoutrefresh(text);
+
+    *win_info = win_info_orig;
 
     wmove(status, 0, 0);
     werase(status);

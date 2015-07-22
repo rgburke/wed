@@ -49,6 +49,7 @@ static const ErrorCodeMsg default_error_messages[] = {
     { ERR_UNABLE_TO_GET_ABS_PATH             , "Unable to determine absolute path"   },
     { ERR_INVALID_TABWIDTH                   , "Invalid tabwidth value"              },
     { ERR_INVALID_FILETYPE                   , "Invalid filetype"                    },
+    { ERR_INVALID_SYNTAXTYPE                 , "Invalid syntaxtype"                  },
     { ERR_INVALID_CONFIG_CHARACTERS          , "Invalid characters in config"        },
     { ERR_INVALID_CONFIG_SYNTAX              , "Invalid config syntax"               },
     { ERR_FAILED_TO_PARSE_CONFIG_FILE        , "Failed to parse config file"         },

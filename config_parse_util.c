@@ -16,6 +16,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+/* For memrchr */
+#define _GNU_SOURCE
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -29,6 +32,7 @@
 #include "status.h"
 #include "util.h"
 #include "file_type.h"
+#include "syntax.h"
 
 void yyrestart(FILE *);
 
@@ -43,6 +47,8 @@ typedef struct {
 static void cp_reset_parser_location(void);
 static void cp_process_block(Session *, StatementBlockNode *);
 static void cp_process_filetype_block(Session *, StatementBlockNode *);
+static void cp_process_syntax_block(Session *, StatementBlockNode *);
+static SyntaxPattern *cp_process_syntax_pattern_block(Session *, StatementBlockNode *);
 static int cp_process_assignment(Session *, StatementNode *, VariableAssignment *, size_t);
 static int cp_validate_block_vars(Session *, VariableAssignment *, size_t, const ParseLocation *, const char *, int);
 
@@ -270,7 +276,7 @@ int cp_convert_to_regex_value(const char *rvalue, Value *value)
         return 0;
     }
 
-    const char *regex_end = memchr(rvalue + 1, '/', length - 1);
+    const char *regex_end = memrchr(rvalue + 1, '/', length - 1);
 
     if (regex_end == NULL) {
         return 0;
@@ -554,7 +560,7 @@ Status cp_parse_config_file(Session *sess, ConfigLevel config_level, const char 
 
     if (config_file == NULL) {
         return st_get_error(ERR_UNABLE_TO_OPEN_FILE, 
-                         "Unable to open file %s for reading", config_file_path);
+                            "Unable to open file %s for reading", config_file_path);
     } 
 
     yyrestart(config_file);
@@ -564,7 +570,7 @@ Status cp_parse_config_file(Session *sess, ConfigLevel config_level, const char 
 
     if (parse_status != 0) {
         return st_get_error(ERR_FAILED_TO_PARSE_CONFIG_FILE, 
-                         "Failed to fully config parse file %s", config_file_path);
+                            "Failed to fully config parse file %s", config_file_path);
     }
 
     return STATUS_SUCCESS;
@@ -595,6 +601,7 @@ static void cp_process_block(Session *sess, StatementBlockNode *stmb_node)
             cp_process_filetype_block(sess, stmb_node);
             return;
         } else if (strncmp(stmb_node->block_name, "syntax", 7) == 0) {
+            cp_process_syntax_block(sess, stmb_node);
             return;
         }
     }
@@ -658,7 +665,179 @@ static void cp_process_filetype_block(Session *sess, StatementBlockNode *stmb_no
         return;
     }
 
-    se_add_error(sess, se_add_filetype_def(sess, file_type));
+    status = se_add_filetype_def(sess, file_type);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        ft_free(file_type);
+        se_add_error(sess, status);
+    }
+}
+
+static void cp_process_syntax_block(Session *sess, StatementBlockNode *stmb_node)
+{
+    if (stmb_node->node == NULL) {
+        se_add_error(sess, cp_get_config_error(ERR_EMPTY_BLOCK_DEFINITION,
+                                               &stmb_node->type.location,
+                                               "Empty block definition"));
+        return;
+    } else if (stmb_node->node->node_type != NT_STATEMENT) {
+        se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                               &stmb_node->node->location,
+                                               "Invalid block entry"));
+        return;
+    }
+
+    Value name;
+
+    VariableAssignment expected_vars[] = {
+        { "name", VAL_TYPE_STR, &name, NULL, 0 }
+    };
+
+    const size_t expected_vars_num = sizeof(expected_vars) / sizeof(VariableAssignment);
+
+    SyntaxDefinition *syn_def = NULL;
+    SyntaxPattern *syn_current = NULL;
+    SyntaxPattern *syn_first = NULL;
+
+    StatementNode *stm_node = (StatementNode *)stmb_node->node;
+
+    while (stm_node != NULL) {
+        if (stm_node->node->node_type == NT_ASSIGNMENT) {
+            cp_process_assignment(sess, stm_node, expected_vars, expected_vars_num);
+            stm_node = stm_node->next;
+        } else if (stm_node->node->node_type == NT_STATEMENT_BLOCK) {
+            SyntaxPattern *syn_pattern = cp_process_syntax_pattern_block(sess, 
+                                         (StatementBlockNode *)stm_node->node);
+
+            if (syn_pattern != NULL) {
+                if (syn_first == NULL) {
+                    syn_first = syn_current = syn_pattern; 
+                } else {
+                    syn_current->next = syn_pattern;
+                    syn_current = syn_pattern;
+                }
+            }
+
+            stm_node = stm_node->next;
+        } else {
+            se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                                   &stm_node->node->location,
+                                                   "Invalid statement in filetype block"));
+            goto cleanup;
+        }
+    }
+
+    if (syn_first == NULL) {
+        se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                               &stmb_node->type.location,
+                                               "Synax block contains no "
+                                               "valid pattern blocks"));
+        return;
+    }
+
+    if (!cp_validate_block_vars(sess, expected_vars, expected_vars_num, 
+                                &stmb_node->type.location, "syntax", 1)) {
+        goto cleanup;
+    }
+
+    syn_def = sy_new_def(SVAL(name), syn_first);
+
+    if (syn_def == NULL) {
+        se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                        "Unable to allocate SyntaxDefinition"));
+
+        goto cleanup;
+    }
+
+    Status status = se_add_syn_def(sess, syn_def);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        se_add_error(sess, status);
+        goto cleanup;
+    }
+
+    return;
+
+cleanup:
+
+    if (syn_def == NULL) {
+        while (syn_first != NULL) {
+            syn_current = syn_first->next;
+            syn_free_pattern(syn_first);
+            syn_first = syn_current;
+        }
+    } else {
+        sy_free_def(syn_def);
+    }
+}
+
+static SyntaxPattern *cp_process_syntax_pattern_block(Session *sess, 
+                                                      StatementBlockNode *stmb_node)
+{
+    if (stmb_node->node == NULL) {
+        se_add_error(sess, cp_get_config_error(ERR_EMPTY_BLOCK_DEFINITION,
+                                               &stmb_node->type.location,
+                                               "Empty block definition"));
+        return NULL;
+    } else if (stmb_node->node->node_type != NT_STATEMENT) {
+        se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                               &stmb_node->node->location,
+                                               "Invalid block entry"));
+        return NULL;
+    }
+
+    Value regex;
+    Value type;
+
+    VariableAssignment expected_vars[] = {
+        { "regex", VAL_TYPE_REGEX, &regex, NULL, 0 },
+        { "type" , VAL_TYPE_STR  , &type , NULL, 0 }
+    };
+
+    size_t expected_vars_num = sizeof(expected_vars) / sizeof(VariableAssignment);
+
+    StatementNode *stm_node = (StatementNode *)stmb_node->node;
+
+    while (stm_node != NULL) {
+        if (stm_node->node->node_type == NT_ASSIGNMENT) {
+            cp_process_assignment(sess, stm_node, expected_vars, expected_vars_num);
+            stm_node = stm_node->next;
+        } else {
+            se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                                   &stm_node->node->location,
+                                                   "Invalid statement in pattern block"));
+            return NULL;
+        }
+    }
+
+    if (!cp_validate_block_vars(sess, expected_vars, expected_vars_num, 
+                                &stmb_node->type.location, "pattern", 1)) {
+        return NULL;
+    }
+
+    SyntaxToken token;
+
+    if (!sy_str_to_token(&token, SVAL(type))) {
+        se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                               expected_vars[1].location,
+                                               "Invalid type \"%s\" in pattern block",
+                                               SVAL(type)));
+        return NULL;
+    }
+
+    SyntaxPattern *syn_pattern;
+    Status status = sy_new_pattern(&syn_pattern, &RVAL(regex), token);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        se_add_error(sess, cp_get_config_error(status.error_code, 
+                                               &stmb_node->type.location,
+                                               "Invalid pattern block - %s",
+                                               status.msg));
+        st_free_status(status);
+        return NULL;
+    }
+
+    return syn_pattern;
 }
 
 static int cp_process_assignment(Session *sess, StatementNode *stm_node,

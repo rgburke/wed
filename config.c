@@ -40,6 +40,8 @@
 
 #define CFG_TABWIDTH_MIN 1
 #define CFG_TABWIDTH_MAX 8
+#define CFG_FILETYPE_MAX_LEN 50
+#define CFG_SYNTAXTYPE_MAX_LEN CFG_FILETYPE_MAX_LEN 
 
 static Session *curr_sess = NULL;
 static HashMap *config_vars = NULL;
@@ -52,13 +54,16 @@ static const ConfigVariableDescriptor *cf_get_variable(const char *);
 static Status cf_set_config_var(HashMap *, ConfigLevel, char *, Value);
 static Status cf_tabwidth_validator(Session *, Value);
 static Status cf_filetype_validator(Session *, Value);
+static Status cf_syntaxtype_validator(Session *, Value);
 
 static const ConfigVariableDescriptor default_config[] = {
-    { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                 , NULL },
-    { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                 , NULL },
-    { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator, NULL },
-    { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                 , NULL },
-    { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator, NULL }
+    { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
+    { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
+    { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator  , NULL },
+    { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL },
+    { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , NULL },
+    { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
+    { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL }
 };
 
 void cf_set_config_session(Session *sess)
@@ -130,8 +135,13 @@ Status cf_init_session_config(Session *sess)
 
     Status status = cf_path_append(home_path, "/." CFG_USER_DIR, &wed_user_dir);
 
-    if (STATUS_IS_SUCCESS(status) && access(wed_user_dir, F_OK) != -1) {
-        se_add_error(sess, cf_load_config_if_exists(sess, wed_user_dir, "/" CFG_FILETYPES_FILE_NAME));
+    if (STATUS_IS_SUCCESS(status)) {
+        if (access(wed_user_dir, F_OK) != -1) {
+            se_add_error(sess, cf_load_config_if_exists(sess, wed_user_dir, 
+                                                        "/" CFG_FILETYPES_FILE_NAME));
+        }
+
+        free(wed_user_dir);
     } else {
         se_add_error(sess, status);
     }
@@ -196,6 +206,38 @@ int cf_populate_default_config(HashMap *config, ConfigLevel config_level, int st
     }
 
     return 1;
+}
+
+void cf_load_syntax_config(Session *sess, const char *syn_type)
+{
+    assert(!is_null_or_empty(syn_type));
+
+    if (is_null_or_empty(syn_type)) {
+        return;
+    }
+
+    const char *file_name_fmt = "/syntax/%.*s.wed";
+    size_t file_name_length = strlen(file_name_fmt) - 4 + CFG_SYNTAXTYPE_MAX_LEN + 1;
+
+    char syn_file_name[file_name_length];
+    snprintf(syn_file_name, file_name_length, file_name_fmt, 
+             CFG_SYNTAXTYPE_MAX_LEN, syn_type);
+
+    const char *wed_run_time = cf_string("wedruntime");
+
+    se_add_error(sess, cf_load_config_if_exists(sess, wed_run_time, syn_file_name));
+
+    const char *home_path = getenv("HOME"); 
+    char *wed_user_dir = NULL;
+
+    Status status = cf_path_append(home_path, "/." CFG_USER_DIR, &wed_user_dir);
+
+    if (STATUS_IS_SUCCESS(status)) {
+        se_add_error(sess, cf_load_config_if_exists(sess, wed_user_dir, syn_file_name));
+        free(wed_user_dir);
+    } else {
+        se_add_error(sess, status);
+    }
 }
 
 Status cf_load_config_if_exists(Session *sess, const char *dir, const char *file)
@@ -461,11 +503,38 @@ static Status cf_filetype_validator(Session *sess, Value value)
         return STATUS_SUCCESS;
     }
 
+    if (strlen(SVAL(value)) > CFG_FILETYPE_MAX_LEN) {
+        return st_get_error(ERR_INVALID_SYNTAXTYPE,
+                            "filetype names are %d characters or fewer",
+                            CFG_FILETYPE_MAX_LEN);
+    }
+
     FileType *file_type = hashmap_get(sess->filetypes, SVAL(value));
 
     if (file_type == NULL) {
         return st_get_error(ERR_INVALID_FILETYPE,
                             "No filetype with name \"%s\" exists",
+                            SVAL(value));
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static Status cf_syntaxtype_validator(Session *sess, Value value)
+{
+    if (SVAL(value) != NULL && *SVAL(value) == '\0') {
+        return STATUS_SUCCESS;
+    }
+
+    if (strlen(SVAL(value)) > CFG_SYNTAXTYPE_MAX_LEN) {
+        return st_get_error(ERR_INVALID_SYNTAXTYPE,
+                            "syntaxtype names are %d characters or fewer",
+                            CFG_SYNTAXTYPE_MAX_LEN);
+    }
+
+    if (!se_is_valid_syntaxtype(sess, SVAL(value))) {
+        return st_get_error(ERR_INVALID_SYNTAXTYPE,
+                            "No syntaxtype with name \"%s\" exists",
                             SVAL(value));
     }
 

@@ -25,14 +25,6 @@
 
 #define VALUE_STRING_CONVERT_SIZE 100
 
-static const char *value_types[] = {
-    "Boolean",
-    "Integer",
-    "Float",
-    "String",
-    "Regex"
-};
-
 const char *va_get_value_type(Value value)
 {
     return va_value_type_string(value.type);
@@ -40,6 +32,14 @@ const char *va_get_value_type(Value value)
 
 const char *va_value_type_string(ValueType value_type)
 {
+    static const char *value_types[] = {
+        [VAL_TYPE_BOOL]  = "Boolean",
+        [VAL_TYPE_INT]   = "Integer",
+        [VAL_TYPE_FLOAT] = "Float",
+        [VAL_TYPE_STR]   = "String",
+        [VAL_TYPE_REGEX] = "Regex"
+    };
+
     assert(value_type < (sizeof(value_types) / sizeof(char *)));
 
     return value_types[value_type];
