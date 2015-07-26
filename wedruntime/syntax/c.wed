@@ -2,7 +2,11 @@ syntax {
     name = "c";
     
     pattern {
-        regex = /asm|break|case|continue|default|do|else|enum|for|fortran|goto|if|return|struct|switch|typedef|union|while/;
+        regex = /\b(
+                    asm|break|case|continue|default|do|
+                    else|enum|for|fortran|goto|if|return|
+                    struct|switch|typedef|union|while
+                 )\b/x;
         type = "keyword";
     }
 }

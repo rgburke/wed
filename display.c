@@ -54,8 +54,8 @@ static void draw_status(Session *);
 static size_t draw_status_file_info(Session *, size_t);
 static size_t draw_status_pos_info(Session *, size_t);
 static void draw_status_general_info(Session *, size_t, size_t);
-static void draw_buffer(Buffer *, int);
-static size_t draw_line(Buffer *, BufferPos *, int, int, Range, int, WindowInfo);
+static void draw_buffer(const Session *, Buffer *, int);
+static size_t draw_line(Buffer *, BufferPos *, int, int, Range, int, WindowInfo, SyntaxMatches *);
 static void draw_char(CharInfo, const BufferPos *, WINDOW *, size_t, int);
 static void position_cursor(Buffer *, int);
 static void vertical_scroll(Buffer *);
@@ -182,7 +182,7 @@ void update_display(Session *sess)
         draw_status(sess);
     }
 
-    draw_buffer(buffer, line_wrap);
+    draw_buffer(sess, buffer, line_wrap);
 
     position_cursor(buffer, line_wrap);
 
@@ -441,7 +441,7 @@ void draw_errors(Session *sess)
     }
 
     wattron(text, COLOR_PAIR(CP_ERROR));
-    draw_buffer(error_buffer, 1);
+    draw_buffer(sess, error_buffer, 1);
     wattroff(text, COLOR_PAIR(CP_ERROR));
     wnoutrefresh(text);
 
@@ -471,7 +471,7 @@ static void draw_prompt(Session *sess)
     win_info->width = text_x - prompt_size;
 }
 
-static void draw_buffer(Buffer *buffer, int line_wrap)
+static void draw_buffer(const Session *sess, Buffer *buffer, int line_wrap)
 {
     Range select_range;
     int is_selection = bf_get_range(buffer, &select_range);
@@ -480,6 +480,18 @@ static void draw_buffer(Buffer *buffer, int line_wrap)
     BufferPos draw_pos = buffer->screen_start;
     WINDOW *draw_win = windows[buffer->win_info.draw_window];
     size_t buffer_len = bf_length(buffer);
+    const SyntaxDefinition *syn_def = se_get_syntax_def(sess, buffer);
+    SyntaxMatches *syn_matches = NULL;
+
+    if (syn_def != NULL) {
+        size_t draw_text_size = buffer->win_info.height * buffer->win_info.width * 2;
+        char draw_text[draw_text_size];
+        draw_text_size = gb_get_range(buffer->data, buffer->screen_start.offset, 
+                                      draw_text, draw_text_size);
+
+        syn_matches = sy_get_syntax_matches(syn_def, draw_text, draw_text_size, 
+                                            draw_pos.offset);
+    }
 
     if (!line_wrap) {
         size_t buffer_lines = bf_lines(buffer);
@@ -495,7 +507,8 @@ static void draw_buffer(Buffer *buffer, int line_wrap)
 
     while (line_count < line_num && draw_pos.offset <= buffer_len) {
         line_count += draw_line(buffer, &draw_pos, line_count, is_selection, 
-                                select_range, line_wrap, buffer->win_info);
+                                select_range, line_wrap, buffer->win_info,
+                                syn_matches);
 
         if (draw_pos.offset == buffer_len) {
             break;
@@ -517,10 +530,12 @@ static void draw_buffer(Buffer *buffer, int line_wrap)
     }
 
     wattroff(draw_win, COLOR_PAIR(CP_BUFFER_END));
+    free(syn_matches);
 }
 
 static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selection, 
-                        Range select_range, int line_wrap, WindowInfo win_info)
+                        Range select_range, int line_wrap, WindowInfo win_info,
+                        SyntaxMatches *syn_matches)
 {
     if (win_info.line_no_width > 0 && (bp_at_line_start(draw_pos) || !line_wrap)) {
         wmove(lineno, win_info.start_y + y, 0);
@@ -563,6 +578,7 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
     size_t window_width = win_info.start_x + win_info.width;
     size_t window_height = win_info.start_y + win_info.height;
     size_t screen_length = 0;
+    const SyntaxMatch *syn_match;
 
     while (!bp_at_line_end(draw_pos) && scr_line_num < window_height) {
         wmove(draw_win, win_info.start_y + y + scr_line_num, win_info.start_x);
@@ -574,6 +590,14 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
                 wattron(draw_win, A_REVERSE);
             } else {
                 wattroff(draw_win, A_REVERSE);
+            }
+
+            syn_match = sy_get_syntax_match(syn_matches, draw_pos->offset);
+
+            if (syn_match == NULL) {
+                wattroff(draw_win, COLOR_PAIR(CP_LINE_NO));
+            } else {
+                wattron(draw_win, COLOR_PAIR(CP_LINE_NO));
             }
 
             buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *draw_pos);
@@ -603,7 +627,7 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
 
 static void draw_char(CharInfo char_info, const BufferPos *draw_pos, WINDOW *draw_win, size_t window_width, int line_wrap)
 {
-    uchar character[50] = { 0 };
+    uchar character[50] = { '\0' };
     gb_get_range(draw_pos->data, draw_pos->offset, (char *)character, char_info.byte_length);
     size_t remaining = window_width - ((draw_pos->col_no - 1) % window_width);
 

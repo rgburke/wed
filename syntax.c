@@ -16,11 +16,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include "syntax.h"
 #include "regex_util.h"
 #include "util.h"
+
+static int sy_match_cmp(const void *, const void *);
 
 int sy_str_to_token(SyntaxToken *token, const char *token_str)
 {
@@ -121,4 +124,90 @@ void sy_free_def(SyntaxDefinition *syn_def)
     }
 
     free(syn_def);
+}
+
+SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def, 
+                                     const char *str, size_t str_len,
+                                     size_t offset)
+{
+    if (str_len == 0) {
+        return NULL;
+    }
+
+    SyntaxMatches *syn_matches = malloc(sizeof(SyntaxMatches));
+
+    if (syn_matches == NULL) {
+        return NULL;
+    }
+
+    syn_matches->match_num = 0;
+    syn_matches->current_match = 0;
+    syn_matches->offset = offset;
+    
+    SyntaxPattern *pattern = syn_def->patterns;
+    RegexResult result;
+    Status status;
+
+    while (pattern != NULL) {
+        size_t offset = 0;
+
+        do {
+            status = re_exec(&result, &pattern->regex, str, str_len, offset);
+
+            if (!(STATUS_IS_SUCCESS(status) && result.match)) {
+                break; 
+            }
+
+            syn_matches->matches[syn_matches->match_num++] = (SyntaxMatch) {
+                .offset = result.output_vector[0],
+                .length = result.match_length,
+                .token = pattern->token
+            }; 
+
+            offset = result.output_vector[0] + result.match_length;
+        } while (syn_matches->match_num < MAX_SYNTAX_MATCH_NUM &&
+                 offset < str_len);
+
+        pattern = pattern->next;
+    }
+
+    qsort(syn_matches->matches, syn_matches->match_num, sizeof(SyntaxMatch), sy_match_cmp);
+
+    return syn_matches;
+}
+
+static int sy_match_cmp(const void *v1, const void *v2)
+{
+    const SyntaxMatch *m1 = (const SyntaxMatch *)v1;
+    const SyntaxMatch *m2 = (const SyntaxMatch *)v2;
+
+    if (m1->offset == m2->offset) {
+        return (int)m2->length - (int)m1->length;
+    }
+
+    return (int)m1->offset - (int)m2->offset;
+}
+
+const SyntaxMatch *sy_get_syntax_match(SyntaxMatches *syn_matches, size_t offset)
+{
+    if (syn_matches == NULL || syn_matches->match_num == 0 ||
+        syn_matches->offset > offset) {
+        return NULL;
+    }
+
+    offset -= syn_matches->offset;
+
+    while (syn_matches->current_match < syn_matches->match_num) {
+        const SyntaxMatch *syn_match = &syn_matches->matches[syn_matches->current_match];
+
+        if (offset < syn_match->offset) {
+            break;
+        } else if (offset < syn_match->offset + syn_match->length) {
+            return syn_match;
+        }
+
+        syn_matches->current_match++;
+    }
+
+    return NULL;
 }

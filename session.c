@@ -703,3 +703,14 @@ int se_is_valid_syntaxtype(Session *sess, const char *syn_type)
 
     return syn_def != NULL;
 }
+
+const SyntaxDefinition *se_get_syntax_def(const Session *sess, const Buffer *buffer)
+{
+    if (!cf_bool("syntax")) {
+        return NULL;
+    }
+
+    const char *syn_type = cf_bf_string("syntaxtype", buffer);
+
+    return hashmap_get(sess->syn_defs, syn_type);
+}
