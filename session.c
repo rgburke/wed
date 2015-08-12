@@ -31,6 +31,7 @@
 static Status se_add_to_history(List *, char *);
 static void se_determine_filetype(Session *, Buffer *);
 static void se_determine_syntaxtype(Session *, Buffer *);
+static int se_is_valid_config_def(Session *, HashMap *, ConfigType, const char *);
 
 Session *se_new(void)
 {
@@ -76,6 +77,20 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
     }
 
     if ((sess->syn_defs = new_hashmap()) == NULL) {
+        return 0;
+    }
+
+    if ((sess->themes = new_hashmap()) == NULL) {
+        return 0;
+    }
+
+    Theme *default_theme = th_get_default_theme();
+
+    if (default_theme == NULL) {
+        return 0;
+    }
+
+    if (!hashmap_set(sess->themes, "default", default_theme)) {
         return 0;
     }
 
@@ -130,6 +145,8 @@ void se_free(Session *sess)
     free_hashmap(sess->filetypes);
     free_hashmap_values(sess->syn_defs, (void (*)(void *))sy_free_def);
     free_hashmap(sess->syn_defs);
+    free_hashmap_values(sess->themes, NULL);
+    free_hashmap(sess->themes);
 
     free(sess);
 }
@@ -636,15 +653,16 @@ int se_disable_msgs(Session *sess)
     return currently_enabled;
 }
 
-Status se_add_syn_def(Session *sess, SyntaxDefinition *syn_def)
+Status se_add_syn_def(Session *sess, SyntaxDefinition *syn_def, const char *syn_name)
 {
-    assert(syn_def != NULL);    
+    assert(syn_def != NULL);
+    assert(!is_null_or_empty(syn_name));
 
-    SyntaxDefinition *existing = hashmap_get(sess->syn_defs, syn_def->name);
+    SyntaxDefinition *existing = hashmap_get(sess->syn_defs, syn_name);
 
-    if (!hashmap_set(sess->syn_defs, syn_def->name, syn_def)) {
+    if (!hashmap_set(sess->syn_defs, syn_name, syn_def)) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to save syntax syntax definition");
+                            "Unable to save syntax definition");
     }
 
     if (existing != NULL) {
@@ -691,17 +709,23 @@ int se_is_valid_syntaxtype(Session *sess, const char *syn_type)
         return 1;
     }
 
-    const SyntaxDefinition *syn_def = hashmap_get(sess->syn_defs, syn_type);
+    return se_is_valid_config_def(sess, sess->syn_defs, CT_SYNTAX, syn_type);
+}
 
-    if (syn_def != NULL) {
+static int se_is_valid_config_def(Session *sess, HashMap *defs, 
+                                  ConfigType config_type, const char *def_name)
+{
+    const void *def = hashmap_get(defs, def_name);
+
+    if (def != NULL) {
         return 1;
     }
 
-    cf_load_syntax_config(sess, syn_type);
+    cf_load_config_def(sess, config_type, def_name);
 
-    syn_def = hashmap_get(sess->syn_defs, syn_type);
+    def = hashmap_get(defs, def_name);
 
-    return syn_def != NULL;
+    return def != NULL;
 }
 
 const SyntaxDefinition *se_get_syntax_def(const Session *sess, const Buffer *buffer)
@@ -713,4 +737,33 @@ const SyntaxDefinition *se_get_syntax_def(const Session *sess, const Buffer *buf
     const char *syn_type = cf_bf_string("syntaxtype", buffer);
 
     return hashmap_get(sess->syn_defs, syn_type);
+}
+
+int se_is_valid_theme(Session *sess, const char *theme)
+{
+    return se_is_valid_config_def(sess, sess->themes, CT_THEME, theme);
+}
+
+Status se_add_theme(Session *sess, Theme *theme, const char *theme_name)
+{
+    assert(theme != NULL);    
+    assert(!is_null_or_empty(theme_name));
+
+    if (strncmp(theme_name, "default", 8) == 0) {
+        return st_get_error(ERR_OVERRIDE_DEFAULT_THEME, 
+                            "Cannot override default theme");
+    }
+
+    Theme *existing = hashmap_get(sess->themes, theme_name);
+
+    if (!hashmap_set(sess->themes, theme_name, theme)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to save theme definition");
+    }
+
+    if (existing != NULL) {
+        free(existing);
+    }
+
+    return STATUS_SUCCESS;
 }

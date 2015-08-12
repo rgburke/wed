@@ -110,8 +110,9 @@ void ip_process_input(Session *sess)
         } else if (pselect_res == 0) {
             if (termkey_getkey_force(termkey, &key) == TERMKEY_RES_KEY) {
                 ip_handle_keypress(sess, &key, keystr, &finished);
-                timeout = NULL;
             }
+
+            timeout = NULL;
         } else if (pselect_res > 0) {
             if (FD_ISSET(STDIN_FILENO, &fds)) {
                 termkey_advisereadable(termkey);

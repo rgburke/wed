@@ -28,12 +28,18 @@ static int sy_match_cmp(const void *, const void *);
 int sy_str_to_token(SyntaxToken *token, const char *token_str)
 {
     static const char *syn_tokens[] = {
-        [ST_KEYWORD] = "keyword"
+        [ST_NORMAL]     = "normal",
+        [ST_COMMENT]    = "comment",
+        [ST_CONSTANT]   = "constant",
+        [ST_SPECIAL]    = "special",
+        [ST_IDENTIFIER] = "identifier",
+        [ST_STATEMENT]  = "statement",
+        [ST_TYPE]       = "type",
+        [ST_ERROR]      = "error",
+        [ST_TODO]       = "todo"
     };
 
-    static const size_t token_num = sizeof(syn_tokens) / sizeof(const char *);
-
-    for (size_t k = 0; k < token_num; k++) {
+    for (size_t k = 0; k < ST_ENTRY_NUM; k++) {
         if (strcmp(syn_tokens[k], token_str) == 0) {
             *token = k;
             return 1;
@@ -82,23 +88,13 @@ void syn_free_pattern(SyntaxPattern *syn_pattern)
     free(syn_pattern);
 }
 
-SyntaxDefinition *sy_new_def(const char *name, SyntaxPattern *patterns)
+SyntaxDefinition *sy_new_def(SyntaxPattern *patterns)
 {
-    assert(!is_null_or_empty(name));
     assert(patterns != NULL);
 
     SyntaxDefinition *syn_def = malloc(sizeof(SyntaxDefinition));
 
     if (syn_def == NULL) {
-        return NULL;
-    }
-
-    memset(syn_def, 0, sizeof(SyntaxDefinition));
-
-    syn_def->name = strdupe(name);
-
-    if (syn_def->name == NULL) {
-        free(syn_def);
         return NULL;
     }
 
@@ -112,8 +108,6 @@ void sy_free_def(SyntaxDefinition *syn_def)
     if (syn_def == NULL) {
         return;
     }
-
-    free(syn_def->name);
 
     SyntaxPattern *next;
 

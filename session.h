@@ -25,6 +25,7 @@
 #include "hashmap.h"
 #include "file_type.h"
 #include "syntax.h"
+#include "theme.h"
 
 /* Top level structure containing all state.
  * A new session is created when wed is invoked. */
@@ -54,6 +55,7 @@ typedef struct {
     List *command_history;
     HashMap *filetypes;
     HashMap *syn_defs;
+    HashMap *themes;
 } Session;
 
 Session *se_new(void);
@@ -88,8 +90,10 @@ Status se_add_search_to_history(Session *, char *);
 Status se_add_replace_to_history(Session *, char *);
 Status se_add_cmd_to_history(Session *, char *);
 Status se_add_filetype_def(Session *, FileType *);
-Status se_add_syn_def(Session *, SyntaxDefinition *);
+Status se_add_syn_def(Session *, SyntaxDefinition *, const char *);
 int se_is_valid_syntaxtype(Session *, const char *);
 const SyntaxDefinition *se_get_syntax_def(const Session *, const Buffer *);
+int se_is_valid_theme(Session *, const char *);
+Status se_add_theme(Session *, Theme *, const char *);
 
 #endif

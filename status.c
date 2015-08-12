@@ -64,7 +64,9 @@ static const ErrorCodeMsg default_error_messages[] = {
     { ERR_REGEX_EXECUTION_FAILED             , "Regex execution failed"              },
     { ERR_TOO_MANY_REGEX_CAPTURE_GROUPS      , "Too many regex capture groups"       },
     { ERR_TOO_MANY_REGEX_BACKREFERENCES      , "Too many regex backreferences"       },
-    { ERR_INVALID_CAPTURE_GROUP_BACKREFERENCE, "Invalid capture group backreference" }
+    { ERR_INVALID_CAPTURE_GROUP_BACKREFERENCE, "Invalid capture group backreference" },
+    { ERR_OVERRIDE_DEFAULT_THEME             , "Cannot override default theme"       },
+    { ERR_INVALID_THEME                      , "Invalid theme"                       }
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

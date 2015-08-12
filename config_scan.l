@@ -22,8 +22,6 @@
 #include "config_parse.h"
 #include "util.h"
 
-static YY_BUFFER_STATE buf_state;
-
 #define YY_DECL int yylex(Session *sess, const char *file_path)
 #define YY_USER_ACTION cp_update_parser_location(yytext, file_path);
 
@@ -53,12 +51,18 @@ true|false                    { yylval.string = strdupe(yytext); return TKN_BOOL
 
 %%
 
-void cp_start_scan_string(const char *str)
+void cp_start_scan_file(FILE *file)
 {
-    buf_state = yy_scan_string(str);
+    yypush_buffer_state(yy_create_buffer(file, YY_BUF_SIZE));   
 }
 
-void cp_finish_scan_string(void)
+void cp_start_scan_string(const char *str)
 {
-    yy_delete_buffer(buf_state);
+    yypush_buffer_state(yy_scan_string(str));
 }
+
+void cp_finish_scan(void)
+{
+    yypop_buffer_state();
+}
+

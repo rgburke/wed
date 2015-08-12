@@ -30,6 +30,11 @@ typedef enum {
     CL_BUFFER = 1 << 1
 } ConfigLevel;
 
+typedef enum {
+    CT_SYNTAX,
+    CT_THEME
+} ConfigType;
+
 typedef struct {
     char *name;
     char *short_name;  
@@ -44,7 +49,7 @@ Status cf_init_config(void);
 void cf_end_config(void);
 Status cf_init_session_config(Session *);
 int cf_populate_default_config(HashMap *, ConfigLevel, int);
-void cf_load_syntax_config(Session *, const char *);
+void cf_load_config_def(Session *, ConfigType, const char *);
 void cf_free_config(HashMap *);
 Status cf_load_config(Session *, const char *);
 Status cf_load_config_if_exists(Session *, const char *, const char *);

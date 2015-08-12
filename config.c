@@ -40,8 +40,6 @@
 
 #define CFG_TABWIDTH_MIN 1
 #define CFG_TABWIDTH_MAX 8
-#define CFG_FILETYPE_MAX_LEN 50
-#define CFG_SYNTAXTYPE_MAX_LEN CFG_FILETYPE_MAX_LEN 
 
 static Session *curr_sess = NULL;
 static HashMap *config_vars = NULL;
@@ -50,11 +48,13 @@ static int cf_is_valid_var(const char *);
 static ConfigVariableDescriptor *cf_clone_config_var_descriptor(const char *);
 static Status cf_path_append(const char *, const char *, char **);
 static void cf_free_cvd(ConfigVariableDescriptor *);
+static const char *cf_get_config_type_string(ConfigType);
 static const ConfigVariableDescriptor *cf_get_variable(const char *);
 static Status cf_set_config_var(HashMap *, ConfigLevel, char *, Value);
 static Status cf_tabwidth_validator(Session *, Value);
 static Status cf_filetype_validator(Session *, Value);
 static Status cf_syntaxtype_validator(Session *, Value);
+static Status cf_theme_validator(Session *, Value);
 
 static const ConfigVariableDescriptor default_config[] = {
     { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
@@ -63,7 +63,8 @@ static const ConfigVariableDescriptor default_config[] = {
     { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL },
     { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , NULL },
     { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
-    { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL }
+    { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL },
+    { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , NULL }
 };
 
 void cf_set_config_session(Session *sess)
@@ -208,24 +209,49 @@ int cf_populate_default_config(HashMap *config, ConfigLevel config_level, int st
     return 1;
 }
 
-void cf_load_syntax_config(Session *sess, const char *syn_type)
+static const char *cf_get_config_type_string(ConfigType config_type)
 {
-    assert(!is_null_or_empty(syn_type));
+    static const char *config_types[] = {
+        [CT_SYNTAX] = "syntax",
+        [CT_THEME]  = "theme"
+    };
 
-    if (is_null_or_empty(syn_type)) {
+    static const size_t config_type_num = sizeof(config_types) / sizeof(const char *);
+
+    assert(config_type < config_type_num);
+
+    return config_types[config_type];
+}
+
+void cf_load_config_def(Session *sess, ConfigType cf_type,
+                        const char *config_name)
+{
+    assert(!is_null_or_empty(config_name));
+
+    if (is_null_or_empty(config_name)) {
         return;
     }
 
-    const char *file_name_fmt = "/syntax/%.*s.wed";
-    size_t file_name_length = strlen(file_name_fmt) - 4 + CFG_SYNTAXTYPE_MAX_LEN + 1;
+    const char *config_type = cf_get_config_type_string(cf_type);
 
-    char syn_file_name[file_name_length];
-    snprintf(syn_file_name, file_name_length, file_name_fmt, 
-             CFG_SYNTAXTYPE_MAX_LEN, syn_type);
+    const char *file_name_fmt = "/%s/%s.wed";
+    size_t file_path_length = strlen(file_name_fmt) - 4 + strlen(config_type)
+                              + strlen(config_name) + 1;
+
+    char *file_name = malloc(file_path_length);
+
+    if (file_name == NULL) {
+        se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - ",
+                                        "Unable to load config file"));
+        return;
+    }
+
+    snprintf(file_name, file_path_length, file_name_fmt, 
+             config_type, config_name);
 
     const char *wed_run_time = cf_string("wedruntime");
 
-    se_add_error(sess, cf_load_config_if_exists(sess, wed_run_time, syn_file_name));
+    se_add_error(sess, cf_load_config_if_exists(sess, wed_run_time, file_name));
 
     const char *home_path = getenv("HOME"); 
     char *wed_user_dir = NULL;
@@ -233,11 +259,13 @@ void cf_load_syntax_config(Session *sess, const char *syn_type)
     Status status = cf_path_append(home_path, "/." CFG_USER_DIR, &wed_user_dir);
 
     if (STATUS_IS_SUCCESS(status)) {
-        se_add_error(sess, cf_load_config_if_exists(sess, wed_user_dir, syn_file_name));
+        se_add_error(sess, cf_load_config_if_exists(sess, wed_user_dir, file_name));
         free(wed_user_dir);
     } else {
         se_add_error(sess, status);
     }
+
+    free(file_name);
 }
 
 Status cf_load_config_if_exists(Session *sess, const char *dir, const char *file)
@@ -503,12 +531,6 @@ static Status cf_filetype_validator(Session *sess, Value value)
         return STATUS_SUCCESS;
     }
 
-    if (strlen(SVAL(value)) > CFG_FILETYPE_MAX_LEN) {
-        return st_get_error(ERR_INVALID_SYNTAXTYPE,
-                            "filetype names are %d characters or fewer",
-                            CFG_FILETYPE_MAX_LEN);
-    }
-
     FileType *file_type = hashmap_get(sess->filetypes, SVAL(value));
 
     if (file_type == NULL) {
@@ -526,15 +548,20 @@ static Status cf_syntaxtype_validator(Session *sess, Value value)
         return STATUS_SUCCESS;
     }
 
-    if (strlen(SVAL(value)) > CFG_SYNTAXTYPE_MAX_LEN) {
-        return st_get_error(ERR_INVALID_SYNTAXTYPE,
-                            "syntaxtype names are %d characters or fewer",
-                            CFG_SYNTAXTYPE_MAX_LEN);
-    }
-
     if (!se_is_valid_syntaxtype(sess, SVAL(value))) {
         return st_get_error(ERR_INVALID_SYNTAXTYPE,
                             "No syntaxtype with name \"%s\" exists",
+                            SVAL(value));
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static Status cf_theme_validator(Session *sess, Value value)
+{
+    if (!se_is_valid_theme(sess, SVAL(value))) {
+        return st_get_error(ERR_INVALID_THEME,
+                            "No theme with name \"%s\" exists",
                             SVAL(value));
     }
 

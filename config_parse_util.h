@@ -112,7 +112,8 @@ Status cp_get_config_error(ErrorCode, const ParseLocation *, const char *, ...);
 void yyerror(Session *, ConfigLevel, const char *, char const *);
 Status cp_parse_config_file(Session *, ConfigLevel, const char *);
 Status cp_parse_config_string(Session *, ConfigLevel, const char *);
+void cp_start_scan_file(FILE *);
 void cp_start_scan_string(const char *);
-void cp_finish_scan_string(void);
+void cp_finish_scan();
 
 #endif

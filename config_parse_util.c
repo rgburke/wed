@@ -33,8 +33,7 @@
 #include "util.h"
 #include "file_type.h"
 #include "syntax.h"
-
-void yyrestart(FILE *);
+#include "theme.h"
 
 typedef struct {
     char *var_name;
@@ -46,9 +45,12 @@ typedef struct {
 
 static void cp_reset_parser_location(void);
 static void cp_process_block(Session *, StatementBlockNode *);
+static int cp_basic_block_check(Session *, StatementBlockNode *);
 static void cp_process_filetype_block(Session *, StatementBlockNode *);
 static void cp_process_syntax_block(Session *, StatementBlockNode *);
 static SyntaxPattern *cp_process_syntax_pattern_block(Session *, StatementBlockNode *);
+static void cp_process_theme_block(Session *, StatementBlockNode *);
+static void cp_process_theme_group_block(Session *, Theme *, StatementBlockNode *);
 static int cp_process_assignment(Session *, StatementNode *, VariableAssignment *, size_t);
 static int cp_validate_block_vars(Session *, VariableAssignment *, size_t, const ParseLocation *, const char *, int);
 
@@ -563,10 +565,12 @@ Status cp_parse_config_file(Session *sess, ConfigLevel config_level, const char 
                             "Unable to open file %s for reading", config_file_path);
     } 
 
-    yyrestart(config_file);
+    cp_start_scan_file(config_file);
     cp_reset_parser_location();
 
     int parse_status = yyparse(sess, config_level, config_file_path);
+
+    cp_finish_scan();
 
     if (parse_status != 0) {
         return st_get_error(ERR_FAILED_TO_PARSE_CONFIG_FILE, 
@@ -585,7 +589,7 @@ Status cp_parse_config_string(Session *sess, ConfigLevel config_level, const cha
 
     int parse_status = yyparse(sess, config_level, NULL);
 
-    cp_finish_scan_string();
+    cp_finish_scan();
 
     if (parse_status != 0) {
         return st_get_error(ERR_FAILED_TO_PARSE_CONFIG_INPUT, "Failed to fully parse config input");
@@ -603,6 +607,9 @@ static void cp_process_block(Session *sess, StatementBlockNode *stmb_node)
         } else if (strncmp(stmb_node->block_name, "syntax", 7) == 0) {
             cp_process_syntax_block(sess, stmb_node);
             return;
+        } else if (strncmp(stmb_node->block_name, "theme", 6) == 0) {
+            cp_process_theme_block(sess, stmb_node);
+            return;
         }
     }
 
@@ -612,17 +619,26 @@ static void cp_process_block(Session *sess, StatementBlockNode *stmb_node)
                                            stmb_node->block_name));
 }
 
-static void cp_process_filetype_block(Session *sess, StatementBlockNode *stmb_node)
+static int cp_basic_block_check(Session *sess, StatementBlockNode *stmb_node)
 {
     if (stmb_node->node == NULL) {
         se_add_error(sess, cp_get_config_error(ERR_EMPTY_BLOCK_DEFINITION,
                                                &stmb_node->type.location,
                                                "Empty block definition"));
-        return;
+        return 0;
     } else if (stmb_node->node->node_type != NT_STATEMENT) {
         se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
                                                &stmb_node->node->location,
                                                "Invalid block entry"));
+        return 0;
+    }
+
+    return 1;
+}
+
+static void cp_process_filetype_block(Session *sess, StatementBlockNode *stmb_node)
+{
+    if (!cp_basic_block_check(sess, stmb_node)) {
         return;
     }
 
@@ -675,15 +691,7 @@ static void cp_process_filetype_block(Session *sess, StatementBlockNode *stmb_no
 
 static void cp_process_syntax_block(Session *sess, StatementBlockNode *stmb_node)
 {
-    if (stmb_node->node == NULL) {
-        se_add_error(sess, cp_get_config_error(ERR_EMPTY_BLOCK_DEFINITION,
-                                               &stmb_node->type.location,
-                                               "Empty block definition"));
-        return;
-    } else if (stmb_node->node->node_type != NT_STATEMENT) {
-        se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
-                                               &stmb_node->node->location,
-                                               "Invalid block entry"));
+    if (!cp_basic_block_check(sess, stmb_node)) {
         return;
     }
 
@@ -740,7 +748,7 @@ static void cp_process_syntax_block(Session *sess, StatementBlockNode *stmb_node
         goto cleanup;
     }
 
-    syn_def = sy_new_def(SVAL(name), syn_first);
+    syn_def = sy_new_def(syn_first);
 
     if (syn_def == NULL) {
         se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
@@ -749,7 +757,7 @@ static void cp_process_syntax_block(Session *sess, StatementBlockNode *stmb_node
         goto cleanup;
     }
 
-    Status status = se_add_syn_def(sess, syn_def);
+    Status status = se_add_syn_def(sess, syn_def, SVAL(name));
 
     if (!STATUS_IS_SUCCESS(status)) {
         se_add_error(sess, status);
@@ -774,15 +782,7 @@ cleanup:
 static SyntaxPattern *cp_process_syntax_pattern_block(Session *sess, 
                                                       StatementBlockNode *stmb_node)
 {
-    if (stmb_node->node == NULL) {
-        se_add_error(sess, cp_get_config_error(ERR_EMPTY_BLOCK_DEFINITION,
-                                               &stmb_node->type.location,
-                                               "Empty block definition"));
-        return NULL;
-    } else if (stmb_node->node->node_type != NT_STATEMENT) {
-        se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
-                                               &stmb_node->node->location,
-                                               "Invalid block entry"));
+    if (!cp_basic_block_check(sess, stmb_node)) {
         return NULL;
     }
 
@@ -838,6 +838,130 @@ static SyntaxPattern *cp_process_syntax_pattern_block(Session *sess,
     }
 
     return syn_pattern;
+}
+
+static void cp_process_theme_block(Session *sess, StatementBlockNode *stmb_node)
+{
+    if (!cp_basic_block_check(sess, stmb_node)) {
+        return;
+    }
+
+    Value name;
+
+    VariableAssignment expected_vars[] = {
+        { "name", VAL_TYPE_STR, &name, NULL, 0 }
+    };
+
+    const size_t expected_vars_num = sizeof(expected_vars) / sizeof(VariableAssignment);
+
+    Theme *theme = th_get_default_theme();
+
+    if (theme == NULL) {
+        se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY,
+                                        "Out Of Memory - ",
+                                        "Unable to create Theme"));
+        return;
+    }
+
+    StatementNode *stm_node = (StatementNode *)stmb_node->node;
+
+    while (stm_node != NULL) {
+        if (stm_node->node->node_type == NT_ASSIGNMENT) {
+            cp_process_assignment(sess, stm_node, expected_vars, expected_vars_num);
+            stm_node = stm_node->next;
+        } else if (stm_node->node->node_type == NT_STATEMENT_BLOCK) {
+            cp_process_theme_group_block(sess, theme, (StatementBlockNode *)stm_node->node);
+            stm_node = stm_node->next;
+        } else {
+            se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                                   &stm_node->node->location,
+                                                   "Invalid statement in filetype block"));
+            return;
+        }
+    }
+
+    if (!cp_validate_block_vars(sess, expected_vars, expected_vars_num, 
+                                &stmb_node->type.location, "theme", 1)) {
+    }
+
+    se_add_error(sess, se_add_theme(sess, theme, SVAL(name)));
+}
+
+static void cp_process_theme_group_block(Session *sess, Theme *theme,
+                                         StatementBlockNode *stmb_node)
+{
+    if (!cp_basic_block_check(sess, stmb_node)) {
+        return;
+    }
+
+    Value name, fg_color_val, bg_color_val;
+
+    VariableAssignment expected_vars[] = {
+        { "name"    , VAL_TYPE_STR, &name        , NULL, 0 },
+        { "fgcolor" , VAL_TYPE_STR, &fg_color_val, NULL, 0 },
+        { "bgcolor" , VAL_TYPE_STR, &bg_color_val, NULL, 0 }
+    };
+
+    size_t expected_vars_num = sizeof(expected_vars) / sizeof(VariableAssignment);
+
+    StatementNode *stm_node = (StatementNode *)stmb_node->node;
+
+    while (stm_node != NULL) {
+        if (stm_node->node->node_type == NT_ASSIGNMENT) {
+            cp_process_assignment(sess, stm_node, expected_vars, expected_vars_num);
+            stm_node = stm_node->next;
+        } else {
+            se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                                   &stm_node->node->location,
+                                                   "Invalid statement in group block"));
+            return;
+        }
+    }
+
+    if (!cp_validate_block_vars(sess, expected_vars, expected_vars_num, 
+                                &stmb_node->type.location, "group", 1)) {
+        return;
+    }
+
+    DrawColor fg_color, bg_color;
+    int valid_def = 1;
+
+    if (!th_str_to_draw_color(&fg_color, SVAL(fg_color_val))) {
+        se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                               expected_vars[1].location,
+                                               "Invalid fgcolor \"%s\" in group block",
+                                               SVAL(fg_color_val)));
+        valid_def = 0;
+    } 
+
+    if (!th_str_to_draw_color(&bg_color, SVAL(bg_color_val))) {
+        se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                               expected_vars[2].location,
+                                               "Invalid bgcolor \"%s\" in group block",
+                                               SVAL(bg_color_val)));
+        valid_def = 0;
+    }
+
+    if (!th_is_valid_group_name(SVAL(name))) {
+        se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
+                                               expected_vars[0].location,
+                                               "Invalid group name \"%s\" in group block",
+                                               SVAL(name)));
+        valid_def = 0;
+    }
+
+    if (!valid_def) {
+        return;
+    }
+
+    SyntaxToken token;
+    ScreenComponent screen_comp;
+
+    if (sy_str_to_token(&token, SVAL(name))) {
+        th_set_syntax_colors(theme, token, fg_color, bg_color);        
+    } else if (th_str_to_screen_component(&screen_comp, SVAL(name))) {
+        th_set_screen_comp_colors(theme, screen_comp, fg_color, bg_color);        
+    }
 }
 
 static int cp_process_assignment(Session *sess, StatementNode *stm_node,

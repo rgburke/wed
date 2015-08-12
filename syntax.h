@@ -26,7 +26,16 @@
 #define MAX_SYNTAX_MATCH_NUM 250
 
 typedef enum {
-    ST_KEYWORD
+    ST_NORMAL,
+    ST_COMMENT,
+    ST_CONSTANT,
+    ST_SPECIAL,
+    ST_IDENTIFIER,
+    ST_STATEMENT,
+    ST_TYPE,
+    ST_ERROR,
+    ST_TODO,
+    ST_ENTRY_NUM
 } SyntaxToken;
 
 typedef struct SyntaxPattern SyntaxPattern;
@@ -38,7 +47,6 @@ struct SyntaxPattern {
 };
 
 typedef struct {
-    char *name;
     SyntaxPattern *patterns;
 } SyntaxDefinition;
 
@@ -58,7 +66,7 @@ typedef struct {
 int sy_str_to_token(SyntaxToken *, const char *);
 Status sy_new_pattern(SyntaxPattern **, const Regex *, SyntaxToken);
 void syn_free_pattern(SyntaxPattern *);
-SyntaxDefinition *sy_new_def(const char *, SyntaxPattern *);
+SyntaxDefinition *sy_new_def(SyntaxPattern *);
 void sy_free_def(SyntaxDefinition *);
 SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *, const char *, size_t, size_t);
 const SyntaxMatch *sy_get_syntax_match(SyntaxMatches *, size_t);

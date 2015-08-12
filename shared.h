@@ -19,8 +19,6 @@
 #ifndef WED_SHARED_H
 #define WED_SHARED_H
 
-#include <ncurses.h>
-
 typedef enum {
     CMDT_BUFFER_MOVE = 1,
     CMDT_BUFFER_MOD = 1 << 1,
@@ -35,18 +33,6 @@ typedef enum {
     WIN_TEXT,
     WIN_STATUS
 } DrawWindow;
-
-typedef enum {
-    DC_NONE = -1,
-    DC_BLACK = COLOR_BLACK,
-    DC_RED = COLOR_RED,
-    DC_GREEN = COLOR_RED,
-    DC_YELLOW = COLOR_YELLOW,
-    DC_BLUE = COLOR_BLUE,
-    DC_MAGENTA = COLOR_MAGENTA,
-    DC_CYAN = COLOR_CYAN,
-    DC_WHITE = COLOR_WHITE
-} DrawColor;
 
 typedef unsigned int uint;
 typedef unsigned char uchar;

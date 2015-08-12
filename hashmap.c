@@ -32,6 +32,7 @@ static int resize_required(HashMap *);
 static int resize_hashmap(HashMap *, size_t);
 static void free_hashmapnodes(HashMap *);
 static void free_hashmapnode(HashMapNode *);
+static void hashmap_free_value(void *);
 
 HashMap *new_hashmap(void)
 {
@@ -326,10 +327,21 @@ static void free_hashmapnode(HashMapNode *node)
     free(node);
 }
 
+static void hashmap_free_value(void *entry)
+{
+    if (entry) {
+        free(entry);
+    }
+}
+
 void free_hashmap_values(HashMap *hashmap, void (*free_func)(void *))
 {
-    if (hashmap == NULL || free_func == NULL) {
+    if (hashmap == NULL) {
         return;
+    }
+
+    if (free_func == NULL) {
+        free_func = hashmap_free_value;
     }
 
     HashMapNode *node;

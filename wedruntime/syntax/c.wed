@@ -7,6 +7,6 @@ syntax {
                     else|enum|for|fortran|goto|if|return|
                     struct|switch|typedef|union|while
                  )\b/x;
-        type = "keyword";
+        type = "statement";
     }
 }
