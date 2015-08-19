@@ -23,7 +23,7 @@
 #include "shared.h"
 #include "status.h"
 
-#define MAX_SYNTAX_MATCH_NUM 250
+#define MAX_SYNTAX_MATCH_NUM 500
 
 typedef enum {
     ST_NORMAL,

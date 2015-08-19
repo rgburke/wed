@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -23,6 +23,7 @@
 #include "regex_util.h"
 #include "util.h"
 
+static void sy_add_match(SyntaxMatches *, const SyntaxMatch *);
 static int sy_match_cmp(const void *, const void *);
 
 int sy_str_to_token(SyntaxToken *token, const char *token_str)
@@ -139,28 +140,29 @@ SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def,
     syn_matches->offset = offset;
     
     SyntaxPattern *pattern = syn_def->patterns;
+    SyntaxMatch syn_match;
     RegexResult result;
     Status status;
 
     while (pattern != NULL) {
         size_t offset = 0;
 
-        do {
+        while (syn_matches->match_num < MAX_SYNTAX_MATCH_NUM &&
+               offset < str_len) {
             status = re_exec(&result, &pattern->regex, str, str_len, offset);
 
             if (!(STATUS_IS_SUCCESS(status) && result.match)) {
-                break; 
+                break;
             }
 
-            syn_matches->matches[syn_matches->match_num++] = (SyntaxMatch) {
-                .offset = result.output_vector[0],
-                .length = result.match_length,
-                .token = pattern->token
-            }; 
+            syn_match.offset = result.output_vector[0];
+            syn_match.length = result.match_length;
+            syn_match.token = pattern->token;
+
+            sy_add_match(syn_matches, &syn_match);
 
             offset = result.output_vector[0] + result.match_length;
-        } while (syn_matches->match_num < MAX_SYNTAX_MATCH_NUM &&
-                 offset < str_len);
+        } 
 
         pattern = pattern->next;
     }
@@ -168,6 +170,24 @@ SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def,
     qsort(syn_matches->matches, syn_matches->match_num, sizeof(SyntaxMatch), sy_match_cmp);
 
     return syn_matches;
+}
+
+static void sy_add_match(SyntaxMatches *syn_matches, const SyntaxMatch *syn_match)
+{
+    if (syn_matches->match_num == 0) {
+        syn_matches->matches[syn_matches->match_num++] = *syn_match;
+        return;
+    }
+
+    for (size_t k = 0; k < syn_matches->match_num; k++) {
+        if (syn_match->offset >= syn_matches->matches[k].offset &&
+            syn_match->offset < syn_matches->matches[k].offset + 
+                                syn_matches->matches[k].length) {
+            return; 
+        }
+    }
+
+    syn_matches->matches[syn_matches->match_num++] = *syn_match;
 }
 
 static int sy_match_cmp(const void *v1, const void *v2)

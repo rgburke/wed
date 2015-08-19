@@ -38,7 +38,7 @@
 [[:space:]]+               
 (-|\+)?[[:digit:]]+           { yylval.string = strdupe(yytext); return TKN_INTEGER; }
 true|false                    { yylval.string = strdupe(yytext); return TKN_BOOLEAN; }
-\"(\\.|[^"])*\"               { yylval.string = strdupe(yytext); return TKN_STRING;  }
+\"(\\.|[^\\"])*\"             { yylval.string = strdupe(yytext); return TKN_STRING;  }
 \/(\\\/|[^\/])*\/[[:lower:]]* { yylval.string = strdupe(yytext); return TKN_REGEX;   }
 [[:alpha:]_]+                 { yylval.string = strdupe(yytext); return TKN_NAME;    }
 "="                           { return TKN_ASSIGN;        }

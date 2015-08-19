@@ -22,7 +22,12 @@
 #include "syntax.h"
 
 typedef enum {
-    SC_LINENO,
+    SC_LINENO = ST_ENTRY_NUM,
+    SC_BUFFER_TAB_BAR,
+    SC_ACTIVE_BUFFER_TAB_BAR,
+    SC_STATUS_BAR,
+    SC_ERROR_MESSAGE,
+    SC_BUFFER_END,
     SC_ENTRY_NUM
 } ScreenComponent;
 
@@ -51,8 +56,7 @@ typedef struct {
 } ThemeGroup;
 
 typedef struct {
-    ThemeGroup syntax[ST_ENTRY_NUM];
-    ThemeGroup screen_comp[SC_ENTRY_NUM];
+    ThemeGroup groups[SC_ENTRY_NUM];
 } Theme;
 
 #define TG_VAL(fgcolor,bgcolor,attrs) \
@@ -66,7 +70,7 @@ Theme *th_get_default_theme(void);
 int th_str_to_draw_color(DrawColor *, const char *);
 int th_str_to_screen_component(ScreenComponent *, const char *);
 int th_is_valid_group_name(const char *);
-void th_set_syntax_colors(Theme *, SyntaxToken, DrawColor, DrawColor);
-void th_set_screen_comp_colors(Theme *, ScreenComponent, DrawColor, DrawColor);
+void th_set_screen_comp_colors(Theme *, uint, DrawColor, DrawColor);
+ThemeGroup th_get_theme_group(const Theme *, uint);
 
 #endif

@@ -22,7 +22,7 @@
 #include "session.h"
 #include "buffer.h"
 
-void init_display(void);
+void init_display(const Theme *);
 void resize_display(Session *);
 void end_display(void);
 void init_all_window_info(Session *);
@@ -31,5 +31,6 @@ void update_display(Session *);
 void draw_errors(Session *);
 size_t screen_col_no(WindowInfo, BufferPos);
 size_t screen_height_from_screen_length(WindowInfo, size_t);
+void init_color_pairs(const Theme *);
 
 #endif

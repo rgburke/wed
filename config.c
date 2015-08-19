@@ -31,6 +31,7 @@
 #include "buffer.h"
 #include "config_parse_util.h"
 #include "config_parse.h"
+#include "display.h"
 
 #define CFG_LINE_ALLOC 512
 #define CFG_FILE_NAME "wedrc"
@@ -55,16 +56,17 @@ static Status cf_tabwidth_validator(Session *, Value);
 static Status cf_filetype_validator(Session *, Value);
 static Status cf_syntaxtype_validator(Session *, Value);
 static Status cf_theme_validator(Session *, Value);
+static Status cf_theme_on_change_event(Session *, Value, Value);
 
 static const ConfigVariableDescriptor default_config[] = {
-    { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
-    { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
-    { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator  , NULL },
-    { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL },
-    { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , NULL },
-    { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
-    { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL },
-    { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , NULL }
+    { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                     },
+    { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                     },
+    { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator  , NULL                     },
+    { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL                     },
+    { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , NULL                     },
+    { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL                     },
+    { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL                     },
+    { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event }
 };
 
 void cf_set_config_session(Session *sess)
@@ -564,6 +566,17 @@ static Status cf_theme_validator(Session *sess, Value value)
                             "No theme with name \"%s\" exists",
                             SVAL(value));
     }
+
+    return STATUS_SUCCESS;
+}
+
+static Status cf_theme_on_change_event(Session *sess, Value old_val, Value new_val)
+{
+    (void)old_val;
+    (void)new_val;
+
+    const Theme *theme = se_get_active_theme(sess);
+    init_color_pairs(theme);    
 
     return STATUS_SUCCESS;
 }

@@ -25,17 +25,22 @@ Theme *th_get_default_theme(void)
     Theme *theme = malloc(sizeof(Theme));
     RETURN_IF_NULL(theme);
 
-    theme->syntax[ST_NORMAL]     = TG_VAL(DC_NONE   , DC_NONE  , DA_NONE);
-    theme->syntax[ST_COMMENT]    = TG_VAL(DC_BLUE   , DC_NONE  , DA_NONE);
-    theme->syntax[ST_CONSTANT]   = TG_VAL(DC_RED    , DC_NONE  , DA_NONE);
-    theme->syntax[ST_SPECIAL]    = TG_VAL(DC_MAGENTA, DC_NONE  , DA_NONE);
-    theme->syntax[ST_IDENTIFIER] = TG_VAL(DC_CYAN   , DC_NONE  , DA_NONE);
-    theme->syntax[ST_STATEMENT]  = TG_VAL(DC_YELLOW , DC_NONE  , DA_NONE);
-    theme->syntax[ST_TYPE]       = TG_VAL(DC_GREEN  , DC_NONE  , DA_NONE);
-    theme->syntax[ST_ERROR]      = TG_VAL(DC_WHITE  , DC_RED   , DA_NONE);
-    theme->syntax[ST_TODO]       = TG_VAL(DC_NONE   , DC_YELLOW, DA_NONE);
+    theme->groups[ST_NORMAL]     = TG_VAL(DC_NONE   , DC_NONE  , DA_NONE);
+    theme->groups[ST_COMMENT]    = TG_VAL(DC_BLUE   , DC_NONE  , DA_NONE);
+    theme->groups[ST_CONSTANT]   = TG_VAL(DC_RED    , DC_NONE  , DA_NONE);
+    theme->groups[ST_SPECIAL]    = TG_VAL(DC_MAGENTA, DC_NONE  , DA_NONE);
+    theme->groups[ST_IDENTIFIER] = TG_VAL(DC_CYAN   , DC_NONE  , DA_NONE);
+    theme->groups[ST_STATEMENT]  = TG_VAL(DC_YELLOW , DC_NONE  , DA_NONE);
+    theme->groups[ST_TYPE]       = TG_VAL(DC_GREEN  , DC_NONE  , DA_NONE);
+    theme->groups[ST_ERROR]      = TG_VAL(DC_WHITE  , DC_RED   , DA_NONE);
+    theme->groups[ST_TODO]       = TG_VAL(DC_NONE   , DC_YELLOW, DA_NONE);
 
-    theme->screen_comp[SC_LINENO] = TG_VAL(DC_YELLOW, DC_NONE, DA_NONE);
+    theme->groups[SC_LINENO]                = TG_VAL(DC_YELLOW, DC_NONE , DA_NONE);
+    theme->groups[SC_BUFFER_TAB_BAR]        = TG_VAL(DC_BLUE  , DC_WHITE, DA_NONE);
+    theme->groups[SC_ACTIVE_BUFFER_TAB_BAR] = TG_VAL(DC_BLUE  , DC_NONE , DA_NONE);
+    theme->groups[SC_STATUS_BAR]            = TG_VAL(DC_YELLOW, DC_BLUE , DA_NONE);
+    theme->groups[SC_ERROR_MESSAGE]         = TG_VAL(DC_WHITE , DC_RED  , DA_NONE);
+    theme->groups[SC_BUFFER_END]            = TG_VAL(DC_BLUE  , DC_NONE , DA_NONE);
 
     return theme;
 }
@@ -74,10 +79,15 @@ int th_str_to_screen_component(ScreenComponent *screen_comp_ptr,
     assert(screen_comp_str != NULL);
 
     static const char *screen_comps[] = {
-        [SC_LINENO] = "lineno"
+        [SC_LINENO]                = "lineno",
+        [SC_BUFFER_TAB_BAR]        = "buffertabbar",
+        [SC_ACTIVE_BUFFER_TAB_BAR] = "activebuffertabbar",
+        [SC_STATUS_BAR]            = "statusbar",
+        [SC_ERROR_MESSAGE]         = "errormessage",
+        [SC_BUFFER_END]            = "bufferend"
     };
 
-    for (size_t k = 0; k < SC_ENTRY_NUM; k++) {
+    for (size_t k = ST_ENTRY_NUM; k < SC_ENTRY_NUM; k++) {
         if (strcmp(screen_comps[k], screen_comp_str) == 0) {
             *screen_comp_ptr = k;
             return 1;
@@ -98,14 +108,17 @@ int th_is_valid_group_name(const char *group_name)
            th_str_to_screen_component(&screen_comp, group_name);
 }
 
-void th_set_syntax_colors(Theme *theme, SyntaxToken token,
-                          DrawColor fg_color, DrawColor bg_color)
-{
-    theme->syntax[token] = TG_VAL(fg_color, bg_color, DA_NONE);
-}
-
-void th_set_screen_comp_colors(Theme *theme, ScreenComponent screen_comp,
+void th_set_screen_comp_colors(Theme *theme, uint screen_comp,
                                DrawColor fg_color, DrawColor bg_color)
 {
-    theme->syntax[screen_comp] = TG_VAL(fg_color, bg_color, DA_NONE);
+    assert(screen_comp < SC_ENTRY_NUM);
+
+    theme->groups[screen_comp] = TG_VAL(fg_color, bg_color, DA_NONE);
+}
+
+ThemeGroup th_get_theme_group(const Theme *theme, uint screen_comp)
+{
+    assert(screen_comp < SC_ENTRY_NUM);
+
+    return theme->groups[screen_comp];
 }

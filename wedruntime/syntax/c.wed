@@ -1,12 +1,173 @@
 syntax {
     name = "c";
+
+    # Multi-line comments
+    pattern {
+        regex = /\/\*(.*?)\*\//ms;
+        type = "comment";
+    }
+
+    # Preprocessor
+    pattern {
+        regex = /^\h*(\#|%:)\h*
+                (
+                    (include|define|undef|
+                     if|ifdef|ifndef|elif|
+                     pragma|line|warning|warn|error
+                    )\b(\\(\r\n|\n|\r)|.)*$
+                    |
+                    (else|endif)\b
+                )/mx;
+        type = "special";
+    }
+
+    # Single line comments
+    pattern {
+        regex = /\/\/.*/;
+        type = "comment";
+    }
+
+    # Strings
+    pattern {
+        regex = /"(\\.|[^\\"\r\n])*"/;
+        type = "constant";
+    }
+
+    # Characters
+    pattern {
+        regex = /'(\\.|[^\\'\r\n])+'/;
+        type = "constant";
+    }
+
+    # Numbers
+    pattern {
+        regex = /\b(
+                    [0-9]+(u|l)*?|
+                    0x[0-9a-f]+(u|l)*?|
+                    ([0-9]*\.[0-9]+|[0-9]+\.?[0-9]*)(e[-+]?[0-9]+)?(f|l)? 
+                )\b/ix;
+        type = "constant";
+    }
+
+    # Labels
+    pattern {
+        regex = /^\h*[a-z_][a-z0-9_]*\h*:[^:]?/im;
+        type = "statement";
+    }
     
+    # Keyword and Type lists derived from c.vim
+    # by Bram Moolenaar
+
+    # Keywords
     pattern {
         regex = /\b(
                     asm|break|case|continue|default|do|
-                    else|enum|for|fortran|goto|if|return|
-                    struct|switch|typedef|union|while
-                 )\b/x;
+                    else|for|fortran|goto|if|return|
+                    switch|while|
+                    __asm__|sizeof|
+                    typeof|__real__|__imag__|
+                    _Alignof|alignof|
+                    _Generic|
+                    _Static_assert|static_assert
+                )\b/x;
         type = "statement";
+    }
+
+    # Types
+    pattern {
+        regex = /\b(
+                    int|long|short|char|void|
+                    signed|unsigned|float|double|
+                    size_t|ssize_t|off_t|wchar_t|ptrdiff_t|sig_atomic_t|fpos_t|
+                    clock_t|time_t|va_list|jmp_buf|FILE|DIR|div_t|ldiv_t|
+                    mbstate_t|wctrans_t|wint_t|wctype_t|
+                    _Bool|bool|_Complex|complex|_Imaginary|imaginary|
+                    int8_t|int16_t|int32_t|int64_t|
+                    uint8_t|uint16_t|uint32_t|uint64_t|
+                    int_least8_t|int_least16_t|int_least32_t|int_least64_t|
+                    uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|
+                    int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|
+                    uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|
+                    intptr_t|uintptr_t|
+                    intmax_t|uintmax_t|
+                    __label__|__complex__|__volatile__|
+                    struct|union|enum|typedef|
+                    static|register|auto|volatile|extern|const|
+                    inline|__attribute__|
+                    inline|restrict|
+                    _Alignas|alignas|
+                    _Atomic|
+                    _Noreturn|noreturn|
+                    _Thread_local|thread_local|
+                    char16_t|char32_t
+                )\b/x;
+        type = "type";
+    }
+
+    # Constants
+    pattern {
+        regex = /\b(
+                    __GNUC__|__FUNCTION__|__PRETTY_FUNCTION__|__func__|
+                    __LINE__|__FILE__|__DATE__|__TIME__|__STDC__|
+                    __STDC_VERSION__|
+                    CHAR_BIT|MB_LEN_MAX|MB_CUR_MAX|
+                    UCHAR_MAX|UINT_MAX|ULONG_MAX|USHRT_MAX|
+                    CHAR_MIN|INT_MIN|LONG_MIN|SHRT_MIN|
+                    CHAR_MAX|INT_MAX|LONG_MAX|SHRT_MAX|
+                    SCHAR_MIN|SINT_MIN|SLONG_MIN|SSHRT_MIN|
+                    SCHAR_MAX|SINT_MAX|SLONG_MAX|SSHRT_MAX|
+                    __func__|
+                    LLONG_MIN|LLONG_MAX|ULLONG_MAX|
+                    INT8_MIN|INT16_MIN|INT32_MIN|INT64_MIN|
+                    INT8_MAX|INT16_MAX|INT32_MAX|INT64_MAX|
+                    UINT8_MAX|UINT16_MAX|UINT32_MAX|UINT64_MAX|
+                    INT_LEAST8_MIN|INT_LEAST16_MIN|INT_LEAST32_MIN|INT_LEAST64_MIN|
+                    INT_LEAST8_MAX|INT_LEAST16_MAX|INT_LEAST32_MAX|INT_LEAST64_MAX|
+                    UINT_LEAST8_MAX|UINT_LEAST16_MAX|UINT_LEAST32_MAX|UINT_LEAST64_MAX|
+                    INT_FAST8_MIN|INT_FAST16_MIN|INT_FAST32_MIN|INT_FAST64_MIN|
+                    INT_FAST8_MAX|INT_FAST16_MAX|INT_FAST32_MAX|INT_FAST64_MAX|
+                    UINT_FAST8_MAX|UINT_FAST16_MAX|UINT_FAST32_MAX|UINT_FAST64_MAX|
+                    INTPTR_MIN|INTPTR_MAX|UINTPTR_MAX|
+                    INTMAX_MIN|INTMAX_MAX|UINTMAX_MAX|
+                    PTRDIFF_MIN|PTRDIFF_MAX|SIG_ATOMIC_MIN|SIG_ATOMIC_MAX|
+                    SIZE_MAX|WCHAR_MIN|WCHAR_MAX|WINT_MIN|WINT_MAX|
+                    FLT_RADIX|FLT_ROUNDS|
+                    FLT_DIG|FLT_MANT_DIG|FLT_EPSILON|
+                    DBL_DIG|DBL_MANT_DIG|DBL_EPSILON|
+                    LDBL_DIG|LDBL_MANT_DIG|LDBL_EPSILON|
+                    FLT_MIN|FLT_MAX|FLT_MIN_EXP|FLT_MAX_EXP|
+                    FLT_MIN_10_EXP|FLT_MAX_10_EXP|
+                    DBL_MIN|DBL_MAX|DBL_MIN_EXP|DBL_MAX_EXP|
+                    DBL_MIN_10_EXP|DBL_MAX_10_EXP|
+                    LDBL_MIN|LDBL_MAX|LDBL_MIN_EXP|LDBL_MAX_EXP|
+                    LDBL_MIN_10_EXP|LDBL_MAX_10_EXP|
+                    HUGE_VAL|CLOCKS_PER_SEC|NULL|
+                    LC_ALL|LC_COLLATE|LC_CTYPE|LC_MONETARY|
+                    LC_NUMERIC|LC_TIME|
+                    SIG_DFL|SIG_ERR|SIG_IGN|
+                    SIGABRT|SIGFPE|SIGILL|SIGHUP|SIGINT|SIGSEGV|SIGTERM|
+                    SIGABRT|SIGALRM|SIGCHLD|SIGCONT|SIGFPE|SIGHUP|
+                    SIGILL|SIGINT|SIGKILL|SIGPIPE|SIGQUIT|SIGSEGV|
+                    SIGSTOP|SIGTERM|SIGTRAP|SIGTSTP|SIGTTIN|SIGTTOU|
+                    SIGUSR1|SIGUSR2|
+                    _IOFBF|_IOLBF|_IONBF|BUFSIZ|EOF|WEOF|
+                    FOPEN_MAX|FILENAME_MAX|L_tmpnam|
+                    SEEK_CUR|SEEK_END|SEEK_SET|
+                    TMP_MAX|stderr|stdin|stdout|
+                    EXIT_FAILURE|EXIT_SUCCESS|RAND_MAX|
+                    SIGBUS|SIGPOLL|SIGPROF|SIGSYS|SIGURG|
+                    SIGVTALRM|SIGXCPU|SIGXFSZ|
+                    E2BIG|EACCES|EAGAIN|EBADF|EBADMSG|EBUSY|
+                    ECANCELED|ECHILD|EDEADLK|EDOM|EEXIST|EFAULT|
+                    EFBIG|EILSEQ|EINPROGRESS|EINTR|EINVAL|EIO|EISDIR|
+                    EMFILE|EMLINK|EMSGSIZE|ENAMETOOLONG|ENFILE|ENODEV|
+                    ENOENT|ENOEXEC|ENOLCK|ENOMEM|ENOSPC|ENOSYS|
+                    ENOTDIR|ENOTEMPTY|ENOTSUP|ENOTTY|ENXIO|EPERM|
+                    EPIPE|ERANGE|EROFS|ESPIPE|ESRCH|ETIMEDOUT|EXDEV|
+                    M_E|M_LOG2E|M_LOG10E|M_LN2|M_LN10|M_PI|M_PI_2|M_PI_4|
+                    M_1_PI|M_2_PI|M_2_SQRTPI|M_SQRT2|M_SQRT1_2|
+                    true|false
+                )\b/x;
+        type = "constant";
     }
 }

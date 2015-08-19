@@ -767,3 +767,16 @@ Status se_add_theme(Session *sess, Theme *theme, const char *theme_name)
 
     return STATUS_SUCCESS;
 }
+
+const Theme *se_get_active_theme(const Session *sess)
+{
+    const char *theme_name = cf_string("theme");
+
+    assert(!is_null_or_empty(theme_name));
+    
+    const Theme *theme = hashmap_get(sess->themes, theme_name);
+
+    assert(theme != NULL);
+
+    return theme;
+}

@@ -99,7 +99,7 @@ char *bf_join_lines(const Buffer *, const char *);
 int bf_is_empty(const Buffer *);
 size_t bf_lines(const Buffer *);
 size_t bf_length(const Buffer *);
-int bf_get_range(const Buffer *, Range *);
+int bf_get_range(Buffer *, Range *);
 int bf_bp_in_range(const Range *, const BufferPos *);
 CharacterClass bf_character_class(const BufferPos *);
 int bf_bp_at_screen_line_start(const BufferPos *, const WindowInfo *);

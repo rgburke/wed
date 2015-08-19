@@ -20,6 +20,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <ncurses.h>
+#include <assert.h>
 #include "display.h"
 #include "session.h"
 #include "buffer.h"
@@ -29,15 +30,7 @@
 #define WINDOW_NUM 4
 #define STATUS_TEXT_SIZE 512
 #define MAX_MENU_BUFFER_WIDTH 30
-
-typedef enum {
-    CP_MENU = 1,
-    CP_STATUS,
-    CP_ERROR,
-    CP_LINE_NO,
-    CP_BUFFER_END,
-    CP_ACTIVE_BUFFER
-} COLOUR_PAIRS;
+#define SC_COLOR_PAIR(screen_comp) (COLOR_PAIR((screen_comp) + 1))
 
 static WINDOW *menu;
 static WINDOW *status;
@@ -48,12 +41,14 @@ static size_t text_y = 0;
 static size_t text_x = 0;
 static size_t line_no_x = 0;
 
+static short ncurses_color(DrawColor);
 static void draw_prompt(Session *);
 static void draw_menu(Session *);
 static void draw_status(Session *);
 static size_t draw_status_file_info(Session *, size_t);
 static size_t draw_status_pos_info(Session *, size_t);
 static void draw_status_general_info(Session *, size_t, size_t);
+static SyntaxMatches *setup_syntax(const Session *, Buffer *, const BufferPos *);
 static void draw_buffer(const Session *, Buffer *, int);
 static size_t draw_line(Buffer *, BufferPos *, int, int, Range, int, WindowInfo, SyntaxMatches *);
 static void draw_char(CharInfo, const BufferPos *, WINDOW *, size_t, int);
@@ -66,19 +61,14 @@ static size_t line_screen_length(const BufferPos *, WindowInfo win_info);
 static size_t line_screen_height(WindowInfo, const BufferPos *);
 
 /* ncurses setup */
-void init_display(void)
+void init_display(const Theme *theme)
 {
     initscr();
 
     if (has_colors()) {
         start_color();
         use_default_colors();
-        init_pair(CP_MENU, COLOR_BLUE, COLOR_WHITE);
-        init_pair(CP_STATUS, COLOR_YELLOW, COLOR_BLUE);
-        init_pair(CP_ERROR, COLOR_WHITE, COLOR_RED);
-        init_pair(CP_LINE_NO, COLOR_YELLOW, -1);
-        init_pair(CP_BUFFER_END, COLOR_BLUE, -1);
-        init_pair(CP_ACTIVE_BUFFER, COLOR_BLUE, -1);
+        init_color_pairs(theme);
     }
 
     raw();
@@ -95,7 +85,7 @@ void init_display(void)
     windows[1] = text = newwin(text_y, text_x, 1, 0);
     windows[2] = status = newwin(1, COLS, LINES - 1, 0);
     windows[3] = lineno = newwin(0, 0, 1, 0);
-
+        
     refresh();
 }
 
@@ -151,6 +141,38 @@ void init_window_info(WindowInfo *win_info)
     win_info->line_no_width = 0;
     win_info->horizontal_scroll = 1;
     win_info->draw_window = WIN_TEXT;
+}
+
+static short ncurses_color(DrawColor draw_color)
+{
+    static short ncurses_colors[] = {
+        [DC_NONE]    = -1,
+        [DC_BLACK]   = COLOR_BLACK,
+        [DC_RED]     = COLOR_RED,
+        [DC_GREEN]   = COLOR_GREEN,
+        [DC_YELLOW]  = COLOR_YELLOW,
+        [DC_BLUE]    = COLOR_BLUE,
+        [DC_MAGENTA] = COLOR_MAGENTA,
+        [DC_CYAN]    = COLOR_CYAN,
+        [DC_WHITE]   = COLOR_WHITE
+    };
+
+    static const size_t color_num = ARRAY_SIZE(ncurses_colors, short);
+
+    assert(draw_color < color_num);
+
+    return ncurses_colors[draw_color];
+}
+
+void init_color_pairs(const Theme *theme)
+{
+    ThemeGroup group;
+
+    for (size_t k = 0; k < SC_ENTRY_NUM; k++) {
+        group = th_get_theme_group(theme, k);            
+        init_pair(k + 1, ncurses_color(group.fg_color), 
+                         ncurses_color(group.bg_color));
+    }
 }
 
 /* Update the menu, status and active buffer views.
@@ -232,8 +254,8 @@ void draw_menu(Session *sess)
     buffer = se_get_buffer(sess, sess->menu_first_buffer_index);
 
     werase(menu);
-    wbkgd(menu, COLOR_PAIR(CP_MENU));
-    wattron(menu, COLOR_PAIR(CP_MENU));
+    wbkgd(menu, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
+    wattron(menu, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
 
     for (size_t buffer_index = sess->menu_first_buffer_index; 
          buffer_index < sess->buffer_num;
@@ -247,9 +269,9 @@ void draw_menu(Session *sess)
         }
 
         if (buffer_index == sess->active_buffer_index) {
-            wattron(menu, COLOR_PAIR(CP_ACTIVE_BUFFER));
+            wattron(menu, SC_COLOR_PAIR(SC_ACTIVE_BUFFER_TAB_BAR));
             mvwprintw(menu, 0, total_used_space, buffer_display); 
-            wattroff(menu, COLOR_PAIR(CP_ACTIVE_BUFFER));
+            wattroff(menu, SC_COLOR_PAIR(SC_ACTIVE_BUFFER_TAB_BAR));
         } else {
             mvwprintw(menu, 0, total_used_space, buffer_display); 
         }
@@ -258,7 +280,7 @@ void draw_menu(Session *sess)
         buffer = buffer->next;
     }
 
-    wattroff(menu, COLOR_PAIR(CP_MENU));
+    wattroff(menu, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
     wnoutrefresh(menu); 
 }
 
@@ -274,8 +296,8 @@ void draw_status(Session *sess)
 
     werase(status);
     wmove(status, 0, 0);
-    wbkgd(status, COLOR_PAIR(CP_STATUS));
-    wattron(status, COLOR_PAIR(CP_STATUS));
+    wbkgd(status, SC_COLOR_PAIR(SC_STATUS_BAR));
+    wattron(status, SC_COLOR_PAIR(SC_STATUS_BAR));
 
     size_t file_info_size = draw_status_file_info(sess, max_segment_width);
     size_t file_pos_size = draw_status_pos_info(sess, max_segment_width);
@@ -285,7 +307,7 @@ void draw_status(Session *sess)
         draw_status_general_info(sess, file_info_size, available_space);
     }
 
-    wattroff(status, COLOR_PAIR(CP_STATUS));
+    wattroff(status, SC_COLOR_PAIR(SC_STATUS_BAR));
     wnoutrefresh(status); 
 }
 
@@ -440,9 +462,9 @@ void draw_errors(Session *sess)
         win_info->height += diff;
     }
 
-    wattron(text, COLOR_PAIR(CP_ERROR));
+    wattron(text, SC_COLOR_PAIR(SC_ERROR_MESSAGE));
     draw_buffer(sess, error_buffer, 1);
-    wattroff(text, COLOR_PAIR(CP_ERROR));
+    wattroff(text, SC_COLOR_PAIR(SC_ERROR_MESSAGE));
     wnoutrefresh(text);
 
     *win_info = win_info_orig;
@@ -460,15 +482,49 @@ static void draw_prompt(Session *sess)
 {
     wmove(status, 0, 0);
     wbkgd(status, COLOR_PAIR(0));
-    wattron(status, COLOR_PAIR(CP_STATUS));
+    wattron(status, SC_COLOR_PAIR(SC_STATUS_BAR));
     wprintw(status, sess->cmd_prompt.cmd_text); 
-    wattroff(status, COLOR_PAIR(CP_STATUS));
+    wattroff(status, SC_COLOR_PAIR(SC_STATUS_BAR));
     wprintw(status, " "); 
 
     size_t prompt_size = strlen(sess->cmd_prompt.cmd_text) + 1;
     WindowInfo *win_info = &sess->cmd_prompt.cmd_buffer->win_info;
     win_info->start_x = prompt_size;
     win_info->width = text_x - prompt_size;
+}
+
+static SyntaxMatches *setup_syntax(const Session *sess, Buffer *buffer, 
+                                   const BufferPos *draw_pos)
+{
+    const SyntaxDefinition *syn_def = se_get_syntax_def(sess, buffer);
+
+    if (syn_def == NULL) {
+        return NULL;
+    }
+
+    BufferPos syn_start = *draw_pos;    
+    bf_change_multi_line(buffer, &syn_start, DIRECTION_UP, 20, 0);
+
+    BufferPos syn_end = *draw_pos;
+    bf_change_multi_line(buffer, &syn_end, DIRECTION_DOWN, buffer->win_info.height + 20, 0);
+
+    size_t syn_examine_length = syn_end.offset - syn_start.offset;
+    char *syn_examine_text = malloc(syn_examine_length);
+
+    if (syn_examine_text == NULL) {
+        return NULL;
+    }
+
+    syn_examine_length = gb_get_range(buffer->data, syn_start.offset, 
+                                      syn_examine_text, syn_examine_length);
+
+    SyntaxMatches *syn_matches = sy_get_syntax_matches(syn_def, syn_examine_text, 
+                                                       syn_examine_length, 
+                                                       syn_start.offset);
+
+    free(syn_examine_text);
+    
+    return syn_matches;
 }
 
 static void draw_buffer(const Session *sess, Buffer *buffer, int line_wrap)
@@ -480,18 +536,7 @@ static void draw_buffer(const Session *sess, Buffer *buffer, int line_wrap)
     BufferPos draw_pos = buffer->screen_start;
     WINDOW *draw_win = windows[buffer->win_info.draw_window];
     size_t buffer_len = bf_length(buffer);
-    const SyntaxDefinition *syn_def = se_get_syntax_def(sess, buffer);
-    SyntaxMatches *syn_matches = NULL;
-
-    if (syn_def != NULL) {
-        size_t draw_text_size = buffer->win_info.height * buffer->win_info.width * 2;
-        char draw_text[draw_text_size];
-        draw_text_size = gb_get_range(buffer->data, buffer->screen_start.offset, 
-                                      draw_text, draw_text_size);
-
-        syn_matches = sy_get_syntax_matches(syn_def, draw_text, draw_text_size, 
-                                            draw_pos.offset);
-    }
+    SyntaxMatches *syn_matches = setup_syntax(sess, buffer, &draw_pos);
 
     if (!line_wrap) {
         size_t buffer_lines = bf_lines(buffer);
@@ -522,14 +567,14 @@ static void draw_buffer(const Session *sess, Buffer *buffer, int line_wrap)
     }
 
     wstandend(draw_win);
-    wattron(draw_win, COLOR_PAIR(CP_BUFFER_END));
+    wattron(draw_win, SC_COLOR_PAIR(SC_BUFFER_END));
 
     while (line_count < buffer->win_info.height) {
         mvwaddch(text, buffer->win_info.start_y + line_count++, 
-                 buffer->win_info.start_x - buffer->win_info.line_no_width, '~');
+                 buffer->win_info.start_x, '~');
     }
 
-    wattroff(draw_win, COLOR_PAIR(CP_BUFFER_END));
+    wattroff(draw_win, SC_COLOR_PAIR(SC_BUFFER_END));
     free(syn_matches);
 }
 
@@ -539,9 +584,9 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
 {
     if (win_info.line_no_width > 0 && (bp_at_line_start(draw_pos) || !line_wrap)) {
         wmove(lineno, win_info.start_y + y, 0);
-        wattron(lineno, COLOR_PAIR(CP_LINE_NO));
+        wattron(lineno, SC_COLOR_PAIR(SC_LINENO));
         wprintw(lineno, "%*zu ", ((int)win_info.line_no_width - 1), draw_pos->line_no);
-        wattroff(lineno, COLOR_PAIR(CP_LINE_NO));
+        wattroff(lineno, SC_COLOR_PAIR(SC_LINENO));
     }
 
     if (bp_at_line_end(draw_pos)) {
@@ -592,12 +637,14 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
                 wattroff(draw_win, A_REVERSE);
             }
 
-            syn_match = sy_get_syntax_match(syn_matches, draw_pos->offset);
+            if (syn_matches != NULL && syn_matches->match_num > 0) {
+                syn_match = sy_get_syntax_match(syn_matches, draw_pos->offset);
 
-            if (syn_match == NULL) {
-                wattroff(draw_win, COLOR_PAIR(CP_LINE_NO));
-            } else {
-                wattron(draw_win, COLOR_PAIR(CP_LINE_NO));
+                if (syn_match == NULL) {
+                    wattron(draw_win, SC_COLOR_PAIR(ST_NORMAL));
+                } else {
+                    wattron(draw_win, SC_COLOR_PAIR(syn_match->token));
+                }
             }
 
             buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *draw_pos);

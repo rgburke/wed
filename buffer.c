@@ -313,9 +313,12 @@ size_t bf_length(const Buffer *buffer)
     return gb_length(buffer->data);
 }
 
-int bf_get_range(const Buffer *buffer, Range *range)
+int bf_get_range(Buffer *buffer, Range *range)
 {
     if (!bf_selection_started(buffer)) {
+        return 0;
+    } else if (bp_compare(&buffer->pos, &buffer->select_start) == 0) {
+        bf_select_reset(buffer);
         return 0;
     }
 
@@ -1106,6 +1109,7 @@ Status bf_copy_selected_text(Buffer *buffer, TextSelection *text_selection)
 
 Status bf_cut_selected_text(Buffer *buffer, TextSelection *text_selection)
 {
+    memset(text_selection, 0, sizeof(TextSelection));
     Range range;
 
     if (!bf_get_range(buffer, &range)) {

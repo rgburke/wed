@@ -68,7 +68,7 @@ void ip_edit(Session *sess)
     sigaddset(&sig_set, SIGWINCH);
     sigprocmask(SIG_BLOCK, &sig_set, NULL);
 
-    init_display();
+    init_display(se_get_active_theme(sess));
     init_all_window_info(sess);
     ip_handle_error(sess);
     update_display(sess);

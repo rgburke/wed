@@ -958,7 +958,7 @@ static void cp_process_theme_group_block(Session *sess, Theme *theme,
     ScreenComponent screen_comp;
 
     if (sy_str_to_token(&token, SVAL(name))) {
-        th_set_syntax_colors(theme, token, fg_color, bg_color);        
+        th_set_screen_comp_colors(theme, token, fg_color, bg_color);        
     } else if (th_str_to_screen_component(&screen_comp, SVAL(name))) {
         th_set_screen_comp_colors(theme, screen_comp, fg_color, bg_color);        
     }

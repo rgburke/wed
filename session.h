@@ -95,5 +95,6 @@ int se_is_valid_syntaxtype(Session *, const char *);
 const SyntaxDefinition *se_get_syntax_def(const Session *, const Buffer *);
 int se_is_valid_theme(Session *, const char *);
 Status se_add_theme(Session *, Theme *, const char *);
+const Theme *se_get_active_theme(const Session *);
 
 #endif

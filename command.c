@@ -361,6 +361,10 @@ static Status cm_buffer_copy_selected_text(Session *sess, Value param, const cha
 
     RETURN_IF_FAIL(status);
 
+    if (text_selection.str_len == 0) {
+        return STATUS_SUCCESS; 
+    }
+
     se_set_clipboard(sess, text_selection);
 
     return status;
@@ -377,6 +381,10 @@ static Status cm_buffer_cut_selected_text(Session *sess, Value param, const char
     Status status = bf_cut_selected_text(sess->active_buffer, &text_selection);
 
     RETURN_IF_FAIL(status);
+
+    if (text_selection.str_len == 0) {
+        return STATUS_SUCCESS; 
+    }
 
     se_set_clipboard(sess, text_selection);
 
