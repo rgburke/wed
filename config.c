@@ -39,9 +39,6 @@
 #define CFG_FILETYPES_FILE_NAME "filetypes.wed"
 #define CFG_USER_DIR "wed"
 
-#define CFG_TABWIDTH_MIN 1
-#define CFG_TABWIDTH_MAX 8
-
 static Session *curr_sess = NULL;
 static HashMap *config_vars = NULL;
 
@@ -66,7 +63,8 @@ static const ConfigVariableDescriptor default_config[] = {
     { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , NULL                     },
     { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL                     },
     { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL                     },
-    { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event }
+    { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event },
+    { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0)        , NULL                   , NULL                     }
 };
 
 void cf_set_config_session(Session *sess)

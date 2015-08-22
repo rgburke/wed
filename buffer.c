@@ -870,6 +870,16 @@ Status bf_insert_character(Buffer *buffer, const char *character, int advance_cu
         return st_get_error(ERR_INVALID_CHARACTER, "Invalid character %s", character);
     }
 
+    if (*character == '\t' && cf_bool("expandtab")) {
+        static char spaces[CFG_TABWIDTH_MAX + 1];
+        size_t tabwidth = cf_int("tabwidth");
+        tabwidth = tabwidth - ((buffer->pos.col_no - 1) % tabwidth);
+        memset(spaces, ' ', tabwidth);
+        spaces[tabwidth] = '\0';
+        character = spaces;
+        char_len = tabwidth;
+    }
+
     return bf_insert_string(buffer, character, char_len, advance_cursor);
 }
 

@@ -25,6 +25,9 @@
 #include "session.h"
 #include "buffer.h"
 
+#define CFG_TABWIDTH_MIN 1
+#define CFG_TABWIDTH_MAX 8
+
 typedef enum {
     CL_SESSION = 1,
     CL_BUFFER = 1 << 1
