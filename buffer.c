@@ -42,6 +42,8 @@ static Status bf_change_real_line(Buffer *, BufferPos *, Direction, int);
 static Status bf_change_screen_line(Buffer *, BufferPos *, Direction, int);
 static Status bf_advance_bp_to_line_offset(Buffer *, BufferPos *, int);
 static void bf_update_line_col_offset(Buffer *, BufferPos *);
+static Status bf_insert_expanded_tab(Buffer *, int);
+static Status bf_auto_indent(Buffer *, int);
 
 Buffer *bf_new(const FileInfo *file_info)
 {
@@ -858,6 +860,49 @@ Status bf_change_page(Buffer *buffer, Direction direction)
     return STATUS_SUCCESS;
 }
 
+static Status bf_insert_expanded_tab(Buffer *buffer, int advance_cursor)
+{
+    static char spaces[CFG_TABWIDTH_MAX + 1];
+    size_t tabwidth = cf_int("tabwidth");
+    tabwidth = tabwidth - ((buffer->pos.col_no - 1) % tabwidth);
+    memset(spaces, ' ', tabwidth);
+    spaces[tabwidth] = '\0';
+
+    return bf_insert_string(buffer, spaces, tabwidth, advance_cursor);
+}
+
+static Status bf_auto_indent(Buffer *buffer, int advance_cursor)
+{
+    BufferPos tmp = buffer->pos;
+    bp_to_line_start(&tmp);
+    size_t line_start_offset = tmp.offset;
+
+    while (bp_get_uchar(&tmp) != '\n' &&
+           bf_character_class(&tmp) == CCLASS_WHITESPACE) {
+        bp_next_char(&tmp);                  
+    }
+
+    if (!(tmp.offset > line_start_offset)) {
+        return bf_insert_string(buffer, "\n", 1, advance_cursor);
+    }
+
+    size_t indent_length = tmp.offset - line_start_offset;
+    char *indent = malloc(indent_length + 1);
+
+    if (indent == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to insert character");
+    }
+
+    gb_get_range(buffer->data, line_start_offset, indent + 1, indent_length);
+    indent[0] = '\n';
+
+    Status status = bf_insert_string(buffer, indent, indent_length + 1, advance_cursor);
+    free(indent);
+
+    return status;
+}
+
 Status bf_insert_character(Buffer *buffer, const char *character, int advance_cursor)
 {
     size_t char_len = 0;
@@ -871,13 +916,9 @@ Status bf_insert_character(Buffer *buffer, const char *character, int advance_cu
     }
 
     if (*character == '\t' && cf_bool("expandtab")) {
-        static char spaces[CFG_TABWIDTH_MAX + 1];
-        size_t tabwidth = cf_int("tabwidth");
-        tabwidth = tabwidth - ((buffer->pos.col_no - 1) % tabwidth);
-        memset(spaces, ' ', tabwidth);
-        spaces[tabwidth] = '\0';
-        character = spaces;
-        char_len = tabwidth;
+        return bf_insert_expanded_tab(buffer, advance_cursor);
+    } else if (*character == '\n' && cf_bool("autoindent")) {
+        return bf_auto_indent(buffer, advance_cursor);
     }
 
     return bf_insert_string(buffer, character, char_len, advance_cursor);

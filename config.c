@@ -64,7 +64,8 @@ static const ConfigVariableDescriptor default_config[] = {
     { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL                     },
     { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL                     },
     { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event },
-    { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0)        , NULL                   , NULL                     }
+    { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0)        , NULL                   , NULL                     },
+    { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                     }
 };
 
 void cf_set_config_session(Session *sess)
