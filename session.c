@@ -113,6 +113,8 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
 
     se_enable_msgs(sess);
 
+    sess->initialised = 1;
+
     return 1;
 }
 
@@ -780,3 +782,9 @@ const Theme *se_get_active_theme(const Session *sess)
 
     return theme;
 }
+
+int se_initialised(const Session *sess)
+{
+    return sess->initialised;
+}
+

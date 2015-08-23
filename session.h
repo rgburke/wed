@@ -56,6 +56,7 @@ typedef struct {
     HashMap *filetypes;
     HashMap *syn_defs;
     HashMap *themes;
+    int initialised;
 } Session;
 
 Session *se_new(void);
@@ -96,5 +97,6 @@ const SyntaxDefinition *se_get_syntax_def(const Session *, const Buffer *);
 int se_is_valid_theme(Session *, const char *);
 Status se_add_theme(Session *, Theme *, const char *);
 const Theme *se_get_active_theme(const Session *);
+int se_initialised(const Session *);
 
 #endif

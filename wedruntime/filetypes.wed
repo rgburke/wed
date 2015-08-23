@@ -1,6 +1,12 @@
 # default wed filetype definitions
 
 filetype {
+	name = "text";
+	display_name = "Text";
+	file_pattern = /\.txt$/i;
+}
+
+filetype {
 	name = "c";
 	display_name = "C Source";
 	file_pattern = /\.(c|h)$/;

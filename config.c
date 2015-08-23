@@ -51,21 +51,22 @@ static const ConfigVariableDescriptor *cf_get_variable(const char *);
 static Status cf_set_config_var(HashMap *, ConfigLevel, char *, Value);
 static Status cf_tabwidth_validator(Session *, Value);
 static Status cf_filetype_validator(Session *, Value);
+static Status cf_filetype_on_change_event(Session *, Value, Value);
 static Status cf_syntaxtype_validator(Session *, Value);
 static Status cf_theme_validator(Session *, Value);
 static Status cf_theme_on_change_event(Session *, Value, Value);
 
 static const ConfigVariableDescriptor default_config[] = {
-    { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                     },
-    { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                     },
-    { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator  , NULL                     },
-    { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL                     },
-    { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , NULL                     },
-    { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL                     },
-    { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL                     },
-    { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event },
-    { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0)        , NULL                   , NULL                     },
-    { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                     }
+    { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                        },
+    { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                        },
+    { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator  , NULL                        },
+    { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL                        },
+    { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , cf_filetype_on_change_event },
+    { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL                        },
+    { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL                        },
+    { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event    },
+    { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0)        , NULL                   , NULL                        },
+    { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                        }
 };
 
 void cf_set_config_session(Session *sess)
@@ -543,6 +544,29 @@ static Status cf_filetype_validator(Session *sess, Value value)
     return STATUS_SUCCESS;
 }
 
+static Status cf_filetype_on_change_event(Session *sess, Value old_val, Value new_val)
+{
+    (void)old_val;
+
+    if (!se_initialised(sess)) {
+        return STATUS_SUCCESS;
+    }
+
+    Buffer *buffer = sess->active_buffer;
+    int re_enable_msgs = se_disable_msgs(sess);
+    Status status = cf_set_buffer_var(buffer, "syntaxtype", new_val);
+
+    if (re_enable_msgs) {
+        se_enable_msgs(sess);
+    }
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        st_free_status(status);
+    }
+
+    return STATUS_SUCCESS;
+}
+
 static Status cf_syntaxtype_validator(Session *sess, Value value)
 {
     if (SVAL(value) != NULL && *SVAL(value) == '\0') {
@@ -579,3 +603,4 @@ static Status cf_theme_on_change_event(Session *sess, Value old_val, Value new_v
 
     return STATUS_SUCCESS;
 }
+
