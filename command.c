@@ -20,6 +20,7 @@
 #include <ncurses.h>
 #include <string.h>
 #include <strings.h>
+#include <signal.h>
 #include <assert.h>
 #include "shared.h"
 #include "status.h"
@@ -88,6 +89,7 @@ static Status cm_session_run_command(Session *, Value, const char *, int *);
 static Status cm_previous_cmd_entry(Session *, Value, const char *, int *);
 static Status cm_next_cmd_entry(Session *, Value, const char *, int *);
 static Status cm_finished_processing_input(Session *, Value, const char *, int *);
+static Status cm_suspend(Session *, Value, const char *, int *);
 static Status cm_session_end(Session *, Value, const char *, int *);
 
 static Status cm_cmd_input_prompt(Session *, const char *, List *, int);
@@ -153,6 +155,8 @@ static const Command commands[] = {
     { "<M-Left>"     , cm_session_change_tab            , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
     { "<C-w>"        , cm_session_close_buffer          , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
     { "<C-\\>"       , cm_session_run_command           , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
+    { "<M-z>"        , cm_suspend                       , INT_VAL_STRUCT(0)                                      , CMDT_SUSPEND     },
+    { "<M-c>"        , cm_session_end                   , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        },
     { "<Escape>"     , cm_session_end                   , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
 };
 
@@ -1022,6 +1026,19 @@ static Status cm_finished_processing_input(Session *sess, Value param, const cha
     (void)keystr;
 
     *finished = 1;
+
+    return STATUS_SUCCESS;
+}
+
+static Status cm_suspend(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    suspend_display();    
+    raise(SIGTSTP);
+    resize_display(sess);
 
     return STATUS_SUCCESS;
 }

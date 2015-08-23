@@ -24,6 +24,7 @@
 
 void init_display(const Theme *);
 void resize_display(Session *);
+void suspend_display(void);
 void end_display(void);
 void init_all_window_info(Session *);
 void init_window_info(WindowInfo *);

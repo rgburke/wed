@@ -109,6 +109,11 @@ void resize_display(Session *sess)
     update_display(sess);
 }
 
+void suspend_display(void)
+{
+    endwin();
+}
+
 void end_display(void)
 {
     delwin(menu);

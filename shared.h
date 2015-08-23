@@ -21,11 +21,12 @@
 
 typedef enum {
     CMDT_BUFFER_MOVE = 1,
-    CMDT_BUFFER_MOD = 1 << 1,
-    CMDT_CMD_INPUT = 1 << 2,
-    CMDT_EXIT = 1 << 3,
-    CMDT_SESS_MOD = 1 << 4,
-    CMDT_CMD_MOD = 1 << 5
+    CMDT_BUFFER_MOD  = 1 << 1,
+    CMDT_CMD_INPUT   = 1 << 2,
+    CMDT_EXIT        = 1 << 3,
+    CMDT_SESS_MOD    = 1 << 4,
+    CMDT_CMD_MOD     = 1 << 5,
+    CMDT_SUSPEND     = 1 << 6
 } CommandType;
 
 typedef enum {
