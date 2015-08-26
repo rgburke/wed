@@ -966,8 +966,7 @@ Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length
 
     buffer->is_dirty = 1;
 
-    status = bc_add_text_change(&buffer->changes, TCT_INSERT, string, 
-                                string_length, &start_pos);
+    status = bc_add_text_insert(&buffer->changes, string_length, &start_pos);
 
     if (!STATUS_IS_SUCCESS(status)) {
         goto cleanup;
@@ -1067,8 +1066,8 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
 
     buffer->is_dirty = 1;
 
-    Status status = bc_add_text_change(&buffer->changes, TCT_DELETE, deleted_str, 
-                                       byte_num, pos);
+    Status status = bc_add_text_delete(&buffer->changes, deleted_str,
+                                       byte_num, pos); 
 
     free(deleted_str);
 

@@ -67,7 +67,8 @@ struct Buffer;
 
 void bc_init(BufferChanges *);
 void bc_free(BufferChanges *);
-Status bc_add_text_change(BufferChanges *, TextChangeType, const char *, size_t, const BufferPos *);
+Status bc_add_text_insert(BufferChanges *, size_t, const BufferPos *);
+Status bc_add_text_delete(BufferChanges *, const char *, size_t, const BufferPos *);
 int bc_can_undo(const BufferChanges *);
 int bc_can_redo(const BufferChanges *);
 int bc_grouped_changes_started(const BufferChanges *);

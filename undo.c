@@ -28,6 +28,7 @@
 static TextChange *bc_tc_new(TextChangeType, const char *, size_t, const BufferPos *);
 static void bc_tc_free(TextChange *);
 static Status bc_add_text_change_to_prev(BufferChanges *, TextChangeType, const char *, size_t, const BufferPos *, int *);
+static Status bc_add_text_change(BufferChanges *, TextChangeType, const char *, size_t, const BufferPos *);
 static BufferChange *bc_new(BufferChangeType, Change);
 static void bc_free_change(BufferChangeType, Change);
 static void bc_free_buffer_change(BufferChange *);
@@ -55,11 +56,15 @@ static TextChange *bc_tc_new(TextChangeType change_type, const char *str,
     TextChange *text_change = malloc(sizeof(TextChange));
     RETURN_IF_NULL(text_change);
 
-    text_change->str = strdupe(str);
+    memset(text_change, 0, sizeof(TextChange));
 
-    if (text_change->str == NULL) {
-        free(text_change);
-        return NULL;
+    if (change_type == TCT_DELETE) {
+        text_change->str = strdupe(str);
+
+        if (text_change->str == NULL) {
+            free(text_change);
+            return NULL;
+        }
     }
 
     text_change->change_type = change_type;
@@ -103,8 +108,10 @@ static Status bc_add_text_change_to_prev(BufferChanges *changes, TextChangeType 
             add_to_prev = 1;
 
             if (prev_change->str_len > 1) {
-                char last_char = prev_change->str[prev_change->str_len - 1];
-                char next_char = str[0];
+                char last_char = gb_get_at(prev_change->pos.data, 
+                                           prev_change->pos.offset + 
+                                           prev_change->str_len - 1);
+                char next_char = gb_get_at(pos->data, pos->offset);
 
                 if (isspace(last_char) && !isspace(next_char)) {
                     add_to_prev = 0;
@@ -116,17 +123,21 @@ static Status bc_add_text_change_to_prev(BufferChanges *changes, TextChangeType 
     }
 
     if (add_to_prev) {
-        size_t new_str_len = prev_change->str_len + str_len;
-        char *new_str = realloc(prev_change->str, new_str_len);
+        if (change_type == TCT_INSERT) {
+            prev_change->str_len += str_len;
+        } else if (change_type == TCT_DELETE) {
+            size_t new_str_len = prev_change->str_len + str_len;
+            char *new_str = realloc(prev_change->str, new_str_len);
 
-        if (new_str == NULL) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                "Unable to save undo history");
+            if (new_str == NULL) {
+                return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                        "Unable to save undo history");
+            }
+
+            prev_change->str = new_str;
+            memcpy(prev_change->str + prev_change->str_len, str, str_len);
+            prev_change->str_len = new_str_len;
         }
-
-        prev_change->str = new_str;
-        memcpy(prev_change->str + prev_change->str_len, str, str_len);
-        prev_change->str_len = new_str_len;
 
         *added_to_prev_change = 1;
     }
@@ -134,10 +145,22 @@ static Status bc_add_text_change_to_prev(BufferChanges *changes, TextChangeType 
     return STATUS_SUCCESS;
 }
 
-Status bc_add_text_change(BufferChanges *changes, TextChangeType change_type, 
-                          const char *str, size_t str_len, const BufferPos *pos)
+Status bc_add_text_insert(BufferChanges *changes, size_t str_len, 
+                          const BufferPos *pos)
+{
+    return bc_add_text_change(changes, TCT_INSERT, NULL, str_len, pos);
+}
+
+Status bc_add_text_delete(BufferChanges *changes, const char *str, 
+                          size_t str_len, const BufferPos *pos)
 {
     assert(str != NULL);
+    return bc_add_text_change(changes, TCT_DELETE, str, str_len, pos);
+}
+
+static Status bc_add_text_change(BufferChanges *changes, TextChangeType change_type, 
+                                 const char *str, size_t str_len, const BufferPos *pos)
+{
     assert(pos != NULL);
      
     if (str_len == 0 || !changes->accept_new_changes) {
@@ -405,12 +428,28 @@ static Status bc_tc_apply(TextChange *text_change, Buffer *buffer, int redo)
 {
     if ((redo && text_change->change_type == TCT_DELETE) ||
         (!redo && text_change->change_type == TCT_INSERT)) {
+
+        char *str = malloc(text_change->str_len);
+
+        if (str == NULL) {
+            return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                "Unable to save deleted text");
+        } 
+
+        gb_get_range(buffer->data, text_change->pos.offset,
+                str, text_change->str_len);
+        text_change->str = str;
+
         RETURN_IF_FAIL(bf_set_bp(buffer, &text_change->pos));
         RETURN_IF_FAIL(bf_delete(buffer, text_change->str_len));
     } else if ((redo && text_change->change_type == TCT_INSERT) || 
                (!redo && text_change->change_type == TCT_DELETE)) {
+
         RETURN_IF_FAIL(bf_set_bp(buffer, &text_change->pos));
         RETURN_IF_FAIL(bf_insert_string(buffer, text_change->str, text_change->str_len, 1));
+
+        free(text_change->str);
+        text_change->str = NULL;
     }
 
     return STATUS_SUCCESS;
