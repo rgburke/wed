@@ -94,6 +94,10 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
+    if ((sess->cfg_buffer_stack = list_new()) == NULL) {
+        return 0;
+    }
+
     cf_set_config_session(sess);
     se_add_error(sess, cf_init_session_config(sess));
 
@@ -149,6 +153,7 @@ void se_free(Session *sess)
     free_hashmap(sess->syn_defs);
     free_hashmap_values(sess->themes, NULL);
     free_hashmap(sess->themes);
+    list_free(sess->cfg_buffer_stack);
 
     free(sess);
 }

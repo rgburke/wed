@@ -565,12 +565,12 @@ Status cp_parse_config_file(Session *sess, ConfigLevel config_level, const char 
                             "Unable to open file %s for reading", config_file_path);
     } 
 
-    cp_start_scan_file(config_file);
+    cp_start_scan_file(sess->cfg_buffer_stack, config_file);
     cp_reset_parser_location();
 
     int parse_status = yyparse(sess, config_level, config_file_path);
 
-    cp_finish_scan();
+    cp_finish_scan(sess->cfg_buffer_stack);
 
     if (parse_status != 0) {
         return st_get_error(ERR_FAILED_TO_PARSE_CONFIG_FILE, 
@@ -584,12 +584,12 @@ Status cp_parse_config_string(Session *sess, ConfigLevel config_level, const cha
 {
     assert(!is_null_or_empty(str));
 
-    cp_start_scan_string(str);
+    cp_start_scan_string(sess->cfg_buffer_stack, str);
     cp_reset_parser_location();
 
     int parse_status = yyparse(sess, config_level, NULL);
 
-    cp_finish_scan();
+    cp_finish_scan(sess->cfg_buffer_stack);
 
     if (parse_status != 0) {
         return st_get_error(ERR_FAILED_TO_PARSE_CONFIG_INPUT, "Failed to fully parse config input");

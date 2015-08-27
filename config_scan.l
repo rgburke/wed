@@ -18,6 +18,7 @@
 
 %{
 #include <stdio.h>
+#include <assert.h>
 #include "config_parse_util.h"
 #include "config_parse.h"
 #include "util.h"
@@ -51,18 +52,34 @@ true|false                    { yylval.string = strdupe(yytext); return TKN_BOOL
 
 %%
 
-void cp_start_scan_file(FILE *file)
+void cp_start_scan_file(List *buffer_stack, FILE *file)
 {
-    yypush_buffer_state(yy_create_buffer(file, YY_BUF_SIZE));   
+    YY_BUFFER_STATE buffer = yy_create_buffer(file, YY_BUF_SIZE);
+    list_add(buffer_stack, buffer);
+    yy_switch_to_buffer(buffer);
 }
 
-void cp_start_scan_string(const char *str)
+void cp_start_scan_string(List *buffer_stack, const char *str)
 {
-    yypush_buffer_state(yy_scan_string(str));
+    YY_BUFFER_STATE buffer = yy_scan_string(str);
+    list_add(buffer_stack, buffer);
 }
 
-void cp_finish_scan(void)
+void cp_finish_scan(List *buffer_stack)
 {
-    yypop_buffer_state();
+    size_t stack_size = list_size(buffer_stack);
+    assert(stack_size > 0);
+
+    if (stack_size > 0) {
+        YY_BUFFER_STATE buffer = list_pop(buffer_stack);
+        yy_delete_buffer(buffer);
+
+        stack_size = list_size(buffer_stack);
+
+        if (stack_size > 0) {
+            buffer = list_pop(buffer_stack);
+            yy_switch_to_buffer(buffer);
+        }
+    }
 }
 

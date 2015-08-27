@@ -57,6 +57,7 @@ typedef struct {
     HashMap *syn_defs;
     HashMap *themes;
     int initialised;
+    List *cfg_buffer_stack;
 } Session;
 
 Session *se_new(void);

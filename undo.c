@@ -59,12 +59,14 @@ static TextChange *bc_tc_new(TextChangeType change_type, const char *str,
     memset(text_change, 0, sizeof(TextChange));
 
     if (change_type == TCT_DELETE) {
-        text_change->str = strdupe(str);
+        text_change->str = malloc(str_len);
 
         if (text_change->str == NULL) {
             free(text_change);
             return NULL;
         }
+
+        memcpy(text_change->str, str, str_len);
     }
 
     text_change->change_type = change_type;

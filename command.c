@@ -969,6 +969,8 @@ static Status cm_session_run_command(Session *sess, Value param, const char *key
         }
 
         status = cp_parse_config_string(sess, CL_BUFFER, input);
+    } else {
+        free(input);
     }
 
     return status;
