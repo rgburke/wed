@@ -20,9 +20,11 @@
 #include "util.h"
 #include <assert.h>
 
+static int bp_is_char_before(const BufferPos *, size_t, char);
 static void calc_new_col(BufferPos *, size_t);
 
-int bp_init(BufferPos *pos, const GapBuffer *data, const CEF *cef)
+int bp_init(BufferPos *pos, const GapBuffer *data, 
+           const CEF *cef, const FileFormat *file_format)
 {
     assert(pos != NULL);
     assert(data != NULL);
@@ -33,6 +35,7 @@ int bp_init(BufferPos *pos, const GapBuffer *data, const CEF *cef)
     pos->col_no = 1;
     pos->data = data;
     pos->cef = cef;
+    pos->file_format = file_format;
 
     return 1;
 }
@@ -45,6 +48,12 @@ char bp_get_char(const BufferPos *pos)
 unsigned char bp_get_uchar(const BufferPos *pos)
 {
     return gb_getu_at(pos->data, pos->offset);
+}
+
+static int bp_is_char_before(const BufferPos *pos, size_t offset, char ch)
+{
+    return pos->offset >= offset &&
+           gb_get_at(pos->data, pos->offset - offset) == ch;
 }
 
 int bp_compare(const BufferPos *pos1, const BufferPos *pos2)
@@ -85,7 +94,16 @@ int bp_at_line_start(const BufferPos *pos)
 
 int bp_at_line_end(const BufferPos *pos)
 {
-    if (pos->offset == gb_length(pos->data)) {
+    size_t buffer_len = gb_length(pos->data);
+
+    if (pos->offset == buffer_len) {
+        return 1;
+    }
+
+    if (*pos->file_format == FF_WINDOWS &&
+        bp_get_char(pos) == '\r' &&
+        pos->offset + 1 < buffer_len &&
+        gb_get_at(pos->data, pos->offset + 1) == '\n') {
         return 1;
     }
 
@@ -124,9 +142,14 @@ void bp_next_char(BufferPos *pos)
     }
 
     if (bp_at_line_end(pos)) {
+        if (*pos->file_format == FF_WINDOWS &&
+            bp_get_char(pos) == '\r') {
+            pos->offset++;
+        }
+
         pos->offset++;
         pos->line_no++;
-        pos->col_no = 1;    
+        pos->col_no = 1;
     } else {
         CharInfo char_info;
         pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
@@ -144,6 +167,12 @@ void bp_prev_char(BufferPos *pos)
     if (bp_at_line_start(pos)) {
         pos->offset--;
         pos->line_no--;
+
+        if (*pos->file_format == FF_WINDOWS &&
+            bp_is_char_before(pos, 1, '\r')) {
+            pos->offset--;
+        }
+
         bp_recalc_col(pos);
     } else {
         size_t prev_offset = pos->cef->previous_char_offset(*pos);
@@ -183,7 +212,13 @@ void bp_to_line_end(BufferPos *pos)
 
     size_t line_end_offset;
 
-    if (!gb_find_next(pos->data, pos->offset, &line_end_offset, '\n')) {
+    if (gb_find_next(pos->data, pos->offset, &line_end_offset, '\n')) {
+        if (*pos->file_format == FF_WINDOWS &&
+            line_end_offset > 0 &&
+            gb_get_at(pos->data, line_end_offset - 1) == '\r') {
+            line_end_offset--;
+        }
+    } else {
         line_end_offset = gb_length(pos->data);
     }
 

@@ -29,6 +29,11 @@ typedef enum {
 } CharacterEncodingType;
 
 typedef enum {
+    FF_UNIX,
+    FF_WINDOWS
+} FileFormat;
+
+typedef enum {
     CIP_DEFAULT,
     CIP_SCREEN_LENGTH   
 } CharInfoProperties;

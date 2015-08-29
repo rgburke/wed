@@ -83,7 +83,8 @@ typedef enum {
     ERR_TOO_MANY_REGEX_BACKREFERENCES,
     ERR_INVALID_CAPTURE_GROUP_BACKREFERENCE,
     ERR_OVERRIDE_DEFAULT_THEME,
-    ERR_INVALID_THEME
+    ERR_INVALID_THEME,
+    ERR_INVALID_FILE_FORMAT
 } ErrorCode;
 
 /* Used to determine the success of an action.

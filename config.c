@@ -55,18 +55,21 @@ static Status cf_filetype_on_change_event(Session *, Value, Value);
 static Status cf_syntaxtype_validator(Session *, Value);
 static Status cf_theme_validator(Session *, Value);
 static Status cf_theme_on_change_event(Session *, Value, Value);
+static Status cf_fileformat_validator(Session *, Value);
+static Status cf_fileformat_on_change_event(Session *, Value, Value);
 
 static const ConfigVariableDescriptor default_config[] = {
-    { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                        },
-    { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                        },
-    { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator  , NULL                        },
-    { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL                        },
-    { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , cf_filetype_on_change_event },
-    { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL                        },
-    { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL                        },
-    { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event    },
-    { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0)        , NULL                   , NULL                        },
-    { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                        }
+    { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                          },
+    { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                          },
+    { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator  , NULL                          },
+    { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL                          },
+    { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , cf_filetype_on_change_event   },
+    { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL                          },
+    { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL                          },
+    { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event      },
+    { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0)        , NULL                   , NULL                          },
+    { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                          },
+    { "fileformat", "ff" , CL_BUFFER             , STR_VAL_STRUCT("unix")    , cf_fileformat_validator, cf_fileformat_on_change_event }
 };
 
 void cf_set_config_session(Session *sess)
@@ -600,6 +603,37 @@ static Status cf_theme_on_change_event(Session *sess, Value old_val, Value new_v
 
     const Theme *theme = se_get_active_theme(sess);
     init_color_pairs(theme);    
+
+    return STATUS_SUCCESS;
+}
+
+static Status cf_fileformat_validator(Session *sess, Value value)
+{
+    (void)sess;
+    FileFormat file_format;
+
+    if (!bf_get_fileformat(SVAL(value), &file_format)) {
+        return st_get_error(ERR_INVALID_FILE_FORMAT,
+                            "Invalid file format \"%s\"",
+                            SVAL(value));
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static Status cf_fileformat_on_change_event(Session *sess, Value old_val, Value new_val)
+{
+    (void)old_val;
+
+    if (!se_initialised(sess)) {
+        return STATUS_SUCCESS;
+    }
+
+    FileFormat file_format;
+    Buffer *buffer = sess->active_buffer;
+
+    bf_get_fileformat(SVAL(new_val), &file_format);
+    bf_set_fileformat(buffer, file_format);
 
     return STATUS_SUCCESS;
 }

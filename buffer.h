@@ -54,6 +54,7 @@ typedef struct {
 } Range;
 
 typedef struct {
+    FileFormat file_format;
     char *str;
     size_t str_len;
 } TextSelection;
@@ -86,6 +87,7 @@ struct Buffer {
     GapBuffer *data;
     BufferSearch search;
     BufferChanges changes;
+    FileFormat file_format;
 };
 
 Buffer *bf_new(const FileInfo *);
@@ -102,6 +104,9 @@ size_t bf_length(const Buffer *);
 int bf_get_range(Buffer *, Range *);
 int bf_bp_in_range(const Range *, const BufferPos *);
 CharacterClass bf_character_class(const BufferPos *);
+int bf_get_fileformat(const char *, FileFormat *);
+void bf_set_fileformat(Buffer *, FileFormat);
+const char *bf_new_line_str(FileFormat);
 int bf_bp_at_screen_line_start(const BufferPos *, const WindowInfo *);
 int bf_bp_at_screen_line_end(const BufferPos *, const WindowInfo *);
 int bf_bp_move_past_buffer_extremes(const BufferPos *, Direction);

@@ -34,8 +34,10 @@
 #include "encoding.h"
 
 #define FILE_BUF_SIZE 1024
+#define DETECT_FF_LINE_NUM 5
 
 static Status reset_buffer(Buffer *);
+static void bf_detect_fileformat(Buffer *);
 static int is_selection(Direction *);
 static void bf_default_movement_selection_handler(Buffer *, int, Direction *);
 static Status bf_change_real_line(Buffer *, BufferPos *, Direction, int);
@@ -44,6 +46,7 @@ static Status bf_advance_bp_to_line_offset(Buffer *, BufferPos *, int);
 static void bf_update_line_col_offset(Buffer *, BufferPos *);
 static Status bf_insert_expanded_tab(Buffer *, int);
 static Status bf_auto_indent(Buffer *, int);
+static Status bf_convert_fileformat(TextSelection *, TextSelection *, int *);
 
 Buffer *bf_new(const FileInfo *file_info)
 {
@@ -71,10 +74,11 @@ Buffer *bf_new(const FileInfo *file_info)
 
     buffer->file_info = *file_info;
     buffer->encoding_type = ENC_UTF8;
+    buffer->file_format = FF_UNIX;
     en_init_char_enc_funcs(buffer->encoding_type, &buffer->cef);
-    bp_init(&buffer->pos, buffer->data, &buffer->cef);
-    bp_init(&buffer->screen_start, buffer->data, &buffer->cef);
-    bp_init(&buffer->select_start, buffer->data, &buffer->cef);
+    bp_init(&buffer->pos, buffer->data, &buffer->cef, &buffer->file_format);
+    bp_init(&buffer->screen_start, buffer->data, &buffer->cef, &buffer->file_format);
+    bp_init(&buffer->select_start, buffer->data, &buffer->cef, &buffer->file_format);
     bf_select_reset(buffer);
     init_window_info(&buffer->win_info);
     bs_init_default_opt(&buffer->search);
@@ -131,13 +135,49 @@ static Status reset_buffer(Buffer *buffer)
         return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to reset buffer");
     }
 
-    bp_init(&buffer->pos, buffer->data, &buffer->cef);
-    bp_init(&buffer->screen_start, buffer->data, &buffer->cef);
-    bp_init(&buffer->select_start, buffer->data, &buffer->cef);
+    bp_init(&buffer->pos, buffer->data, &buffer->cef, &buffer->file_format);
+    bp_init(&buffer->screen_start, buffer->data, &buffer->cef, &buffer->file_format);
+    bp_init(&buffer->select_start, buffer->data, &buffer->cef, &buffer->file_format);
     bf_select_reset(buffer);
     bf_update_line_col_offset(buffer, &buffer->pos);
 
     return STATUS_SUCCESS;
+}
+
+static void bf_detect_fileformat(Buffer *buffer)
+{
+    FileFormat file_format = FF_UNIX;
+
+    if (gb_lines(buffer->data) > 0) {
+        size_t lines = MIN(gb_lines(buffer->data), DETECT_FF_LINE_NUM);
+        size_t unix = 0;
+        size_t dos = 0;
+        size_t point = 0;
+
+        do {
+            if (!gb_find_next(buffer->data, point, &point, '\n')) {
+                break;
+            }
+
+            if (point > 0 && gb_get_at(buffer->data, point - 1) == '\r') {
+                dos++; 
+            } else {
+                unix++;
+            }
+        } while (--lines != 0);
+
+        if (dos > unix) {
+            file_format = FF_WINDOWS;
+        }
+    }
+
+    if (file_format == FF_UNIX) {
+        cf_set_buffer_var(buffer, "fileformat", STR_VAL("unix"));
+    } else if (file_format == FF_WINDOWS) {
+        cf_set_buffer_var(buffer, "fileformat", STR_VAL("windows"));
+    }
+
+    bf_set_fileformat(buffer, file_format);
 }
 
 /* Loads file into buffer structure */
@@ -182,6 +222,10 @@ Status bf_load_file(Buffer *buffer)
     gb_set_point(buffer->data, 0);
 
     fclose(input_file);
+
+    if (STATUS_IS_SUCCESS(status)) {
+        bf_detect_fileformat(buffer);
+    }
 
     return status;
 }
@@ -293,7 +337,8 @@ char *bf_join_lines(const Buffer *buffer, const char *seperator)
         return NULL;
     }
 
-    char *joined = replace(buffer_str, "\n", seperator);
+    const char *new_line = bf_new_line_str(buffer->file_format);
+    char *joined = replace(buffer_str, new_line, seperator);
 
     free(buffer_str);
 
@@ -356,6 +401,41 @@ CharacterClass bf_character_class(const BufferPos *pos)
     }
 
     return CCLASS_WORD;
+}
+
+int bf_get_fileformat(const char *ff_name, FileFormat *file_format)
+{
+    assert(!is_null_or_empty(ff_name));
+
+    if (strncmp(ff_name, "unix", 5) == 0) {
+        *file_format = FF_UNIX;
+        return 1;
+    } else if (strncmp(ff_name, "windows", 8) == 0 ||
+               strncmp(ff_name, "dos", 4) == 0) {
+        *file_format = FF_WINDOWS;
+        return 1;
+    } 
+
+    return 0;
+}
+
+void bf_set_fileformat(Buffer *buffer, FileFormat file_format)
+{
+    assert(file_format == FF_UNIX || file_format == FF_WINDOWS);
+    buffer->file_format = file_format;
+}
+
+const char *bf_new_line_str(FileFormat file_format)
+{
+    if (file_format == FF_UNIX) {
+        return "\n";
+    } else if (file_format == FF_WINDOWS) {
+        return "\r\n";
+    }
+
+    assert(!"Invalid FileFormat");
+
+    return "\n";
 }
 
 int bf_bp_at_screen_line_start(const BufferPos *pos, const WindowInfo *win_info)
@@ -877,27 +957,30 @@ static Status bf_auto_indent(Buffer *buffer, int advance_cursor)
     bp_to_line_start(&tmp);
     size_t line_start_offset = tmp.offset;
 
-    while (bp_get_uchar(&tmp) != '\n' &&
+    while (!bp_at_line_end(&tmp) &&
            bf_character_class(&tmp) == CCLASS_WHITESPACE) {
         bp_next_char(&tmp);                  
     }
 
+    const char *new_line = bf_new_line_str(buffer->file_format);
+    size_t new_line_len = strlen(new_line);
+
     if (!(tmp.offset > line_start_offset)) {
-        return bf_insert_string(buffer, "\n", 1, advance_cursor);
+        return bf_insert_string(buffer, new_line, new_line_len, advance_cursor);
     }
 
     size_t indent_length = tmp.offset - line_start_offset;
-    char *indent = malloc(indent_length + 1);
+    char *indent = malloc(indent_length + new_line_len);
 
     if (indent == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to insert character");
     }
 
-    gb_get_range(buffer->data, line_start_offset, indent + 1, indent_length);
-    indent[0] = '\n';
+    gb_get_range(buffer->data, line_start_offset, indent + new_line_len, indent_length);
+    memcpy(indent, new_line, new_line_len);
 
-    Status status = bf_insert_string(buffer, indent, indent_length + 1, advance_cursor);
+    Status status = bf_insert_string(buffer, indent, indent_length + new_line_len, advance_cursor);
     free(indent);
 
     return status;
@@ -1076,10 +1159,19 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
 
 Status bf_delete_character(Buffer *buffer)
 {
-    CharInfo char_info;
-    buffer->cef.char_info(&char_info, CIP_DEFAULT, buffer->pos);
+    size_t byte_length;
 
-    return bf_delete(buffer, char_info.byte_length);
+    if (bp_at_line_end(&buffer->pos) &&
+        buffer->file_format == FF_WINDOWS &&
+        bp_get_char(&buffer->pos) == '\r') {
+        byte_length = 2;
+    } else {
+        CharInfo char_info;
+        buffer->cef.char_info(&char_info, CIP_DEFAULT, buffer->pos);
+        byte_length = char_info.byte_length;
+    }
+
+    return bf_delete(buffer, byte_length);
 }
 
 Status bf_select_continue(Buffer *buffer)
@@ -1153,6 +1245,7 @@ Status bf_copy_selected_text(Buffer *buffer, TextSelection *text_selection)
 
     *(text_selection->str + range_size) = '\0';
     text_selection->str_len = range_size;
+    text_selection->file_format = buffer->file_format;
 
     return STATUS_SUCCESS;
 }
@@ -1177,7 +1270,64 @@ Status bf_cut_selected_text(Buffer *buffer, TextSelection *text_selection)
 
 Status bf_insert_textselection(Buffer *buffer, TextSelection *text_selection)
 {
+    assert(text_selection->str != NULL);
+    
+    if (text_selection->str_len == 0) {
+        return STATUS_SUCCESS;
+    }
+
+    if (text_selection->file_format != buffer->file_format) {
+        TextSelection converted_selection = { .file_format = buffer->file_format };
+        int conversion_perfomed;
+
+        Status status = bf_convert_fileformat(text_selection, &converted_selection,
+                                              &conversion_perfomed);
+        RETURN_IF_FAIL(status);
+
+        if (conversion_perfomed) {
+            status = bf_insert_string(buffer, converted_selection.str, 
+                                      converted_selection.str_len, 1);
+
+            bf_free_textselection(&converted_selection);
+            return status;
+        }
+    }
+
     return bf_insert_string(buffer, text_selection->str, text_selection->str_len, 1);
+}
+
+static Status bf_convert_fileformat(TextSelection *in_ts, TextSelection *out_ts,
+                                    int *conversion_perfomed)
+{
+    *conversion_perfomed = 0;
+
+    if (in_ts->file_format == out_ts->file_format ||
+        memchr(in_ts->str, '\n', in_ts->str_len) == NULL) {
+        *out_ts = *in_ts;
+        return STATUS_SUCCESS;
+    }
+
+    out_ts->str = NULL;
+
+    if (in_ts->file_format == FF_UNIX && 
+        out_ts->file_format == FF_WINDOWS) {
+        out_ts->str = replace(in_ts->str, "\n", "\r\n");
+    } else if (in_ts->file_format == FF_WINDOWS && 
+               out_ts->file_format == FF_UNIX) {
+        out_ts->str = replace(in_ts->str, "\r\n", "\n");
+    } else {
+        assert(!"Unsupported file format");
+    }
+
+    if (out_ts->str == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to convert fileformat of text");
+    }
+
+    out_ts->str_len = strlen(out_ts->str);
+    *conversion_perfomed = 1;
+
+    return STATUS_SUCCESS;
 }
 
 void bf_free_textselection(TextSelection *text_selection)

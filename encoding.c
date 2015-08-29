@@ -95,12 +95,16 @@ static int en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip, Buffer
 
     if (cip & CIP_SCREEN_LENGTH) {
         char_info->is_printable = 1;
-        uchar ch[5] = { 0 };
+        uchar ch[5] = { '\0' };
         gb_get_range(pos.data, pos.offset, (char *)ch, char_info->byte_length);
 
         if (!char_info->is_valid) {
             char_info->screen_length = 1;
         } else if (*ch == '\n') {
+            char_info->screen_length = 0;
+        } else if (*pos.file_format == FF_WINDOWS &&
+                   *ch == '\r' && 
+                   gb_get_at(pos.data, pos.offset + 1) == '\n') {
             char_info->screen_length = 0;
         } else if (*ch == '\t') {
             size_t tabwidth = cf_int("tabwidth");

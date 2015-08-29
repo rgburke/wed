@@ -446,7 +446,8 @@ void draw_errors(Session *sess)
     size_t screen_lines = 0;
     WindowInfo *win_info = &error_buffer->win_info;
     WindowInfo win_info_orig = *win_info;
-    bp_init(&pos, error_buffer->data, &error_buffer->cef);
+    bp_init(&pos, error_buffer->data, &error_buffer->cef, 
+            &error_buffer->file_format);
 
     while (!bp_at_buffer_end(&pos)) {
         screen_lines += line_screen_height(*win_info, &pos);
