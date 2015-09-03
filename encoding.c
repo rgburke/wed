@@ -27,7 +27,7 @@
 
 //#include "unicode.c"
 
-static int en_utf8_char_info(CharInfo *, CharInfoProperties, BufferPos);
+static int en_utf8_char_info(CharInfo *, CharInfoProperties, BufferPos, const HashMap *);
 static size_t en_utf8_previous_char_offset(BufferPos);
 static int en_utf8_is_valid_character(BufferPos, size_t *);
 static uint en_utf8_code_point(const uchar *, uint);
@@ -55,7 +55,8 @@ int en_init_char_enc_funcs(CharacterEncodingType type, CharacterEncodingFunction
     return 1;
 }
 
-static int en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip, BufferPos pos)
+static int en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip, 
+                             BufferPos pos, const HashMap *config)
 {
     if (char_info == NULL) {
         return 0;
@@ -107,7 +108,7 @@ static int en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip, Buffer
                    gb_get_at(pos.data, pos.offset + 1) == '\n') {
             char_info->screen_length = 0;
         } else if (*ch == '\t') {
-            size_t tabwidth = cf_int("tabwidth");
+            size_t tabwidth = cf_int(config, CV_TABWIDTH);
             char_info->screen_length = tabwidth - ((pos.col_no - 1) % tabwidth);
         } else if (*ch < 128 && !isprint(*ch)) {
             char_info->screen_length = 2;

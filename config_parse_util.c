@@ -53,6 +53,7 @@ static void cp_process_theme_block(Session *, StatementBlockNode *);
 static void cp_process_theme_group_block(Session *, Theme *, StatementBlockNode *);
 static int cp_process_assignment(Session *, StatementNode *, VariableAssignment *, size_t);
 static int cp_validate_block_vars(Session *, VariableAssignment *, size_t, const ParseLocation *, const char *, int);
+static ConfigLevel cp_determine_config_level(const char *, ConfigLevel);
 
 ValueNode *cp_new_valuenode(const ParseLocation *location, Value value)
 {
@@ -420,20 +421,37 @@ int cp_eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
                 VariableNode *var_node = (VariableNode *)exp_node->left;
                 ValueNode *val_node = (ValueNode *)exp_node->right;
 
-                se_add_error(sess, cf_set_var(sess, config_level, var_node->name, val_node->value));
+                ConfigLevel tmp_config_level = cp_determine_config_level(var_node->name,
+                                                                         config_level);
+
+                Status status = cf_set_named_var(CE_VAL(sess, sess->active_buffer), tmp_config_level,
+                                                 var_node->name, val_node->value);
+
+                se_add_error(sess, cp_convert_to_config_error(status, &node->location));
+
                 break;
             }
         case NT_REFERENCE:
             {
                 ExpressionNode *exp_node = (ExpressionNode *)node;
                 VariableNode *var_node = (VariableNode *)exp_node->left;
-                se_add_error(sess, cf_print_var(sess, var_node->name));
+
+                ConfigLevel tmp_config_level = cp_determine_config_level(var_node->name,
+                                                                         config_level);
+
+                Status status = cf_print_var(CE_VAL(sess, sess->active_buffer),
+                                             tmp_config_level, var_node->name);
+
+                se_add_error(sess, cp_convert_to_config_error(status, &node->location));
+
                 break;
             }
         case NT_STATEMENT_BLOCK:
             {
                 StatementBlockNode *stmb_node = (StatementBlockNode *)node;
                 cp_process_block(sess, stmb_node);
+
+                break;
             }
         default:
             return 0;
@@ -520,6 +538,19 @@ static void cp_reset_parser_location(void)
 {
     yylloc.first_line = yylloc.last_line = 1;
     yylloc.first_column = yylloc.last_column = 1;
+}
+
+Status cp_convert_to_config_error(Status error, const ParseLocation *location)
+{
+    if (STATUS_IS_SUCCESS(error)) {
+        return error;
+    }
+
+    Status config_error = cp_get_config_error(error.error_code, location, error.msg);
+
+    st_free_status(error);
+
+    return config_error;
 }
 
 Status cp_get_config_error(ErrorCode error_code, const ParseLocation *location, const char *format, ...)
@@ -1055,4 +1086,17 @@ static int cp_validate_block_vars(Session *sess, VariableAssignment *expected_va
     }
 
     return valid;
+}
+
+static ConfigLevel cp_determine_config_level(const char *var_name, ConfigLevel config_level)
+{
+    ConfigVariable config_variable;
+
+    if (config_level == CL_BUFFER &&
+        cf_str_to_var(var_name, &config_variable) &&
+        cf_get_config_levels(config_variable) == CL_SESSION) {
+        config_level = CL_SESSION;
+    }
+
+    return config_level;
 }

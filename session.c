@@ -30,7 +30,7 @@
 
 static Status se_add_to_history(List *, char *);
 static void se_determine_filetype(Session *, Buffer *);
-static void se_determine_syntaxtype(Session *, Buffer *);
+static void se_determine_fileformat(Session *, Buffer *);
 static int se_is_valid_config_def(Session *, HashMap *, ConfigType, const char *);
 
 Session *se_new(void)
@@ -44,15 +44,15 @@ Session *se_new(void)
 
 int se_init(Session *sess, char *buffer_paths[], int buffer_num)
 {
-    if ((sess->error_buffer = bf_new_empty("errors")) == NULL) {
+    if ((sess->error_buffer = bf_new_empty("errors", sess->config)) == NULL) {
         return 0;
     }
 
-    if ((sess->cmd_prompt.cmd_buffer = bf_new_empty("commands")) == NULL) {
+    if ((sess->cmd_prompt.cmd_buffer = bf_new_empty("commands", sess->config)) == NULL) {
         return 0;
     }
 
-    if ((sess->msg_buffer = bf_new_empty("messages")) == NULL) {
+    if ((sess->msg_buffer = bf_new_empty("messages", sess->config)) == NULL) {
         return 0;
     }
 
@@ -98,7 +98,6 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
-    cf_set_config_session(sess);
     se_add_error(sess, cf_init_session_config(sess));
 
     for (int k = 1; k < buffer_num; k++) {
@@ -113,7 +112,8 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
-    cf_set_buffer_var(sess->cmd_prompt.cmd_buffer, "linewrap", INT_VAL(0));
+    Buffer *cmd_buffer = sess->cmd_prompt.cmd_buffer;
+    cf_set_var(CE_VAL(sess, cmd_buffer), CL_BUFFER, CV_LINEWRAP, INT_VAL(0));
 
     se_enable_msgs(sess);
 
@@ -166,8 +166,15 @@ int se_add_buffer(Session *sess, Buffer *buffer)
         return 0;
     }
 
+    int re_enable_msgs = se_disable_msgs(sess);
+
     se_determine_filetype(sess, buffer);
     se_determine_syntaxtype(sess, buffer);
+    se_determine_fileformat(sess, buffer);
+
+    if (re_enable_msgs) {
+        se_enable_msgs(sess);
+    }
 
     sess->buffer_num++;
 
@@ -463,7 +470,7 @@ Status se_add_new_buffer(Session *sess, const char *file_path)
         goto cleanup;
     }
 
-    buffer = bf_new(&file_info);
+    buffer = bf_new(&file_info, sess->config);
 
     if (buffer == NULL) {
         status = st_get_error(ERR_OUT_OF_MEMORY, 
@@ -495,7 +502,7 @@ Status se_add_new_empty_buffer(Session *sess)
     char empty_buf_name[MAX_EMPTY_BUFFER_NAME_SIZE];
     snprintf(empty_buf_name, MAX_EMPTY_BUFFER_NAME_SIZE, "[new %zu]", ++sess->empty_buffer_num);
 
-    Buffer *buffer = bf_new_empty(empty_buf_name);
+    Buffer *buffer = bf_new_empty(empty_buf_name, sess->config);
 
     if (buffer == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, 
@@ -586,11 +593,12 @@ Status se_add_filetype_def(Session *sess, FileType *file_type)
     int matches;
 
     while (buffer != NULL) {
-        if (is_null_or_empty(cf_bf_string("filetype", buffer))) {
+        if (is_null_or_empty(cf_string(buffer->config, CV_FILETYPE))) {
             se_add_error(sess, ft_matches(file_type, &buffer->file_info, &matches));
 
             if (matches) {
-                se_add_error(sess, cf_set_buffer_var(buffer, "filetype", STR_VAL(file_type->name)));
+                se_add_error(sess, cf_set_var(CE_VAL(sess, buffer), CL_BUFFER, 
+                                              CV_FILETYPE, STR_VAL(file_type->name)));
             }
         }
 
@@ -618,7 +626,6 @@ static void se_determine_filetype(Session *sess, Buffer *buffer)
     }
 
     FileType *file_type;
-    int re_enable_msgs = se_disable_msgs(sess);
     int matches;
 
     for (size_t k = 0; k < key_num; k++) {
@@ -628,14 +635,11 @@ static void se_determine_filetype(Session *sess, Buffer *buffer)
             se_add_error(sess, ft_matches(file_type, &buffer->file_info, &matches));
 
             if (matches) {
-                se_add_error(sess, cf_set_buffer_var(buffer, "filetype", STR_VAL(file_type->name)));
+                se_add_error(sess, cf_set_var(CE_VAL(sess, buffer), CL_BUFFER, 
+                                              CV_FILETYPE, STR_VAL(file_type->name)));
                 break;
             }
         }
-    }
-
-    if (re_enable_msgs) {
-        se_enable_msgs(sess);
     }
 
     free(keys);
@@ -679,19 +683,19 @@ Status se_add_syn_def(Session *sess, SyntaxDefinition *syn_def, const char *syn_
     return STATUS_SUCCESS;
 }
 
-static void se_determine_syntaxtype(Session *sess, Buffer *buffer)
+void se_determine_syntaxtype(Session *sess, Buffer *buffer)
 {
-    if (!cf_bool("syntax")) {
+    if (!cf_bool(sess->config, CV_SYNTAX)) {
         return;
     }
 
-    const char *syn_type = cf_bf_string("syntaxtype", buffer);
+    const char *syn_type = cf_string(buffer->config, CV_SYNTAXTYPE);
 
     if (!is_null_or_empty(syn_type)) {
         return;
     }
 
-    const char *file_type = cf_bf_string("filetype", buffer);
+    const char *file_type = cf_string(buffer->config, CV_FILETYPE);
 
     if (is_null_or_empty(file_type)) {
         return;
@@ -701,13 +705,15 @@ static void se_determine_syntaxtype(Session *sess, Buffer *buffer)
         return;
     }
 
-    int re_enable_msgs = se_disable_msgs(sess);
+    se_add_error(sess, cf_set_var(CE_VAL(sess, buffer), CL_BUFFER, 
+                                  CV_SYNTAXTYPE, STR_VAL((char *)file_type)));
+}
 
-    se_add_error(sess, cf_set_buffer_var(buffer, "syntaxtype", STR_VAL((char *)file_type)));
-
-    if (re_enable_msgs) {
-        se_enable_msgs(sess);
-    }
+static void se_determine_fileformat(Session *sess, Buffer *buffer)
+{
+    FileFormat file_format = bf_detect_fileformat(buffer);
+    cf_set_var(CE_VAL(sess, buffer), CL_BUFFER, CV_FILEFORMAT, 
+               STR_VAL((char *)bf_get_fileformat_str(file_format)));
 }
 
 int se_is_valid_syntaxtype(Session *sess, const char *syn_type)
@@ -737,11 +743,11 @@ static int se_is_valid_config_def(Session *sess, HashMap *defs,
 
 const SyntaxDefinition *se_get_syntax_def(const Session *sess, const Buffer *buffer)
 {
-    if (!cf_bool("syntax")) {
+    if (!cf_bool(sess->config, CV_SYNTAX)) {
         return NULL;
     }
 
-    const char *syn_type = cf_bf_string("syntaxtype", buffer);
+    const char *syn_type = cf_string(buffer->config, CV_SYNTAXTYPE);
 
     return hashmap_get(sess->syn_defs, syn_type);
 }
@@ -777,7 +783,7 @@ Status se_add_theme(Session *sess, Theme *theme, const char *theme_name)
 
 const Theme *se_get_active_theme(const Session *sess)
 {
-    const char *theme_name = cf_string("theme");
+    const char *theme_name = cf_string(sess->config, CV_THEME);
 
     assert(!is_null_or_empty(theme_name));
     

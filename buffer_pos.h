@@ -21,11 +21,13 @@
 
 #include "gap_buffer.h"
 #include "encoding.h"
+#include "hashmap.h"
 
 struct BufferPos {
     const GapBuffer *data;
     const CEF *cef;
     const FileFormat *file_format;
+    const HashMap *config;
     size_t offset;
     size_t line_no;
     size_t col_no;
@@ -33,7 +35,7 @@ struct BufferPos {
 
 typedef struct BufferPos BufferPos;
 
-int bp_init(BufferPos *, const GapBuffer *, const CEF *, const FileFormat *);
+int bp_init(BufferPos *, const GapBuffer *, const CEF *, const FileFormat *, const HashMap *config);
 char bp_get_char(const BufferPos *);
 unsigned char bp_get_uchar(const BufferPos *);
 int bp_compare(const BufferPos *, const BufferPos *);

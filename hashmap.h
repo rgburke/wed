@@ -45,11 +45,11 @@ struct HashMapNode {
 HashMap *new_hashmap(void);
 HashMap *new_sized_hashmap(size_t);
 int hashmap_set(HashMap *, const char *, void *);
-void *hashmap_get(HashMap *, const char *);
+void *hashmap_get(const HashMap *, const char *);
 int hashmap_delete(HashMap *, const char *);
 void hashmap_clear(HashMap *);
-size_t hashmap_size(HashMap *);
-const char **hashmap_get_keys(HashMap *);
+size_t hashmap_size(const HashMap *);
+const char **hashmap_get_keys(const HashMap *);
 void free_hashmap(HashMap *);
 void free_hashmap_values(HashMap *, void (*)(void *));
 

@@ -21,6 +21,7 @@
 
 #include <stddef.h>
 #include "shared.h"
+#include "hashmap.h"
 
 struct BufferPos;
 
@@ -46,7 +47,7 @@ typedef struct {
 } CharInfo;
 
 typedef struct {
-    int (*char_info)(CharInfo *, CharInfoProperties, struct BufferPos);
+    int (*char_info)(CharInfo *, CharInfoProperties, struct BufferPos, const HashMap *config);
     size_t (*previous_char_offset)(struct BufferPos);
 } CharacterEncodingFunctions;
 

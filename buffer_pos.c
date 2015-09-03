@@ -24,11 +24,14 @@ static int bp_is_char_before(const BufferPos *, size_t, char);
 static void calc_new_col(BufferPos *, size_t);
 
 int bp_init(BufferPos *pos, const GapBuffer *data, 
-           const CEF *cef, const FileFormat *file_format)
+            const CEF *cef, const FileFormat *file_format,
+            const HashMap *config)
 {
     assert(pos != NULL);
     assert(data != NULL);
     assert(cef != NULL);
+    assert(file_format != NULL);
+    assert(config != NULL);
 
     pos->offset = 0;
     pos->line_no = 1;
@@ -36,6 +39,7 @@ int bp_init(BufferPos *pos, const GapBuffer *data,
     pos->data = data;
     pos->cef = cef;
     pos->file_format = file_format;
+    pos->config = config;
 
     return 1;
 }
@@ -152,7 +156,8 @@ void bp_next_char(BufferPos *pos)
         pos->col_no = 1;
     } else {
         CharInfo char_info;
-        pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
+        pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, 
+                            *pos, pos->config);
         pos->offset += char_info.byte_length;
         pos->col_no += char_info.screen_length;
     }
@@ -182,7 +187,8 @@ void bp_prev_char(BufferPos *pos)
             bp_recalc_col(pos);
         } else {
             CharInfo char_info;
-            pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
+            pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, 
+                                *pos, pos->config);
             pos->col_no -= char_info.screen_length;
         }
     }
@@ -238,7 +244,8 @@ static void calc_new_col(BufferPos *pos, size_t new_offset)
     CharInfo char_info;
 
     while (pos->offset < new_offset) {
-        pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, *pos);
+        pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, 
+                            *pos, pos->config);
         pos->col_no += char_info.screen_length;
         pos->offset += char_info.byte_length;
     }

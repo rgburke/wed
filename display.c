@@ -58,7 +58,7 @@ static void vertical_scroll_linewrap(Buffer *);
 static void horizontal_scroll(Buffer *);
 static size_t update_line_no_width(Buffer *, int);
 static size_t line_screen_length(const BufferPos *, WindowInfo win_info);
-static size_t line_screen_height(WindowInfo, const BufferPos *);
+static size_t line_screen_height(const Buffer *, const BufferPos *);
 
 /* ncurses setup */
 void init_display(const Theme *theme)
@@ -76,7 +76,6 @@ void init_display(const Theme *theme)
     nl();
     keypad(stdscr, TRUE);
     curs_set(1);
-    set_tabsize(cf_int("tabwidth"));
 
     text_y = LINES - 2;
     text_x = COLS;
@@ -186,7 +185,7 @@ void init_color_pairs(const Theme *theme)
 void update_display(Session *sess)
 {
     Buffer *buffer = sess->active_buffer;
-    int line_wrap = cf_bool("linewrap");
+    int line_wrap = cf_bool(buffer->config, CV_LINEWRAP);
     WINDOW *draw_win = windows[buffer->win_info.draw_window];
 
     if (line_wrap) {
@@ -447,10 +446,10 @@ void draw_errors(Session *sess)
     WindowInfo *win_info = &error_buffer->win_info;
     WindowInfo win_info_orig = *win_info;
     bp_init(&pos, error_buffer->data, &error_buffer->cef, 
-            &error_buffer->file_format);
+            &error_buffer->file_format, error_buffer->config);
 
     while (!bp_at_buffer_end(&pos)) {
-        screen_lines += line_screen_height(*win_info, &pos);
+        screen_lines += line_screen_height(error_buffer, &pos);
         bp_to_line_end(&pos);
         bp_next_char(&pos);
     }
@@ -605,7 +604,7 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
         while (draw_pos->col_no < win_info.horizontal_scroll &&
                !bp_at_line_end(draw_pos)) {
 
-            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *draw_pos);
+            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *draw_pos, buffer->config);
 
             // TODO Also handle unprintable characters when horizontally scrolling 
             if (draw_pos->col_no + char_info.screen_length > win_info.horizontal_scroll) {
@@ -653,7 +652,7 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
                 }
             }
 
-            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *draw_pos);
+            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *draw_pos, buffer->config);
 
             draw_char(char_info, draw_pos, draw_win, window_width, line_wrap);
 
@@ -671,7 +670,7 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
         screen_length -= window_width;
     }
 
-    if (scr_line_num < screen_height_from_screen_length(win_info, draw_pos->col_no - start_col)) {
+    if (scr_line_num < screen_height_from_screen_length(buffer, draw_pos->col_no - start_col)) {
         scr_line_num++;
     }
 
@@ -715,12 +714,12 @@ static void position_cursor(Buffer *buffer, int line_wrap)
 
     if (line_wrap) {
         while (screen_start.line_no < pos.line_no) {
-            cursor_y += line_screen_height(win_info, &screen_start);
+            cursor_y += line_screen_height(buffer, &screen_start);
             bp_next_line(&screen_start);
         }
 
         size_t screen_length = pos.col_no - screen_start.col_no;
-        cursor_y += win_info.start_y + screen_height_from_screen_length(win_info, screen_length) - 1;
+        cursor_y += win_info.start_y + screen_height_from_screen_length(buffer, screen_length) - 1;
         cursor_x = win_info.start_x + (screen_length %= win_info.width);
     } else {
         cursor_y = win_info.start_y + pos.line_no - screen_start.line_no;
@@ -731,16 +730,14 @@ static void position_cursor(Buffer *buffer, int line_wrap)
     wnoutrefresh(draw_win);
 }
 
-/* TODO This isn't generic, it assumes line wrapping is enabled. This 
- * may not be the case in future when horizontal scrolling is added. */
-size_t screen_col_no(WindowInfo win_info, BufferPos pos)
+size_t screen_col_no(const Buffer *buffer, const BufferPos *pos)
 {
     size_t col_no;
 
-    if (cf_bool("linewrap")) {
-        col_no = ((pos.col_no - 1) % win_info.width) + 1;
+    if (cf_bool(buffer->config, CV_LINEWRAP)) {
+        col_no = ((pos->col_no - 1) % buffer->win_info.width) + 1;
     } else {
-        col_no = pos.col_no;
+        col_no = pos->col_no;
     }
 
     return col_no;
@@ -756,22 +753,22 @@ static size_t line_screen_length(const BufferPos *pos, WindowInfo win_info)
     return tmp.col_no - pos->col_no;
 }
 
-static size_t line_screen_height(WindowInfo win_info, const BufferPos *pos)
+static size_t line_screen_height(const Buffer *buffer, const BufferPos *pos)
 {
-    return screen_height_from_screen_length(win_info, line_screen_length(pos, win_info));
+    return screen_height_from_screen_length(buffer, line_screen_length(pos, buffer->win_info));
 }
 
 /* This calculates the number of lines that text, when displayed on the screen
  * takes up screen_length columns, takes up */
-size_t screen_height_from_screen_length(WindowInfo win_info, size_t screen_length)
+size_t screen_height_from_screen_length(const Buffer *buffer, size_t screen_length)
 {
-    if (!cf_bool("linewrap") || screen_length == 0) {
+    if (!cf_bool(buffer->config, CV_LINEWRAP) || screen_length == 0) {
         return 1;
-    } else if ((screen_length % win_info.width) == 0) {
+    } else if ((screen_length % buffer->win_info.width) == 0) {
         screen_length++;
     }
 
-    return roundup_div(screen_length, win_info.width);
+    return roundup_div(screen_length, buffer->win_info.width);
 }
 
 /* TODO consider using ncurses scroll function as well */
@@ -816,13 +813,13 @@ static void vertical_scroll_linewrap(Buffer *buffer)
         (pos.line_no == screen_start->line_no && pos.col_no < screen_start->col_no)) {
         *screen_start = pos;
 
-        if (!bf_bp_at_screen_line_start(screen_start, &buffer->win_info)) {
+        if (!bf_bp_at_screen_line_start(buffer, screen_start)) {
             bf_bp_to_screen_line_start(buffer, screen_start, 0, 0);
         }
     } else {
         BufferPos start = pos;
 
-        if (!bf_bp_at_screen_line_start(&start, &buffer->win_info)) {
+        if (!bf_bp_at_screen_line_start(buffer, &start)) {
             bf_bp_to_screen_line_start(buffer, &start, 0, 0);
         }
 
@@ -878,13 +875,13 @@ static size_t update_line_no_width(Buffer *buffer, int line_wrap)
 
     size_t max_line_no;
 
-    if (!cf_bool("lineno")) {
+    if (!cf_bool(buffer->config, CV_LINENO)) {
         max_line_no = 0;
     } else if (line_wrap) {
         size_t screen_lines = 0;
 
         while (!bp_at_buffer_end(&screen_start) && screen_lines < win_info->height) {
-            screen_lines += line_screen_height(*win_info, &screen_start);
+            screen_lines += line_screen_height(buffer, &screen_start);
             bp_next_line(&screen_start);
         }
 

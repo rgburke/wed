@@ -25,6 +25,8 @@
 #include "session.h"
 #include "buffer.h"
 
+#define CE_VAL(sessionref,bufferref) (ConfigEntity) { .sess = (sessionref), .buffer = (bufferref) }
+
 #define CFG_TABWIDTH_MIN 1
 #define CFG_TABWIDTH_MAX 8
 
@@ -38,33 +40,48 @@ typedef enum {
     CT_THEME
 } ConfigType;
 
+typedef enum {
+    CV_LINEWRAP,
+    CV_LINENO,
+    CV_TABWIDTH,
+    CV_WEDRUNTIME,
+    CV_FILETYPE,
+    CV_SYNTAX,
+    CV_SYNTAXTYPE,
+    CV_THEME,
+    CV_EXPANDTAB,
+    CV_AUTOINDENT,
+    CV_FILEFORMAT,
+    CV_ENTRY_NUM
+} ConfigVariable;
+
+typedef struct {
+    Session *sess;
+    Buffer *buffer;
+} ConfigEntity;
+
 typedef struct {
     char *name;
     char *short_name;  
     ConfigLevel config_levels;
     Value default_value;
-    Status (*custom_validator)(Session *, Value);
-    Status (*on_change_event)(Session *, Value, Value);
+    Status (*custom_validator)(ConfigEntity, Value);
+    Status (*on_change_event)(ConfigEntity, Value, Value);
 } ConfigVariableDescriptor;
 
-void cf_set_config_session(Session *);
-Status cf_init_config(void);
-void cf_end_config(void);
+int cf_str_to_var(const char *, ConfigVariable *);
+ConfigLevel cf_get_config_levels(ConfigVariable);
 Status cf_init_session_config(Session *);
-int cf_populate_default_config(HashMap *, ConfigLevel, int);
+int cf_populate_config(const HashMap *, HashMap *, ConfigLevel);
 void cf_load_config_def(Session *, ConfigType, const char *);
 void cf_free_config(HashMap *);
 Status cf_load_config(Session *, const char *);
 Status cf_load_config_if_exists(Session *, const char *, const char *);
-Status cf_set_var(Session *, ConfigLevel, char *, Value);
-Status cf_set_session_var(Session *, char *, Value);
-Status cf_set_buffer_var(Buffer *, char *, Value);
-Status cf_print_var(Session *sess, const char *);
-int cf_bool(const char *);
-long cf_int(const char *);
-const char *cf_string(const char *);
-int cf_bf_bool(const char *, const Buffer *);
-long cf_bf_int(const char *, const Buffer *);
-const char *cf_bf_string(const char *, const Buffer *);
+Status cf_set_named_var(ConfigEntity, ConfigLevel, char *, Value);
+Status cf_set_var(ConfigEntity, ConfigLevel, ConfigVariable, Value);
+Status cf_print_var(ConfigEntity, ConfigLevel, const char *);
+int cf_bool(const HashMap *, ConfigVariable);
+long cf_int(const HashMap *, ConfigVariable);
+const char *cf_string(const HashMap *, ConfigVariable);
 
 #endif

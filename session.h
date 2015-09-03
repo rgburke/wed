@@ -93,6 +93,7 @@ Status se_add_replace_to_history(Session *, char *);
 Status se_add_cmd_to_history(Session *, char *);
 Status se_add_filetype_def(Session *, FileType *);
 Status se_add_syn_def(Session *, SyntaxDefinition *, const char *);
+void se_determine_syntaxtype(Session *, Buffer *);
 int se_is_valid_syntaxtype(Session *, const char *);
 const SyntaxDefinition *se_get_syntax_def(const Session *, const Buffer *);
 int se_is_valid_theme(Session *, const char *);

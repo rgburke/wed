@@ -55,10 +55,6 @@ int main(int argc, char *argv[])
 
     setlocale(LC_ALL, "");
 
-    if (!STATUS_IS_SUCCESS(cf_init_config())) {
-        fatal("Unable to initialise config");
-    }
-
     if (!se_init(sess, argv, argc)) {
         fatal("Unable to initialise session");
     }
@@ -66,7 +62,6 @@ int main(int argc, char *argv[])
     ip_edit(sess);
 
     se_free(sess);
-    cf_end_config();
     
     return 0;
 }

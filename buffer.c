@@ -37,7 +37,6 @@
 #define DETECT_FF_LINE_NUM 5
 
 static Status reset_buffer(Buffer *);
-static void bf_detect_fileformat(Buffer *);
 static int is_selection(Direction *);
 static void bf_default_movement_selection_handler(Buffer *, int, Direction *);
 static Status bf_change_real_line(Buffer *, BufferPos *, Direction, int);
@@ -48,7 +47,7 @@ static Status bf_insert_expanded_tab(Buffer *, int);
 static Status bf_auto_indent(Buffer *, int);
 static Status bf_convert_fileformat(TextSelection *, TextSelection *, int *);
 
-Buffer *bf_new(const FileInfo *file_info)
+Buffer *bf_new(const FileInfo *file_info, const HashMap *config)
 {
     assert(file_info != NULL);
 
@@ -67,7 +66,7 @@ Buffer *bf_new(const FileInfo *file_info)
         return NULL;
     }
 
-    if (!cf_populate_default_config(buffer->config, CL_BUFFER, 1)) {
+    if (!cf_populate_config(config, buffer->config, CL_BUFFER)) {
         bf_free(buffer);
         return NULL;
     }
@@ -76,9 +75,9 @@ Buffer *bf_new(const FileInfo *file_info)
     buffer->encoding_type = ENC_UTF8;
     buffer->file_format = FF_UNIX;
     en_init_char_enc_funcs(buffer->encoding_type, &buffer->cef);
-    bp_init(&buffer->pos, buffer->data, &buffer->cef, &buffer->file_format);
-    bp_init(&buffer->screen_start, buffer->data, &buffer->cef, &buffer->file_format);
-    bp_init(&buffer->select_start, buffer->data, &buffer->cef, &buffer->file_format);
+    bp_init(&buffer->pos, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
+    bp_init(&buffer->screen_start, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
+    bp_init(&buffer->select_start, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
     bf_select_reset(buffer);
     init_window_info(&buffer->win_info);
     bs_init_default_opt(&buffer->search);
@@ -87,7 +86,7 @@ Buffer *bf_new(const FileInfo *file_info)
     return buffer;
 }
 
-Buffer *bf_new_empty(const char *file_name)
+Buffer *bf_new_empty(const char *file_name, const HashMap *config)
 {
     FileInfo file_info;
 
@@ -95,7 +94,7 @@ Buffer *bf_new_empty(const char *file_name)
         return NULL;
     }
 
-    Buffer *buffer = bf_new(&file_info); 
+    Buffer *buffer = bf_new(&file_info, config); 
     RETURN_IF_NULL(buffer);
 
     return buffer;
@@ -135,23 +134,23 @@ static Status reset_buffer(Buffer *buffer)
         return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to reset buffer");
     }
 
-    bp_init(&buffer->pos, buffer->data, &buffer->cef, &buffer->file_format);
-    bp_init(&buffer->screen_start, buffer->data, &buffer->cef, &buffer->file_format);
-    bp_init(&buffer->select_start, buffer->data, &buffer->cef, &buffer->file_format);
+    bp_init(&buffer->pos, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
+    bp_init(&buffer->screen_start, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
+    bp_init(&buffer->select_start, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
     bf_select_reset(buffer);
     bf_update_line_col_offset(buffer, &buffer->pos);
 
     return STATUS_SUCCESS;
 }
 
-static void bf_detect_fileformat(Buffer *buffer)
+FileFormat bf_detect_fileformat(const Buffer *buffer)
 {
     FileFormat file_format = FF_UNIX;
 
     if (gb_lines(buffer->data) > 0) {
         size_t lines = MIN(gb_lines(buffer->data), DETECT_FF_LINE_NUM);
-        size_t unix = 0;
-        size_t dos = 0;
+        size_t unix_le = 0;
+        size_t dos_le = 0;
         size_t point = 0;
 
         do {
@@ -160,24 +159,18 @@ static void bf_detect_fileformat(Buffer *buffer)
             }
 
             if (point > 0 && gb_get_at(buffer->data, point - 1) == '\r') {
-                dos++; 
+                dos_le++; 
             } else {
-                unix++;
+                unix_le++;
             }
         } while (--lines != 0);
 
-        if (dos > unix) {
+        if (dos_le > unix_le) {
             file_format = FF_WINDOWS;
         }
     }
 
-    if (file_format == FF_UNIX) {
-        cf_set_buffer_var(buffer, "fileformat", STR_VAL("unix"));
-    } else if (file_format == FF_WINDOWS) {
-        cf_set_buffer_var(buffer, "fileformat", STR_VAL("windows"));
-    }
-
-    bf_set_fileformat(buffer, file_format);
+    return file_format;
 }
 
 /* Loads file into buffer structure */
@@ -222,10 +215,6 @@ Status bf_load_file(Buffer *buffer)
     gb_set_point(buffer->data, 0);
 
     fclose(input_file);
-
-    if (STATUS_IS_SUCCESS(status)) {
-        bf_detect_fileformat(buffer);
-    }
 
     return status;
 }
@@ -385,10 +374,10 @@ int bf_bp_in_range(const Range *range, const BufferPos *pos)
 }
 
 /* TODO Consider UTF-8 punctuation and whitespace */
-CharacterClass bf_character_class(const BufferPos *pos)
+CharacterClass bf_character_class(const Buffer *buffer, const BufferPos *pos)
 {
     CharInfo char_info;
-    pos->cef->char_info(&char_info, CIP_DEFAULT, *pos);
+    pos->cef->char_info(&char_info, CIP_DEFAULT, *pos, buffer->config);
 
     if (char_info.byte_length == 1) {
         uchar character = bp_get_uchar(pos);
@@ -419,6 +408,19 @@ int bf_get_fileformat(const char *ff_name, FileFormat *file_format)
     return 0;
 }
 
+const char *bf_get_fileformat_str(FileFormat file_format)
+{
+    if (file_format == FF_UNIX) {
+        return "unix";
+    } else if (file_format == FF_WINDOWS) {
+        return "windows";
+    }
+
+    assert(!"Invalid FileFormat");
+
+    return "unix";
+}
+
 void bf_set_fileformat(Buffer *buffer, FileFormat file_format)
 {
     assert(file_format == FF_UNIX || file_format == FF_WINDOWS);
@@ -438,19 +440,19 @@ const char *bf_new_line_str(FileFormat file_format)
     return "\n";
 }
 
-int bf_bp_at_screen_line_start(const BufferPos *pos, const WindowInfo *win_info)
+int bf_bp_at_screen_line_start(const Buffer *buffer, const BufferPos *pos)
 {
-    if (cf_bool("linewrap")) {
-        return ((pos->col_no - 1) % win_info->width) == 0;
+    if (cf_bool(buffer->config, CV_LINEWRAP)) {
+        return ((pos->col_no - 1) % buffer->win_info.width) == 0;
     }
 
     return bp_at_line_start(pos);
 }
 
-int bf_bp_at_screen_line_end(const BufferPos *pos, const WindowInfo *win_info)
+int bf_bp_at_screen_line_end(const Buffer *buffer, const BufferPos *pos)
 {
-    if (cf_bool("linewrap")) {
-        return (pos->col_no % win_info->width) == 0;
+    if (cf_bool(buffer->config, CV_LINEWRAP)) {
+        return (pos->col_no % buffer->win_info.width) == 0;
     }
 
     return bp_at_line_end(pos);
@@ -515,7 +517,7 @@ Status bf_set_bp(Buffer *buffer, const BufferPos *pos)
  * or as close to the original if possible */
 Status bf_change_line(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
 {
-    if (cf_bool("linewrap")) {
+    if (cf_bool(buffer->config, CV_LINEWRAP)) {
         return bf_change_screen_line(buffer, pos, direction, is_cursor);
     }
 
@@ -576,27 +578,27 @@ static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos, Direction di
         bf_default_movement_selection_handler(buffer, is_select, &pos_direction);
     }
 
-    size_t start_col = screen_col_no(buffer->win_info, *pos);
+    size_t start_col = screen_col_no(buffer, pos);
 
     if (direction == DIRECTION_UP) {
-        if (!bf_bp_at_screen_line_start(pos, &buffer->win_info)) {
+        if (!bf_bp_at_screen_line_start(buffer, pos)) {
             RETURN_IF_FAIL(bf_bp_to_screen_line_start(buffer, pos, is_select, 0));
         }
 
         RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
 
-        while (screen_col_no(buffer->win_info, *pos) > start_col) {
+        while (screen_col_no(buffer, pos) > start_col) {
             RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
         }
     } else {
-        if (!bf_bp_at_screen_line_end(pos, &buffer->win_info)) {
+        if (!bf_bp_at_screen_line_end(buffer, pos)) {
             RETURN_IF_FAIL(bf_bp_to_screen_line_end(buffer, pos, is_select, 0));
         }
 
         RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
 
         while (!bp_at_line_end(pos) && 
-                screen_col_no(buffer->win_info, *pos) < start_col) {
+                screen_col_no(buffer, pos) < start_col) {
             RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
         }
     }
@@ -611,7 +613,7 @@ static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos, Direction di
 static Status bf_advance_bp_to_line_offset(Buffer *buffer, BufferPos *pos, int is_select)
 {
     size_t global_col_offset = buffer->line_col_offset;
-    size_t current_col_offset = screen_col_no(buffer->win_info, *pos) - 1;
+    size_t current_col_offset = screen_col_no(buffer, pos) - 1;
     Direction direction = DIRECTION_RIGHT;
 
     if (is_select) {
@@ -715,7 +717,7 @@ Status bf_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction,
 
 static void bf_update_line_col_offset(Buffer *buffer, BufferPos *pos)
 {
-    if (cf_bool("linewrap")) {
+    if (cf_bool(buffer->config, CV_LINEWRAP)) {
         /* Windowinfo may not be initialised when the error buffer is populated,
          * but line_col_offset isn't needed in this case anyway. */
         if (buffer->win_info.width > 0) {
@@ -728,7 +730,7 @@ static void bf_update_line_col_offset(Buffer *buffer, BufferPos *pos)
 
 Status bf_to_line_start(Buffer *buffer, BufferPos *pos, int is_select, int is_cursor)
 {
-    if (cf_bool("linewrap")) {
+    if (cf_bool(buffer->config, CV_LINEWRAP)) {
         return bf_bp_to_screen_line_start(buffer, pos, is_select, is_cursor);
     }
 
@@ -765,14 +767,14 @@ Status bf_bp_to_screen_line_start(Buffer *buffer, BufferPos *pos, int is_select,
 
     do {
         RETURN_IF_FAIL(bf_change_char(buffer, pos, direction, is_cursor));
-    } while (pos->offset > 0 && !bf_bp_at_screen_line_start(pos, &buffer->win_info));
+    } while (pos->offset > 0 && !bf_bp_at_screen_line_start(buffer, pos));
 
     return STATUS_SUCCESS;
 }
 
 Status bf_to_line_end(Buffer *buffer, int is_select)
 {
-    if (cf_bool("linewrap")) {
+    if (cf_bool(buffer->config, CV_LINEWRAP)) {
         return bf_bp_to_screen_line_end(buffer, &buffer->pos, is_select, 1);
     }
 
@@ -811,7 +813,7 @@ Status bf_bp_to_screen_line_end(Buffer *buffer, BufferPos *pos, int is_select, i
     do {
         RETURN_IF_FAIL(bf_change_char(buffer, pos, direction, is_cursor));
     } while (!bp_at_line_end(pos) &&
-             !bf_bp_at_screen_line_end(pos, &buffer->win_info));
+             !bf_bp_at_screen_line_end(buffer, pos));
 
     return STATUS_SUCCESS;
 }
@@ -825,7 +827,7 @@ Status bf_to_next_word(Buffer *buffer, int is_select)
     Status status;
 
     if (is_select) {
-        while (bf_character_class(pos) == CCLASS_WHITESPACE) {
+        while (bf_character_class(buffer, pos) == CCLASS_WHITESPACE) {
             RETURN_IF_FAIL(bf_change_char(buffer, pos, direction, 1));
 
             if (bp_at_line_start(pos) || bp_at_buffer_end(pos)) {
@@ -834,20 +836,20 @@ Status bf_to_next_word(Buffer *buffer, int is_select)
         }
     }
 
-    CharacterClass start_class = bf_character_class(pos);
+    CharacterClass start_class = bf_character_class(buffer, pos);
 
     do {
         status = bf_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
     } while (!bp_at_buffer_end(pos) &&
-             start_class == bf_character_class(pos));
+             start_class == bf_character_class(buffer, pos));
 
     if (is_select) {
         return STATUS_SUCCESS;
     }
 
     while (!bp_at_line_end(pos) &&
-           bf_character_class(pos) == CCLASS_WHITESPACE) {
+           bf_character_class(buffer, pos) == CCLASS_WHITESPACE) {
 
         status = bf_change_char(buffer, pos, direction, 1);
         RETURN_IF_FAIL(status);
@@ -871,15 +873,15 @@ Status bf_to_prev_word(Buffer *buffer, int is_select)
         if (bp_at_line_end(pos) || bp_at_buffer_start(pos)) {
             return STATUS_SUCCESS;
         }
-    } while (bf_character_class(pos) == CCLASS_WHITESPACE);
+    } while (bf_character_class(buffer, pos) == CCLASS_WHITESPACE);
 
-    CharacterClass start_class = bf_character_class(pos);
+    CharacterClass start_class = bf_character_class(buffer, pos);
     BufferPos look_ahead = buffer->pos;
 
     while (!bp_at_line_start(pos)) {
         RETURN_IF_FAIL(bf_change_char(buffer, &look_ahead, DIRECTION_LEFT, 0));
 
-        if (start_class != bf_character_class(&look_ahead)) {
+        if (start_class != bf_character_class(buffer, &look_ahead)) {
             break;
         }
 
@@ -943,7 +945,7 @@ Status bf_change_page(Buffer *buffer, Direction direction)
 static Status bf_insert_expanded_tab(Buffer *buffer, int advance_cursor)
 {
     static char spaces[CFG_TABWIDTH_MAX + 1];
-    size_t tabwidth = cf_int("tabwidth");
+    size_t tabwidth = cf_int(buffer->config, CV_TABWIDTH);
     tabwidth = tabwidth - ((buffer->pos.col_no - 1) % tabwidth);
     memset(spaces, ' ', tabwidth);
     spaces[tabwidth] = '\0';
@@ -958,7 +960,7 @@ static Status bf_auto_indent(Buffer *buffer, int advance_cursor)
     size_t line_start_offset = tmp.offset;
 
     while (!bp_at_line_end(&tmp) &&
-           bf_character_class(&tmp) == CCLASS_WHITESPACE) {
+           bf_character_class(buffer, &tmp) == CCLASS_WHITESPACE) {
         bp_next_char(&tmp);                  
     }
 
@@ -998,9 +1000,9 @@ Status bf_insert_character(Buffer *buffer, const char *character, int advance_cu
         return st_get_error(ERR_INVALID_CHARACTER, "Invalid character %s", character);
     }
 
-    if (*character == '\t' && cf_bool("expandtab")) {
+    if (*character == '\t' && cf_bool(buffer->config, CV_EXPANDTAB)) {
         return bf_insert_expanded_tab(buffer, advance_cursor);
-    } else if (*character == '\n' && cf_bool("autoindent")) {
+    } else if (*character == '\n' && cf_bool(buffer->config, CV_AUTOINDENT)) {
         return bf_auto_indent(buffer, advance_cursor);
     }
 
@@ -1167,7 +1169,8 @@ Status bf_delete_character(Buffer *buffer)
         byte_length = 2;
     } else {
         CharInfo char_info;
-        buffer->cef.char_info(&char_info, CIP_DEFAULT, buffer->pos);
+        buffer->cef.char_info(&char_info, CIP_DEFAULT, 
+                              buffer->pos, buffer->config);
         byte_length = char_info.byte_length;
     }
 

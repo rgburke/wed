@@ -108,6 +108,7 @@ int cp_add_statement_to_list(ASTNode *, ASTNode *);
 int cp_eval_ast(Session *, ConfigLevel, ASTNode *);
 void cp_free_ast(ASTNode *);
 void cp_update_parser_location(const char *, const char *);
+Status cp_convert_to_config_error(Status, const ParseLocation *);
 Status cp_get_config_error(ErrorCode, const ParseLocation *, const char *, ...);
 void yyerror(Session *, ConfigLevel, const char *, char const *);
 Status cp_parse_config_file(Session *, ConfigLevel, const char *);

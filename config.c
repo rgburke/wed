@@ -39,79 +39,70 @@
 #define CFG_FILETYPES_FILE_NAME "filetypes.wed"
 #define CFG_USER_DIR "wed"
 
-static Session *curr_sess = NULL;
-static HashMap *config_vars = NULL;
-
-static int cf_is_valid_var(const char *);
-static ConfigVariableDescriptor *cf_clone_config_var_descriptor(const char *);
 static Status cf_path_append(const char *, const char *, char **);
 static void cf_free_cvd(ConfigVariableDescriptor *);
 static const char *cf_get_config_type_string(ConfigType);
-static const ConfigVariableDescriptor *cf_get_variable(const char *);
-static Status cf_set_config_var(HashMap *, ConfigLevel, char *, Value);
-static Status cf_tabwidth_validator(Session *, Value);
-static Status cf_filetype_validator(Session *, Value);
-static Status cf_filetype_on_change_event(Session *, Value, Value);
-static Status cf_syntaxtype_validator(Session *, Value);
-static Status cf_theme_validator(Session *, Value);
-static Status cf_theme_on_change_event(Session *, Value, Value);
-static Status cf_fileformat_validator(Session *, Value);
-static Status cf_fileformat_on_change_event(Session *, Value, Value);
+static Status cf_is_valid_var(ConfigEntity, ConfigLevel, ConfigVariable, ConfigVariableDescriptor **);
+static const ConfigVariableDescriptor *cf_get_variable(const HashMap *, ConfigVariable);
+static Status cf_tabwidth_validator(ConfigEntity, Value);
+static Status cf_filetype_validator(ConfigEntity, Value);
+static Status cf_filetype_on_change_event(ConfigEntity, Value, Value);
+static Status cf_syntaxtype_validator(ConfigEntity, Value);
+static Status cf_theme_validator(ConfigEntity, Value);
+static Status cf_theme_on_change_event(ConfigEntity, Value, Value);
+static Status cf_fileformat_validator(ConfigEntity, Value);
+static Status cf_fileformat_on_change_event(ConfigEntity, Value, Value);
 
-static const ConfigVariableDescriptor default_config[] = {
-    { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                          },
-    { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                          },
-    { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator  , NULL                          },
-    { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL                          },
-    { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , cf_filetype_on_change_event   },
-    { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL                          },
-    { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL                          },
-    { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event      },
-    { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0)        , NULL                   , NULL                          },
-    { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL                          },
-    { "fileformat", "ff" , CL_BUFFER             , STR_VAL_STRUCT("unix")    , cf_fileformat_validator, cf_fileformat_on_change_event }
+static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
+    [CV_LINEWRAP]   = { "linewrap", "lw", CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1), 
+                        NULL, NULL },
+    [CV_LINENO]     = { "lineno", "ln", CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1), 
+                        NULL, NULL },
+    [CV_TABWIDTH]   = { "tabwidth", "tw", CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8), 
+                        cf_tabwidth_validator, NULL },
+    [CV_WEDRUNTIME] = { "wedruntime", "wrt", CL_SESSION, STR_VAL_STRUCT(WEDRUNTIME), 
+                        NULL, NULL },
+    [CV_FILETYPE]   = { "filetype", "ft", CL_BUFFER, STR_VAL_STRUCT(""), 
+                        cf_filetype_validator, cf_filetype_on_change_event },
+    [CV_SYNTAX]     = { "syntax", "sy", CL_SESSION, BOOL_VAL_STRUCT(1), 
+                        NULL, NULL },
+    [CV_SYNTAXTYPE] = { "syntaxtype", "st", CL_BUFFER, STR_VAL_STRUCT(""), 
+                        cf_syntaxtype_validator, NULL },
+    [CV_THEME]      = { "theme", "th", CL_SESSION, STR_VAL_STRUCT("default"), 
+                        cf_theme_validator, cf_theme_on_change_event },
+    [CV_EXPANDTAB]  = { "expandtab", "et", CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0), 
+                        NULL, NULL },
+    [CV_AUTOINDENT] = { "autoindent", "ai", CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1), 
+                        NULL, NULL },
+    [CV_FILEFORMAT] = { "fileformat", "ff", CL_BUFFER, STR_VAL_STRUCT("unix"), 
+                        cf_fileformat_validator, cf_fileformat_on_change_event }
 };
 
-void cf_set_config_session(Session *sess)
-{
-    curr_sess = sess;
-}
+static const size_t cf_var_num = sizeof(cf_default_config) / sizeof(ConfigVariableDescriptor);
 
-Status cf_init_config(void)
+int cf_str_to_var(const char *str, ConfigVariable *config_variable)
 {
-    size_t var_num = sizeof(default_config) / sizeof(ConfigVariableDescriptor);
-    config_vars = new_sized_hashmap(var_num * 4);
+    assert(!is_null_or_empty(str));
 
-    if (!cf_populate_default_config(config_vars, CL_SESSION | CL_BUFFER, 0)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to load config");
+    for (size_t k = 0; k < cf_var_num; k++) {
+        if (strcmp(cf_default_config[k].name, str) == 0 ||
+            strcmp(cf_default_config[k].short_name, str) == 0) {
+
+            if (config_variable != NULL) {
+                *config_variable = k;
+            }
+
+            return 1;
+        }
     }
 
-    return STATUS_SUCCESS;
+    return 0;
 }
 
-void cf_end_config(void)
+ConfigLevel cf_get_config_levels(ConfigVariable config_variable)
 {
-    cf_free_config(config_vars); 
-}
-
-static int cf_is_valid_var(const char *var_name)
-{
-    return hashmap_get(config_vars, var_name) != NULL;
-}
-
-static ConfigVariableDescriptor *cf_clone_config_var_descriptor(const char *var_name)
-{
-    ConfigVariableDescriptor *var = hashmap_get(config_vars, var_name);
-    ConfigVariableDescriptor *clone = malloc(sizeof(ConfigVariableDescriptor));
-    RETURN_IF_NULL(clone);
-    memcpy(clone, var, sizeof(ConfigVariableDescriptor));
-
-    if (!STATUS_IS_SUCCESS(va_deep_copy_value(clone->default_value, &clone->default_value))) {
-        free(clone);
-        return NULL;
-    }
-
-    return clone;
+    assert(config_variable < CV_ENTRY_NUM);
+    return cf_default_config[config_variable].config_levels;
 }
 
 Status cf_init_session_config(Session *sess)
@@ -119,11 +110,10 @@ Status cf_init_session_config(Session *sess)
     HashMap *config = sess->config;
 
     if (config == NULL) {
-        size_t var_num = sizeof(default_config) / sizeof(ConfigVariableDescriptor);
-        config = sess->config = new_sized_hashmap(var_num * 4);
+        config = sess->config = new_sized_hashmap(cf_var_num * 4);
     }
 
-    if (!cf_populate_default_config(config, CL_SESSION, 0)) {
+    if (!cf_populate_config(NULL, config, CL_SESSION)) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to load config");
     }
     
@@ -133,7 +123,7 @@ Status cf_init_session_config(Session *sess)
 
     se_add_error(sess, cf_load_config_if_exists(sess, home_path, "/." CFG_FILE_NAME));
 
-    const char *wed_run_time = cf_string("wedruntime");
+    const char *wed_run_time = cf_string(sess->config, CV_WEDRUNTIME);
 
     se_add_error(sess, cf_load_config_if_exists(sess, wed_run_time, "/" CFG_FILETYPES_FILE_NAME));
 
@@ -161,11 +151,8 @@ void cf_free_config(HashMap *config)
         return;
     }
 
-    size_t var_num = sizeof(default_config) / sizeof(ConfigVariableDescriptor);
-
-    /* TODO Consider iterating over the key set of the hash instead */
-    for (size_t k = 0; k < var_num; k++) {
-        ConfigVariableDescriptor *cvd = hashmap_get(config, default_config[k].name);
+    for (size_t k = 0; k < cf_var_num; k++) {
+        ConfigVariableDescriptor *cvd = hashmap_get(config, cf_default_config[k].name);
         cf_free_cvd(cvd);
     }
 
@@ -182,14 +169,14 @@ static void cf_free_cvd(ConfigVariableDescriptor *cvd)
     free(cvd);
 }
 
-int cf_populate_default_config(HashMap *config, ConfigLevel config_level, int strict_comparison)
+int cf_populate_config(const HashMap *src_config, HashMap *dst_config, 
+                       ConfigLevel config_level)
 {
-    size_t var_num = sizeof(default_config) / sizeof(ConfigVariableDescriptor);
     ConfigVariableDescriptor *clone;
+    const ConfigVariableDescriptor *orig;
 
-    for (size_t k = 0; k < var_num; k++) {
-        if ((strict_comparison && default_config[k].config_levels != config_level) ||
-            !(default_config[k].config_levels & config_level)) {
+    for (size_t k = 0; k < cf_var_num; k++) {
+        if (!(cf_default_config[k].config_levels & config_level)) {
             continue;
         }
 
@@ -199,14 +186,24 @@ int cf_populate_default_config(HashMap *config, ConfigLevel config_level, int st
             return 0;
         }
 
-        memcpy(clone, &default_config[k], sizeof(ConfigVariableDescriptor));
+        if (src_config == NULL) {
+            orig = &cf_default_config[k];
+        } else {
+            orig = hashmap_get(src_config, cf_default_config[k].name);
+
+            if (orig == NULL) {
+                orig = &cf_default_config[k];
+            }
+        }
+
+        memcpy(clone, orig, sizeof(ConfigVariableDescriptor));
 
         if (!STATUS_IS_SUCCESS(va_deep_copy_value(clone->default_value, &clone->default_value))) {
             return 0;
         }
 
-        if (!(hashmap_set(config, clone->name, clone) && 
-              hashmap_set(config, clone->short_name, clone))) {
+        if (!(hashmap_set(dst_config, clone->name, clone) && 
+              hashmap_set(dst_config, clone->short_name, clone))) {
             return 0;
         }
     }
@@ -254,7 +251,7 @@ void cf_load_config_def(Session *sess, ConfigType cf_type,
     snprintf(file_name, file_path_length, file_name_fmt, 
              config_type, config_name);
 
-    const char *wed_run_time = cf_string("wedruntime");
+    const char *wed_run_time = cf_string(sess->config, CV_WEDRUNTIME);
 
     se_add_error(sess, cf_load_config_if_exists(sess, wed_run_time, file_name));
 
@@ -317,89 +314,47 @@ Status cf_load_config(Session *sess, const char *config_file_path)
     return cp_parse_config_file(sess, CL_SESSION, config_file_path);
 }
 
-Status cf_set_var(Session *sess, ConfigLevel config_level, char *var_name, Value value)
+Status cf_set_named_var(ConfigEntity entity, ConfigLevel config_level, 
+                        char *var_name, Value value)
 {
-    if (config_level == CL_SESSION) {
-        return cf_set_session_var(sess, var_name, value);
+    ConfigVariable config_variable;
+
+    if (is_null_or_empty(var_name) ||
+        !cf_str_to_var(var_name, &config_variable)) {
+        return st_get_error(ERR_INVALID_VAR, "Invalid config variable \"%s\"",
+                            var_name);
     }
 
-    return cf_set_buffer_var(sess->active_buffer, var_name, value);
+    return cf_set_var(entity, config_level, config_variable, value);
 }
 
-Status cf_set_session_var(Session *sess, char *var_name, Value value)
+Status cf_set_var(ConfigEntity entity, ConfigLevel config_level, 
+                  ConfigVariable config_variable, Value value)
 {
-    return cf_set_config_var(sess->config, CL_SESSION, var_name, value);
-}
+    ConfigVariableDescriptor *var;
 
-Status cf_set_buffer_var(Buffer *buffer, char *var_name, Value value)
-{
-    return cf_set_config_var(buffer->config, CL_BUFFER, var_name, value);
-}
-
-static Status cf_set_config_var(HashMap *config, ConfigLevel config_level, 
-                                char *var_name, Value value)
-{
-    if (config == NULL || var_name == NULL) {
-        return st_get_error(ERR_INVALID_VAR, "Invalid property");
-    }
-
-    if (!cf_is_valid_var(var_name)) {
-        return st_get_error(ERR_INVALID_VAR, "Invalid property %s", var_name);
-    }
-
-    ConfigVariableDescriptor *var = hashmap_get(config, var_name);
-    int existing_var = (var != NULL);
-
-    if (!existing_var) {
-        var = cf_clone_config_var_descriptor(var_name);
-
-        if (var == NULL) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to set config value");
-        }
-    }
-
-    Status status = STATUS_SUCCESS;
-
-    if (!(var->config_levels & config_level)) {
-        status = st_get_error(ERR_INCORRECT_CONFIG_LEVEL, 
-                              "Variable %s can only set at the %s level",
-                              var->name,
-                              (var->config_levels & CL_BUFFER) ? "buffer" : "session");
-        goto cleanup;
-    }
+    RETURN_IF_FAIL(cf_is_valid_var(entity, config_level, config_variable, &var));
 
     if (var->default_value.type != value.type) {
         if (var->default_value.type == VAL_TYPE_BOOL && value.type == VAL_TYPE_INT) {
             value = BOOL_VAL(IVAL(value) ? 1 : 0);
         } else {
-            status = st_get_error(ERR_INVALID_VAL, "%s must have value of type %s", 
-                                  var->name, va_get_value_type(var->default_value));
-            goto cleanup;
+            return st_get_error(ERR_INVALID_VAL, "%s must have value of type %s", 
+                                var->name, va_get_value_type(var->default_value));
         }
     }
 
     if (var->custom_validator != NULL) {
-        status = var->custom_validator(curr_sess, value);
-
-        if (!STATUS_IS_SUCCESS(status)) {
-            goto cleanup;
-        }
+        RETURN_IF_FAIL(var->custom_validator(entity, value));
     }
 
     Value old_value = var->default_value;
-    status = va_deep_copy_value(value, &var->default_value); 
+    RETURN_IF_FAIL(va_deep_copy_value(value, &var->default_value));
 
-    if (!STATUS_IS_SUCCESS(status)) {
-        goto cleanup;
-    }
-
-    if (!existing_var) {
-        hashmap_set(config, var->name, var);
-        hashmap_set(config, var->short_name, var);
-    }
+    Status status = STATUS_SUCCESS;
 
     if (var->on_change_event != NULL) {
-        status = var->on_change_event(curr_sess, old_value, value);
+        status = var->on_change_event(entity, old_value, value);
     }
 
     va_free_value(old_value);
@@ -408,44 +363,74 @@ static Status cf_set_config_var(HashMap *config, ConfigLevel config_level,
     char *value_str = va_to_string(value);
     snprintf(config_msg, MAX_MSG_SIZE, "Set %s=%s", var->name, value_str);
     free(value_str);
-    se_add_msg(curr_sess, config_msg);
-
-    return status;
-
-cleanup:
-    if (!existing_var) {
-        cf_free_cvd(var);
-    }
+    se_add_msg(entity.sess, config_msg);
 
     return status;
 }
 
-static const ConfigVariableDescriptor *cf_get_variable(const char *var_name)
+static Status cf_is_valid_var(ConfigEntity entity, ConfigLevel config_level, 
+                              ConfigVariable config_variable, 
+                              ConfigVariableDescriptor **var_ptr)
 {
-    Buffer *buffer = curr_sess->active_buffer;
+    assert(config_variable < CV_ENTRY_NUM);
 
-    ConfigVariableDescriptor *var = NULL;
-   
-    if (buffer != NULL) {
-        var = hashmap_get(buffer->config, var_name);
+    HashMap *config = NULL;
+
+    if (config_level & CL_SESSION) {
+        config = entity.sess->config;
+    } else if (config_level & CL_BUFFER) {
+        config = entity.buffer->config;
     }
+
+    assert(config != NULL);
+
+    const char *var_name = cf_default_config[config_variable].name;
+
+    ConfigVariableDescriptor *var = hashmap_get(config, var_name);
 
     if (var == NULL) {
-        var = hashmap_get(curr_sess->config, var_name);
+        if (!(cf_default_config[config_variable].config_levels & config_level)) {
+            return st_get_error(ERR_INCORRECT_CONFIG_LEVEL, 
+                    "Variable %s can only be referenced at the %s level",
+                    var_name,
+                    (config_level & CL_BUFFER) ? "session" : "buffer");
+        }
+
+        return st_get_error(ERR_INVALID_VAR, "Invalid config variable %s", var_name);
     }
+
+    *var_ptr = var;
+
+    return STATUS_SUCCESS;
+}
+
+static const ConfigVariableDescriptor *cf_get_variable(const HashMap *config,
+                                                       ConfigVariable config_var)
+{
+    assert(config_var >= 0 && config_var < CV_ENTRY_NUM);
+
+    const char *var_name = cf_default_config[config_var].name;
+    const ConfigVariableDescriptor *var = hashmap_get(config, var_name);
+
+    assert(var != NULL);
 
     return var;
 }
 
-Status cf_print_var(Session *sess, const char *var_name)
+Status cf_print_var(ConfigEntity entity, ConfigLevel config_level,
+                    const char *var_name)
 {
-    if (var_name == NULL) {
-        return st_get_error(ERR_INVALID_VAR, "Invalid property");
-    } else if (!cf_is_valid_var(var_name)) {
-        return st_get_error(ERR_INVALID_VAR, "Invalid property %s", var_name);
+    ConfigVariable config_variable;
+
+    if (is_null_or_empty(var_name) ||
+        !cf_str_to_var(var_name, &config_variable)) {
+        return st_get_error(ERR_INVALID_VAR, "Invalid config variable \"%s\"",
+                            var_name);
     }
 
-    const ConfigVariableDescriptor *var = cf_get_variable(var_name);
+    ConfigVariableDescriptor *var;
+
+    RETURN_IF_FAIL(cf_is_valid_var(entity, config_level, config_variable, &var));
 
     char var_msg[MAX_MSG_SIZE];
     char *value_str = va_to_string(var->default_value);
@@ -453,74 +438,41 @@ Status cf_print_var(Session *sess, const char *var_name)
     const char *fmt = (value_type == VAL_TYPE_STR ? "%s=\"%s\"" : "%s=%s");
     snprintf(var_msg, MAX_MSG_SIZE, fmt, var->name, value_str);
     free(value_str);
-    se_add_msg(sess, var_msg);
+    se_add_msg(entity.sess, var_msg);
 
     return STATUS_SUCCESS;
 }
 
-int cf_bool(const char *var_name)
+int cf_bool(const HashMap *config, ConfigVariable config_var)
 {
-    const ConfigVariableDescriptor *var = cf_get_variable(var_name);
+    const ConfigVariableDescriptor *var = cf_get_variable(config, config_var);
 
-    assert(var != NULL);
     assert(var->default_value.type == VAL_TYPE_BOOL);
 
     return BVAL(var->default_value);
 }
 
-long cf_int(const char *var_name)
+long cf_int(const HashMap *config, ConfigVariable config_var)
 {
-    const ConfigVariableDescriptor *var = cf_get_variable(var_name);
+    const ConfigVariableDescriptor *var = cf_get_variable(config, config_var);
 
-    assert(var != NULL);
     assert(var->default_value.type == VAL_TYPE_INT);
 
     return IVAL(var->default_value);
 }
 
-const char *cf_string(const char *var_name)
+const char *cf_string(const HashMap *config, ConfigVariable config_var)
 {
-    const ConfigVariableDescriptor *var = cf_get_variable(var_name);
+    const ConfigVariableDescriptor *var = cf_get_variable(config, config_var);
 
-    assert(var != NULL);
     assert(var->default_value.type == VAL_TYPE_STR);
 
     return SVAL(var->default_value);
 }
 
-int cf_bf_bool(const char *var_name, const Buffer *buffer)
+static Status cf_tabwidth_validator(ConfigEntity entity, Value value)
 {
-    const ConfigVariableDescriptor *var = hashmap_get(buffer->config, var_name);
-
-    assert(var != NULL);
-    assert(var->default_value.type == VAL_TYPE_BOOL);
-
-    return BVAL(var->default_value);
-}
-
-long cf_bf_int(const char *var_name, const Buffer *buffer)
-{
-    const ConfigVariableDescriptor *var = hashmap_get(buffer->config, var_name);
-
-    assert(var != NULL);
-    assert(var->default_value.type == VAL_TYPE_INT);
-
-    return IVAL(var->default_value);
-}
-
-const char *cf_bf_string(const char *var_name, const Buffer *buffer)
-{
-    const ConfigVariableDescriptor *var = hashmap_get(buffer->config, var_name);
-
-    assert(var != NULL);
-    assert(var->default_value.type == VAL_TYPE_STR);
-
-    return SVAL(var->default_value);
-}
-
-static Status cf_tabwidth_validator(Session *sess, Value value)
-{
-    (void)sess;
+    (void)entity;
 
     if (IVAL(value) < CFG_TABWIDTH_MIN || IVAL(value) > CFG_TABWIDTH_MAX) {
         return st_get_error(ERR_INVALID_TABWIDTH, "tabwidth value must be in range %d - %d inclusive",
@@ -530,13 +482,13 @@ static Status cf_tabwidth_validator(Session *sess, Value value)
     return STATUS_SUCCESS;
 }
 
-static Status cf_filetype_validator(Session *sess, Value value)
+static Status cf_filetype_validator(ConfigEntity entity, Value value)
 {
     if (SVAL(value) != NULL && *SVAL(value) == '\0') {
         return STATUS_SUCCESS;
     }
 
-    FileType *file_type = hashmap_get(sess->filetypes, SVAL(value));
+    FileType *file_type = hashmap_get(entity.sess->filetypes, SVAL(value));
 
     if (file_type == NULL) {
         return st_get_error(ERR_INVALID_FILETYPE,
@@ -547,36 +499,27 @@ static Status cf_filetype_validator(Session *sess, Value value)
     return STATUS_SUCCESS;
 }
 
-static Status cf_filetype_on_change_event(Session *sess, Value old_val, Value new_val)
+static Status cf_filetype_on_change_event(ConfigEntity entity, Value old_val, Value new_val)
 {
     (void)old_val;
+    (void)new_val;
 
-    if (!se_initialised(sess)) {
+    if (!se_initialised(entity.sess)) {
         return STATUS_SUCCESS;
     }
 
-    Buffer *buffer = sess->active_buffer;
-    int re_enable_msgs = se_disable_msgs(sess);
-    Status status = cf_set_buffer_var(buffer, "syntaxtype", new_val);
-
-    if (re_enable_msgs) {
-        se_enable_msgs(sess);
-    }
-
-    if (!STATUS_IS_SUCCESS(status)) {
-        st_free_status(status);
-    }
+    se_determine_syntaxtype(entity.sess, entity.buffer);
 
     return STATUS_SUCCESS;
 }
 
-static Status cf_syntaxtype_validator(Session *sess, Value value)
+static Status cf_syntaxtype_validator(ConfigEntity entity, Value value)
 {
     if (SVAL(value) != NULL && *SVAL(value) == '\0') {
         return STATUS_SUCCESS;
     }
 
-    if (!se_is_valid_syntaxtype(sess, SVAL(value))) {
+    if (!se_is_valid_syntaxtype(entity.sess, SVAL(value))) {
         return st_get_error(ERR_INVALID_SYNTAXTYPE,
                             "No syntaxtype with name \"%s\" exists",
                             SVAL(value));
@@ -585,9 +528,9 @@ static Status cf_syntaxtype_validator(Session *sess, Value value)
     return STATUS_SUCCESS;
 }
 
-static Status cf_theme_validator(Session *sess, Value value)
+static Status cf_theme_validator(ConfigEntity entity, Value value)
 {
-    if (!se_is_valid_theme(sess, SVAL(value))) {
+    if (!se_is_valid_theme(entity.sess, SVAL(value))) {
         return st_get_error(ERR_INVALID_THEME,
                             "No theme with name \"%s\" exists",
                             SVAL(value));
@@ -596,20 +539,20 @@ static Status cf_theme_validator(Session *sess, Value value)
     return STATUS_SUCCESS;
 }
 
-static Status cf_theme_on_change_event(Session *sess, Value old_val, Value new_val)
+static Status cf_theme_on_change_event(ConfigEntity entity, Value old_val, Value new_val)
 {
     (void)old_val;
     (void)new_val;
 
-    const Theme *theme = se_get_active_theme(sess);
+    const Theme *theme = se_get_active_theme(entity.sess);
     init_color_pairs(theme);    
 
     return STATUS_SUCCESS;
 }
 
-static Status cf_fileformat_validator(Session *sess, Value value)
+static Status cf_fileformat_validator(ConfigEntity entity, Value value)
 {
-    (void)sess;
+    (void)entity;
     FileFormat file_format;
 
     if (!bf_get_fileformat(SVAL(value), &file_format)) {
@@ -621,16 +564,12 @@ static Status cf_fileformat_validator(Session *sess, Value value)
     return STATUS_SUCCESS;
 }
 
-static Status cf_fileformat_on_change_event(Session *sess, Value old_val, Value new_val)
+static Status cf_fileformat_on_change_event(ConfigEntity entity, Value old_val, Value new_val)
 {
     (void)old_val;
 
-    if (!se_initialised(sess)) {
-        return STATUS_SUCCESS;
-    }
-
     FileFormat file_format;
-    Buffer *buffer = sess->active_buffer;
+    Buffer *buffer = entity.buffer;
 
     bf_get_fileformat(SVAL(new_val), &file_format);
     bf_set_fileformat(buffer, file_format);

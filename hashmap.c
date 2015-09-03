@@ -27,7 +27,7 @@
 
 static HashMapNode *new_hashmapnode(const char *, uint32_t, void *);
 static uint32_t murmurhash2(const void *, int, uint32_t);
-static HashMapNode *get_bucket(HashMap *, const char *, uint32_t *, size_t *);
+static HashMapNode *get_bucket(const HashMap *, const char *, uint32_t *, size_t *);
 static int resize_required(HashMap *);
 static int resize_hashmap(HashMap *, size_t);
 static void free_hashmapnodes(HashMap *);
@@ -119,7 +119,7 @@ static uint32_t murmurhash2(const void *key, int len, uint32_t seed)
     return h;
 }
 
-static HashMapNode *get_bucket(HashMap *hashmap, const char *key, uint32_t *hash, size_t *index)
+static HashMapNode *get_bucket(const HashMap *hashmap, const char *key, uint32_t *hash, size_t *index)
 {
     *hash = murmurhash2(key, strlen(key), HM_SEED);
     *index = *hash % hashmap->bucket_num;
@@ -171,7 +171,7 @@ int hashmap_set(HashMap *hashmap, const char *key, void *value)
     return 1;
 }
 
-void *hashmap_get(HashMap *hashmap, const char *key)
+void *hashmap_get(const HashMap *hashmap, const char *key)
 {
     if (key == NULL) {
         return NULL;
@@ -224,12 +224,12 @@ void hashmap_clear(HashMap *hashmap)
     hashmap->entry_num = 0;
 }
 
-size_t hashmap_size(HashMap *hashmap)
+size_t hashmap_size(const HashMap *hashmap)
 {
     return hashmap->entry_num;
 }
 
-const char **hashmap_get_keys(HashMap *hashmap)
+const char **hashmap_get_keys(const HashMap *hashmap)
 {
     const char **keys = malloc(sizeof(char *) * hashmap->entry_num);
 
