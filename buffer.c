@@ -443,7 +443,22 @@ const char *bf_new_line_str(FileFormat file_format)
 int bf_bp_at_screen_line_start(const Buffer *buffer, const BufferPos *pos)
 {
     if (cf_bool(buffer->config, CV_LINEWRAP)) {
-        return ((pos->col_no - 1) % buffer->win_info.width) == 0;
+        size_t screen_col_no = (pos->col_no - 1) % buffer->win_info.width;
+
+        if (screen_col_no == 0) {
+            return 1;
+        }
+
+        BufferPos prev_char = *pos;
+        bp_prev_char(&prev_char);
+
+        size_t prev_screen_col_no = (prev_char.col_no - 1) % buffer->win_info.width;
+
+        if (prev_screen_col_no == 0) {
+            return 0;
+        }
+
+        return screen_col_no < prev_screen_col_no;
     }
 
     return bp_at_line_start(pos);
@@ -452,7 +467,22 @@ int bf_bp_at_screen_line_start(const Buffer *buffer, const BufferPos *pos)
 int bf_bp_at_screen_line_end(const Buffer *buffer, const BufferPos *pos)
 {
     if (cf_bool(buffer->config, CV_LINEWRAP)) {
-        return (pos->col_no % buffer->win_info.width) == 0;
+        size_t screen_col_no = pos->col_no % buffer->win_info.width; 
+
+        if (screen_col_no == 0) {
+            return 1;
+        }
+
+        BufferPos next_char = *pos;
+        bp_next_char(&next_char);
+
+        size_t next_screen_col_no = next_char.col_no % buffer->win_info.width;
+
+        if (next_screen_col_no == 0) {
+            return 0;
+        }
+
+        return screen_col_no > next_screen_col_no;
     }
 
     return bp_at_line_end(pos);
@@ -587,7 +617,8 @@ static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos, Direction di
 
         RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
 
-        while (screen_col_no(buffer, pos) > start_col) {
+        while (!bf_bp_at_screen_line_start(buffer, pos) &&
+               screen_col_no(buffer, pos) > start_col) {
             RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
         }
     } else {
@@ -597,8 +628,9 @@ static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos, Direction di
 
         RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
 
-        while (!bp_at_line_end(pos) && 
-                screen_col_no(buffer, pos) < start_col) {
+        while (!bp_at_line_end(pos) &&
+               !bf_bp_at_screen_line_end(buffer, pos) &&
+               screen_col_no(buffer, pos) < start_col) {
             RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
         }
     }

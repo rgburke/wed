@@ -631,7 +631,8 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
     const SyntaxMatch *syn_match;
 
     while (!bp_at_line_end(draw_pos) && scr_line_num < window_height) {
-        wmove(draw_win, win_info.start_y + y + scr_line_num, win_info.start_x);
+        wmove(draw_win, win_info.start_y + y + scr_line_num, 
+                        win_info.start_x + screen_length);
 
         for (screen_length += win_info.start_x; 
              screen_length < window_width && !bp_at_line_end(draw_pos);) {

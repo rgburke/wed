@@ -189,7 +189,22 @@ void bp_prev_char(BufferPos *pos)
             CharInfo char_info;
             pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, 
                                 *pos, pos->config);
-            pos->col_no -= char_info.screen_length;
+
+            if (char_info.byte_length == prev_offset) {
+                pos->col_no -= char_info.screen_length;
+            } else {
+                /* Invalid byte sequences */
+                size_t remaining_bytes = prev_offset - char_info.byte_length;    
+
+                while (remaining_bytes > 0) {
+                    pos->offset += char_info.byte_length; 
+                    pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, 
+                                        *pos, pos->config);
+                    remaining_bytes -= char_info.byte_length;
+                }
+
+                pos->col_no -= char_info.screen_length;
+            }
         }
     }
 }
