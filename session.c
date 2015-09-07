@@ -48,10 +48,6 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
-    if ((sess->cmd_prompt.cmd_buffer = bf_new_empty("commands", sess->config)) == NULL) {
-        return 0;
-    }
-
     if ((sess->msg_buffer = bf_new_empty("messages", sess->config)) == NULL) {
         return 0;
     }
@@ -77,6 +73,16 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
     }
 
     if ((sess->syn_defs = new_hashmap()) == NULL) {
+        return 0;
+    }
+
+    Buffer *prompt_buffer;
+
+    if ((prompt_buffer = bf_new_empty("prompt", sess->config)) == NULL) {
+        return 0;
+    }
+
+    if ((sess->prompt = pr_new(prompt_buffer)) == NULL) {
         return 0;
     }
 
@@ -112,9 +118,7 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
-    Buffer *cmd_buffer = sess->cmd_prompt.cmd_buffer;
-    cf_set_var(CE_VAL(sess, cmd_buffer), CL_BUFFER, CV_LINEWRAP, INT_VAL(0));
-
+    cf_set_var(CE_VAL(sess, prompt_buffer), CL_BUFFER, CV_LINEWRAP, INT_VAL(0));
     se_enable_msgs(sess);
 
     sess->initialised = 1;
@@ -140,8 +144,7 @@ void se_free(Session *sess)
     cm_free_keymap(sess);
     bf_free_textselection(&sess->clipboard);
     cf_free_config(sess->config);
-    bf_free(sess->cmd_prompt.cmd_buffer);
-    free(sess->cmd_prompt.cmd_text);
+    pr_free(sess->prompt, 1);
     bf_free(sess->error_buffer);
     bf_free(sess->msg_buffer);
     list_free_all(sess->search_history, NULL);
@@ -293,49 +296,21 @@ int se_remove_buffer(Session *sess, Buffer *to_remove)
     return 1;
 }
 
-Status se_make_cmd_buffer_active(Session *sess, const char *prompt_text, List *history, int show_last_cmd)
+Status se_make_prompt_active(Session *sess, PromptType prompt_type, 
+                             const char *prompt_text, List *history,
+                             int show_last_cmd)
 {
-    RETURN_IF_FAIL(se_update_cmd_prompt_text(sess, prompt_text));
+    RETURN_IF_FAIL(pr_reset_prompt(sess->prompt, prompt_type, prompt_text, 
+                                   history, show_last_cmd));
 
-    sess->cmd_prompt.cmd_buffer->next = sess->active_buffer;
-    sess->active_buffer = sess->cmd_prompt.cmd_buffer;
-
-    sess->cmd_prompt.cancelled = 0;
-    sess->cmd_prompt.history = history;
-    
-    const char *cmd_text = NULL;
-    
-    if (history != NULL) {
-        sess->cmd_prompt.history_index = list_size(history);
-
-        if (show_last_cmd && sess->cmd_prompt.history_index > 0) {
-            cmd_text = list_get(history, --sess->cmd_prompt.history_index); 
-        }
-    }
-
-    RETURN_IF_FAIL(bf_set_text(sess->cmd_prompt.cmd_buffer, cmd_text));
-
-    return bf_select_all_text(sess->cmd_prompt.cmd_buffer);
-}
-
-Status se_update_cmd_prompt_text(Session *sess, const char *text)
-{
-    assert(!is_null_or_empty(text));
-
-    if (sess->cmd_prompt.cmd_text != NULL) {
-        free(sess->cmd_prompt.cmd_text);
-    }
-
-    sess->cmd_prompt.cmd_text = strdupe(text);
-    
-    if (text != NULL && sess->cmd_prompt.cmd_text == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to set prompt text");
-    }
+    Buffer *prompt_buffer = pr_get_prompt_buffer(sess->prompt);
+    prompt_buffer->next = sess->active_buffer;
+    sess->active_buffer = prompt_buffer;
 
     return STATUS_SUCCESS;
 }
 
-int se_end_cmd_buffer_active(Session *sess)
+int se_end_prompt(Session *sess)
 {
     assert(sess->active_buffer != NULL);
 
@@ -343,12 +318,16 @@ int se_end_cmd_buffer_active(Session *sess)
         return 0;
     }
 
-    sess->active_buffer = sess->cmd_prompt.cmd_buffer->next;
+    Buffer *prompt_buffer = pr_get_prompt_buffer(sess->prompt);
+
+    assert(prompt_buffer != NULL);
+
+    sess->active_buffer = prompt_buffer->next;
 
     return 1;
 }
 
-int se_cmd_buffer_active(const Session *sess)
+int se_prompt_active(const Session *sess)
 {
     assert(sess->active_buffer != NULL);
 
@@ -356,12 +335,7 @@ int se_cmd_buffer_active(const Session *sess)
         return 0;
     }
 
-    return sess->active_buffer == sess->cmd_prompt.cmd_buffer;
-}
-
-char *se_get_cmd_buffer_text(const Session *sess)
-{
-    return bf_to_string(sess->cmd_prompt.cmd_buffer);
+    return sess->active_buffer == pr_get_prompt_buffer(sess->prompt);
 }
 
 void se_set_clipboard(Session *sess, TextSelection clipboard)

@@ -26,6 +26,7 @@
 #include "file_type.h"
 #include "syntax.h"
 #include "theme.h"
+#include "prompt.h"
 
 /* Top level structure containing all state.
  * A new session is created when wed is invoked. */
@@ -37,13 +38,7 @@ typedef struct {
     HashMap *keymap; /* Maps keyboard inputs to commands */
     TextSelection clipboard; /* Stores copied and cut text */
     HashMap *config; /* Stores config variables */
-    struct {
-        Buffer *cmd_buffer; /* Used for command input e.g. Find & Replace, file name input, etc... */
-        char *cmd_text; /* Command instruction/description */
-        int cancelled; /* Did the user quit the last prompt */
-        List *history;
-        size_t history_index;
-    } cmd_prompt; 
+    Prompt *prompt;
     CommandType exclude_cmd_types; /* Types of commands that shouldn't run */
     size_t buffer_num;
     size_t active_buffer_index;
@@ -67,11 +62,9 @@ int se_add_buffer(Session *, Buffer *);
 int se_set_active_buffer(Session *, size_t);
 Buffer *se_get_buffer(const Session *, size_t);
 int se_remove_buffer(Session *, Buffer *);
-Status se_make_cmd_buffer_active(Session *, const char *, List *, int);
-Status se_update_cmd_prompt_text(Session *, const char *);
-int se_end_cmd_buffer_active(Session *);
-int se_cmd_buffer_active(const Session *);
-char *se_get_cmd_buffer_text(const Session *);
+Status se_make_prompt_active(Session *, PromptType, const char *, List *, int);
+int se_end_prompt(Session *);
+int se_prompt_active(const Session *);
 void se_set_clipboard(Session *, TextSelection);
 void se_exclude_command_type(Session *, CommandType);
 void se_enable_command_type(Session *, CommandType);

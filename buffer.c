@@ -139,6 +139,8 @@ static Status reset_buffer(Buffer *buffer)
     bp_init(&buffer->select_start, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
     bf_select_reset(buffer);
     bf_update_line_col_offset(buffer, &buffer->pos);
+    bc_free(&buffer->changes);
+    bc_init(&buffer->changes);
 
     return STATUS_SUCCESS;
 }

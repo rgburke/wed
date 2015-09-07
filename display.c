@@ -131,9 +131,10 @@ void init_all_window_info(Session *sess)
     }
 
     init_window_info(&sess->error_buffer->win_info);
-    init_window_info(&sess->cmd_prompt.cmd_buffer->win_info);
-    sess->cmd_prompt.cmd_buffer->win_info.height = 1;
-    sess->cmd_prompt.cmd_buffer->win_info.draw_window = WIN_STATUS;
+    WindowInfo *prompt_win_info = &(pr_get_prompt_buffer(sess->prompt)->win_info);
+    init_window_info(prompt_win_info);
+    prompt_win_info->height = 1;
+    prompt_win_info->draw_window = WIN_STATUS;
 }
 
 void init_window_info(WindowInfo *win_info)
@@ -195,14 +196,14 @@ void update_display(Session *sess)
         horizontal_scroll(buffer);
     }
 
-    if (!se_cmd_buffer_active(sess)) {
+    if (!se_prompt_active(sess)) {
         update_line_no_width(buffer, line_wrap);
     }
 
     draw_menu(sess);
     werase(draw_win);
 
-    if (se_cmd_buffer_active(sess)) {
+    if (se_prompt_active(sess)) {
         draw_prompt(sess);
     } else {
         draw_status(sess);
@@ -485,15 +486,18 @@ void draw_errors(Session *sess)
 
 static void draw_prompt(Session *sess)
 {
+    Buffer *prompt_buffer = pr_get_prompt_buffer(sess->prompt);
+    const char *prompt_text = pr_get_prompt_text(sess->prompt);
+
     wmove(status, 0, 0);
     wbkgd(status, COLOR_PAIR(0));
     wattron(status, SC_COLOR_PAIR(SC_STATUS_BAR));
-    wprintw(status, sess->cmd_prompt.cmd_text); 
+    wprintw(status, prompt_text); 
     wattroff(status, SC_COLOR_PAIR(SC_STATUS_BAR));
     wprintw(status, " "); 
 
-    size_t prompt_size = strlen(sess->cmd_prompt.cmd_text) + 1;
-    WindowInfo *win_info = &sess->cmd_prompt.cmd_buffer->win_info;
+    size_t prompt_size = strlen(prompt_text) + 1;
+    WindowInfo *win_info = &prompt_buffer->win_info;
     win_info->start_x = prompt_size;
     win_info->width = text_x - prompt_size;
 }
