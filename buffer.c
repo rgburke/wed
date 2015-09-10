@@ -46,6 +46,7 @@ static void bf_update_line_col_offset(Buffer *, BufferPos *);
 static Status bf_insert_expanded_tab(Buffer *, int);
 static Status bf_auto_indent(Buffer *, int);
 static Status bf_convert_fileformat(TextSelection *, TextSelection *, int *);
+static Status bf_mask_allows_input(const Buffer *, const char *, size_t, int *);
 
 Buffer *bf_new(const FileInfo *file_info, const HashMap *config)
 {
@@ -1049,6 +1050,13 @@ Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length
         return st_get_error(ERR_INVALID_CHARACTER, "Cannot insert NULL string");
     } else if (string_length == 0) {
         return STATUS_SUCCESS;
+    } else if (bf_has_mask(buffer)) {
+        int input_allowed;
+        RETURN_IF_FAIL(bf_mask_allows_input(buffer, string, string_length, &input_allowed));
+
+        if (!input_allowed) {
+            return STATUS_SUCCESS;
+        }
     }
 
     Status status = STATUS_SUCCESS;
@@ -1189,6 +1197,8 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
                                        byte_num, pos); 
 
     free(deleted_str);
+
+    bf_update_line_col_offset(buffer, pos);
 
     return status;
 }
@@ -1432,3 +1442,47 @@ Status bf_set_text(Buffer *buffer, const char *text)
     return STATUS_SUCCESS;
 }
 
+Status bf_set_mask(Buffer *buffer, const Regex *regex)
+{
+    bf_remove_mask(buffer);
+    return re_compile(&buffer->mask, regex);
+}
+
+int bf_has_mask(const Buffer *buffer)
+{
+    return buffer->mask.regex != NULL;
+}
+
+static Status bf_mask_allows_input(const Buffer *buffer, const char *str,
+                                   size_t str_len, int *input_allowed)
+{
+    assert(bf_has_mask(buffer));
+
+    if (str_len == 0) {
+        *input_allowed = 0;
+        return STATUS_SUCCESS; 
+    }
+
+    RegexResult result;
+    RETURN_IF_FAIL(re_exec(&result, &buffer->mask, str, str_len, 0));
+    *input_allowed = result.match;
+    
+    return STATUS_SUCCESS;
+}
+
+void bf_remove_mask(Buffer *buffer)
+{
+    if (!bf_has_mask(buffer)) {
+        return;
+    }
+
+    re_free_instance(&buffer->mask);
+    memset(&buffer->mask, 0, sizeof(RegexInstance));
+}
+
+Status bf_goto_line(Buffer *buffer, size_t line_no)
+{
+    buffer->pos = bp_init_from_line_col(line_no, 1, &buffer->pos);
+    bf_update_line_col_offset(buffer, &buffer->pos);
+    return STATUS_SUCCESS;
+}

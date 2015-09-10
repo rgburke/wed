@@ -84,7 +84,8 @@ typedef enum {
     ERR_INVALID_CAPTURE_GROUP_BACKREFERENCE,
     ERR_OVERRIDE_DEFAULT_THEME,
     ERR_INVALID_THEME,
-    ERR_INVALID_FILE_FORMAT
+    ERR_INVALID_FILE_FORMAT,
+    ERR_INVALID_LINE_NO
 } ErrorCode;
 
 /* Used to determine the success of an action.

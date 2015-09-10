@@ -23,6 +23,7 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define ABS_DIFF(a, b) (MAX((a), (b)) - MIN((a), (b)))
 
 #define ARRAY_SIZE(arr,type) (sizeof(arr) / sizeof(type))
 

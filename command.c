@@ -21,6 +21,7 @@
 #include <string.h>
 #include <strings.h>
 #include <signal.h>
+#include <errno.h>
 #include <assert.h>
 #include "shared.h"
 #include "status.h"
@@ -80,6 +81,7 @@ static Status cm_buffer_toggle_search_direction(Session *, Value, const char *, 
 static Status cm_buffer_toggle_search_type(Session *, Value, const char *, int *);
 static Status cm_buffer_toggle_search_case(Session *, Value, const char *, int *);
 static Status cm_buffer_replace(Session *, Value, const char *, int *);
+static Status cm_buffer_goto_line(Session *, Value, const char *, int *);
 static Status cm_prepare_replace(Session *, char **, size_t *);
 static Status cm_session_open_file(Session *, Value, const char *, int *);
 static Status cm_session_add_empty_buffer(Session *, Value, const char *, int *);
@@ -147,6 +149,7 @@ static const Command commands[] = {
     { "<C-r>"        , cm_buffer_toggle_search_type     , INT_VAL_STRUCT(0)                                      , CMDT_CMD_MOD     },
     { "<M-i>"        , cm_buffer_toggle_search_case     , INT_VAL_STRUCT(0)                                      , CMDT_CMD_MOD     },
     { "<C-h>"        , cm_buffer_replace                , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<C-g>"        , cm_buffer_goto_line              , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-o>"        , cm_session_open_file             , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-n>"        , cm_session_add_empty_buffer      , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
     { "<M-C-Right>"  , cm_session_change_tab            , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
@@ -821,6 +824,56 @@ static Status cm_buffer_replace(Session *sess, Value param, const char *keystr, 
     }
 
     se_add_msg(sess, msg);
+
+    return status;
+}
+
+static Status cm_buffer_goto_line(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    Regex line_no_regex = { .regex_pattern = "[0-9]+", .modifiers = 0 };
+    Buffer *prompt_buffer = pr_get_prompt_buffer(sess->prompt);
+    bf_set_mask(prompt_buffer, &line_no_regex);
+
+    cm_cmd_input_prompt(sess, PT_GOTO, "Line:", sess->lineno_history, 0);
+
+    bf_remove_mask(prompt_buffer);
+
+    if (pr_prompt_cancelled(sess->prompt)) {
+        return STATUS_SUCCESS;
+    }
+
+    char *input = pr_get_prompt_content(sess->prompt);
+    Status status = STATUS_SUCCESS;
+
+    if (input == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
+                            "Unable to process input");
+    } else if (*input != '\0') {
+        status = se_add_lineno_to_history(sess, input);
+
+        if (!STATUS_IS_SUCCESS(status)) {
+            free(input);
+            return status;
+        }
+
+        errno = 0;
+
+        size_t line_no = strtoull(input, NULL, 10);
+
+        if (errno) {
+            status = st_get_error(ERR_INVALID_LINE_NO,
+                                  "Invalid line number \"%s\"",
+                                  input);
+        } else {
+            status = bf_goto_line(sess->active_buffer, line_no);
+        }
+    } else {
+        free(input);
+    }
 
     return status;
 }

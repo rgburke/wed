@@ -67,7 +67,8 @@ static const ErrorCodeMsg default_error_messages[] = {
     { ERR_INVALID_CAPTURE_GROUP_BACKREFERENCE, "Invalid capture group backreference" },
     { ERR_OVERRIDE_DEFAULT_THEME             , "Cannot override default theme"       },
     { ERR_INVALID_THEME                      , "Invalid theme"                       },
-    { ERR_INVALID_FILE_FORMAT                , "Invalid file format"                 }
+    { ERR_INVALID_FILE_FORMAT                , "Invalid file format"                 },
+    { ERR_INVALID_LINE_NO                    , "Invalid Line number"                 }
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

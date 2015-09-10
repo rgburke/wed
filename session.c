@@ -64,6 +64,10 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
+    if ((sess->lineno_history = list_new()) == NULL) {
+        return 0;
+    }
+
     if (!cm_init_keymap(sess)) {
         return 0;
     }
@@ -150,6 +154,7 @@ void se_free(Session *sess)
     list_free_all(sess->search_history, NULL);
     list_free_all(sess->replace_history, NULL);
     list_free_all(sess->command_history, NULL);
+    list_free_all(sess->lineno_history, NULL);
     free_hashmap_values(sess->filetypes, (void (*)(void *))ft_free);
     free_hashmap(sess->filetypes);
     free_hashmap_values(sess->syn_defs, (void (*)(void *))sy_free_def);
@@ -546,6 +551,11 @@ Status se_add_replace_to_history(Session *sess, char *replace_text)
 Status se_add_cmd_to_history(Session *sess, char *cmd_text)
 {
     return se_add_to_history(sess->command_history, cmd_text);
+}
+
+Status se_add_lineno_to_history(Session *sess, char *lineno_text)
+{
+    return se_add_to_history(sess->lineno_history, lineno_text);
 }
 
 Status se_add_filetype_def(Session *sess, FileType *file_type)

@@ -471,6 +471,7 @@ void draw_errors(Session *sess)
     wattron(text, SC_COLOR_PAIR(SC_ERROR_MESSAGE));
     draw_buffer(sess, error_buffer, 1);
     wattroff(text, SC_COLOR_PAIR(SC_ERROR_MESSAGE));
+    wclrtoeol(text);
     wnoutrefresh(text);
 
     *win_info = win_info_orig;

@@ -20,8 +20,19 @@
 #include "util.h"
 #include <assert.h>
 
+#define CORRECT_LINE_NO(lineno, maxlineno) ((lineno) == 0 ? 1 : MIN((lineno), (maxlineno)))
+#define CORRECT_COL_NO(colno) ((colno) == 0 ? 1 : (colno))
+
+typedef enum {
+    NP_BUFFER_START,
+    NP_KNOWN_POS,
+    NP_BUFFER_END,
+    NP_ENTRY_NUM
+} NearestPos;
+
 static int bp_is_char_before(const BufferPos *, size_t, char);
 static void calc_new_col(BufferPos *, size_t);
+static NearestPos bp_determine_nearest_pos(size_t, size_t, size_t, size_t);
 
 int bp_init(BufferPos *pos, const GapBuffer *data, 
             const CEF *cef, const FileFormat *file_format,
@@ -293,20 +304,6 @@ int bp_prev_line(BufferPos *pos)
     return 0;
 }
 
-void bp_advance_to_col(BufferPos *pos, size_t col_no)
-{
-    while (pos->col_no < col_no && !bp_at_line_end(pos)) {
-        bp_next_char(pos);
-    }
-}
-
-void bp_reverse_to_col(BufferPos *pos, size_t col_no)
-{
-    while (pos->col_no > col_no && !bp_at_line_start(pos)) {
-        bp_prev_char(pos);
-    }
-}
-
 void bp_to_buffer_start(BufferPos *pos)
 {
     pos->offset = 0;
@@ -364,21 +361,155 @@ void bp_reverse_to_offset(BufferPos *pos, size_t offset)
     bp_recalc_col(pos);
 }
 
+void bp_advance_to_line(BufferPos *pos, size_t line_no)
+{
+    size_t lines = gb_lines(pos->data) + 1;
+    line_no = CORRECT_LINE_NO(line_no, lines);
+
+    while (pos->line_no < line_no) {
+        if (!bp_next_line(pos)) {
+            break;
+        }
+    }
+}
+
+void bp_reverse_to_line(BufferPos *pos, size_t line_no, int end_of_line)
+{
+    size_t lines = gb_lines(pos->data) + 1;
+    line_no = CORRECT_LINE_NO(line_no, lines);
+
+    if (end_of_line) {
+        line_no++;
+    }
+
+    while (pos->line_no > line_no) {
+        if (!bp_prev_line(pos)) {
+            break;
+        }
+    }
+
+    if (end_of_line) {
+        bp_to_line_start(pos);
+        bp_prev_char(pos);
+    }
+}
+
+void bp_advance_to_col(BufferPos *pos, size_t col_no)
+{
+    col_no = CORRECT_COL_NO(col_no);
+
+    while (pos->col_no < col_no && !bp_at_line_end(pos)) {
+        bp_next_char(pos);
+    }
+}
+
+void bp_reverse_to_col(BufferPos *pos, size_t col_no)
+{
+    col_no = CORRECT_COL_NO(col_no);
+
+    while (pos->col_no > col_no && !bp_at_line_start(pos)) {
+        bp_prev_char(pos);
+    }
+}
+
+void bp_advance_to_line_col(BufferPos *pos, size_t line_no, size_t col_no)
+{
+    size_t lines = gb_lines(pos->data) + 1;
+    line_no = CORRECT_LINE_NO(line_no, lines);
+    col_no = CORRECT_COL_NO(col_no);
+    
+    bp_advance_to_line(pos, line_no);
+    bp_advance_to_col(pos, col_no);
+}
+
+void bp_reverse_to_line_col(BufferPos *pos, size_t line_no, size_t col_no)
+{
+    size_t lines = gb_lines(pos->data) + 1;
+    line_no = CORRECT_LINE_NO(line_no, lines);
+    col_no = CORRECT_COL_NO(col_no);
+    
+    bp_reverse_to_line(pos, line_no, 1);
+    bp_reverse_to_col(pos, col_no);
+}
+
 BufferPos bp_init_from_offset(size_t offset, const BufferPos *known_pos)
 {
     size_t buffer_len = gb_length(known_pos->data);
     offset = MIN(offset, buffer_len);
     BufferPos pos = *known_pos;
 
-    if (known_pos->offset > offset &&
-        known_pos->offset - offset < offset) {
+    NearestPos nearest_pos = bp_determine_nearest_pos(offset, 0,
+                                                      known_pos->offset,
+                                                      buffer_len);
+
+    if (nearest_pos == NP_BUFFER_END) {
+        bp_to_buffer_end(&pos);
         bp_reverse_to_offset(&pos, offset);    
-    } else if (known_pos->offset < offset) {
-        bp_advance_to_offset(&pos, offset);
-    } else if (known_pos->offset != offset) {
+    } else if (nearest_pos == NP_KNOWN_POS) {
+        if (known_pos->offset > offset) {
+            bp_reverse_to_offset(&pos, offset);    
+        } else if (known_pos->offset < offset) {
+            bp_advance_to_offset(&pos, offset);
+        }
+    } else {
         bp_to_buffer_start(&pos);
         bp_advance_to_offset(&pos, offset);
     }
 
     return pos;
+}
+
+BufferPos bp_init_from_line_col(size_t line_no, size_t col_no, 
+                                const BufferPos *known_pos)
+{
+    size_t lines = gb_lines(known_pos->data) + 1;
+    line_no = CORRECT_LINE_NO(line_no, lines);
+    col_no = CORRECT_COL_NO(col_no);
+
+    NearestPos nearest_pos = bp_determine_nearest_pos(line_no, 1,
+                                                      known_pos->line_no,
+                                                      lines);
+    BufferPos pos = *known_pos;
+
+    if (nearest_pos == NP_BUFFER_END) {
+        bp_to_buffer_end(&pos);
+        bp_reverse_to_line_col(&pos, line_no, col_no);
+    } else if (nearest_pos == NP_KNOWN_POS) {
+        if (line_no < known_pos->line_no) {
+            bp_reverse_to_line_col(&pos, line_no, col_no);
+        } else if (line_no > known_pos->line_no) {
+            bp_advance_to_line_col(&pos, line_no, col_no);
+        } else {
+            if (col_no > known_pos->col_no) {
+                bp_advance_to_col(&pos, col_no);
+            } else if (col_no < known_pos->col_no) {
+                bp_reverse_to_col(&pos, col_no);
+            }
+        }
+    } else {
+        bp_to_buffer_start(&pos);
+        bp_advance_to_line_col(&pos, line_no, col_no);
+    }
+
+    return pos;
+}
+
+static NearestPos bp_determine_nearest_pos(size_t pos, size_t start, 
+                                           size_t known, size_t end)
+{
+    size_t pos_diffs[NP_ENTRY_NUM] = {
+        [NP_BUFFER_START] = ABS_DIFF(pos, start),
+        [NP_KNOWN_POS]    = ABS_DIFF(pos, known),
+        [NP_BUFFER_END]   = ABS_DIFF(pos, end)
+    };
+
+    NearestPos nearest_pos = NP_BUFFER_START;
+
+    for (size_t k = 1; k < NP_ENTRY_NUM; k++) {
+        if (pos_diffs[k] < pos_diffs[nearest_pos]) {
+            nearest_pos = k;
+        }
+    }
+
+    return nearest_pos;
 }

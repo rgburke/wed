@@ -48,6 +48,7 @@ typedef struct {
     List *search_history;
     List *replace_history;
     List *command_history;
+    List *lineno_history;
     HashMap *filetypes;
     HashMap *syn_defs;
     HashMap *themes;
@@ -84,6 +85,7 @@ Status se_get_buffer_index(const Session *, const char *, int *);
 Status se_add_search_to_history(Session *, char *);
 Status se_add_replace_to_history(Session *, char *);
 Status se_add_cmd_to_history(Session *, char *);
+Status se_add_lineno_to_history(Session *, char *);
 Status se_add_filetype_def(Session *, FileType *);
 Status se_add_syn_def(Session *, SyntaxDefinition *, const char *);
 void se_determine_syntaxtype(Session *, Buffer *);

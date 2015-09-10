@@ -30,6 +30,7 @@
 #include "buffer_pos.h"
 #include "search.h"
 #include "undo.h"
+#include "regex_util.h"
 
 typedef enum {
     CCLASS_WHITESPACE,
@@ -88,6 +89,7 @@ struct Buffer {
     BufferSearch search;
     BufferChanges changes;
     FileFormat file_format;
+    RegexInstance mask;
 };
 
 Buffer *bf_new(const FileInfo *, const HashMap *);
@@ -145,5 +147,9 @@ void bf_free_textselection(TextSelection *);
 Status bf_delete_word(Buffer *);
 Status bf_delete_prev_word(Buffer *);
 Status bf_set_text(Buffer *, const char *);
+Status bf_set_mask(Buffer *, const Regex *);
+int bf_has_mask(const Buffer *);
+void bf_remove_mask(Buffer *);
+Status bf_goto_line(Buffer *, size_t);
 
 #endif

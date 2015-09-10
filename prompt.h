@@ -27,7 +27,8 @@ typedef enum {
     PT_OPEN_FILE,
     PT_FIND,
     PT_REPLACE,
-    PT_COMMAND
+    PT_COMMAND,
+    PT_GOTO
 } PromptType;
 
 typedef struct {
