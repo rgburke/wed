@@ -65,10 +65,13 @@ static const ErrorCodeMsg default_error_messages[] = {
     { ERR_TOO_MANY_REGEX_CAPTURE_GROUPS      , "Too many regex capture groups"       },
     { ERR_TOO_MANY_REGEX_BACKREFERENCES      , "Too many regex backreferences"       },
     { ERR_INVALID_CAPTURE_GROUP_BACKREFERENCE, "Invalid capture group backreference" },
+    { ERR_INVALID_REGEX_GROUP                , "Invalid regex group"                 },
     { ERR_OVERRIDE_DEFAULT_THEME             , "Cannot override default theme"       },
     { ERR_INVALID_THEME                      , "Invalid theme"                       },
     { ERR_INVALID_FILE_FORMAT                , "Invalid file format"                 },
-    { ERR_INVALID_LINE_NO                    , "Invalid Line number"                 }
+    { ERR_INVALID_LINE_NO                    , "Invalid Line number"                 },
+    { ERR_NO_BUFFERS_MATCH                   , "No buffers match"                    },
+    { ERR_MULTIPLE_BUFFERS_MATCH             , "Multiple buffers match"              }
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

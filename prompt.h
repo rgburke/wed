@@ -22,13 +22,17 @@
 #include "buffer.h"
 #include "list.h"
 
+#define MAX_CMD_PROMPT_LENGTH 50
+
 typedef enum {
     PT_SAVE_FILE,
     PT_OPEN_FILE,
     PT_FIND,
     PT_REPLACE,
     PT_COMMAND,
-    PT_GOTO
+    PT_GOTO,
+    PT_BUFFER,
+    PT_ENTRY_NUM
 } PromptType;
 
 typedef struct {
@@ -38,6 +42,9 @@ typedef struct {
     List *history; /* Stores previous user entries */
     size_t history_index; /* Index of previous entry shown */
     PromptType prompt_type;
+    List *suggestions;
+    size_t suggestion_index;
+    int show_suggestion_prompt;
 } Prompt; 
 
 Prompt *pr_new(Buffer *);
@@ -50,7 +57,12 @@ const char *pr_get_prompt_text(const Prompt *);
 char *pr_get_prompt_content(const Prompt *);
 int pr_prompt_cancelled(const Prompt *);
 void pr_prompt_set_cancelled(Prompt *, int);
+void pr_show_suggestion_prompt(Prompt *);
+void pr_hide_suggestion_prompt(Prompt *);
 Status pr_previous_entry(Prompt *);
 Status pr_next_entry(Prompt *);
+void pr_clear_suggestions(Prompt *);
+Status pr_show_next_suggestion(Prompt *);
+Status pr_show_suggestion(Prompt *, size_t);
 
 #endif

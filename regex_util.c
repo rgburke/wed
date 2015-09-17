@@ -131,3 +131,36 @@ Status re_exec_custom_error_msg(RegexResult *result, const RegexInstance *reg_in
 
     return status;
 }
+
+Status re_get_group(const RegexResult *result, const char *str, 
+                    size_t str_len, size_t group, char **group_str_ptr)
+{
+    assert(!is_null_or_empty(str));
+
+    if (!result->match ||
+        result->return_code <= 0 ||
+        group >= (size_t)result->return_code ||
+        (size_t)result->output_vector[(group * 2) + 1] > str_len) {
+        return st_get_error(ERR_INVALID_REGEX_GROUP,
+                            "Regex group %zu is invalid for regex result",
+                            group);
+    }
+
+    size_t group_start = result->output_vector[(group * 2)];
+    size_t group_end = result->output_vector[(group * 2) + 1];
+    size_t group_size = group_end - group_start;
+
+    char *group_str = malloc(group_size + 1);
+
+    if (group_str == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to get capture group");
+    }
+
+    memcpy(group_str + group_start, str, group_size);
+    *(group_str + group_end) = '\0';
+
+    *group_str_ptr = group_str;
+
+    return STATUS_SUCCESS;
+}

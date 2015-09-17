@@ -16,10 +16,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <stdio.h>
 #include <string.h>
 #include <assert.h>
 #include "prompt.h"
+#include "session.h"
 #include "util.h"
+#include "prompt_completer.h"
+
+static const char *pr_get_suggestion_prompt_text(const Prompt *);
 
 Prompt *pr_new(Buffer *prompt_buffer)
 {
@@ -29,6 +34,11 @@ Prompt *pr_new(Buffer *prompt_buffer)
     RETURN_IF_NULL(prompt);
 
     memset(prompt, 0, sizeof(Prompt));
+
+    if ((prompt->suggestions = list_new()) == NULL) {
+        free(prompt);
+        return NULL;
+    }
 
     prompt->prompt_buffer = prompt_buffer;
 
@@ -45,6 +55,7 @@ void pr_free(Prompt *prompt, int free_prompt_buffer)
         bf_free(prompt->prompt_buffer);
     }
 
+    list_free_all(prompt->suggestions);
     free(prompt->prompt_text);
     free(prompt);
 }
@@ -58,6 +69,7 @@ Status pr_reset_prompt(Prompt *prompt, PromptType prompt_type,
     prompt->prompt_type = prompt_type;
     prompt->cancelled = 0;
     prompt->history = history;
+    pr_clear_suggestions(prompt);
 
     const char *prompt_content = "";
 
@@ -104,7 +116,30 @@ PromptType pr_get_prompt_type(const Prompt *prompt)
 
 const char *pr_get_prompt_text(const Prompt *prompt)
 {
-    return prompt->prompt_text;
+    size_t suggestion_num = list_size(prompt->suggestions);
+
+    if (prompt->show_suggestion_prompt &&
+        suggestion_num > 1 &&
+        prompt->suggestion_index != suggestion_num - 1) {
+        return pr_get_suggestion_prompt_text(prompt);
+    }
+
+    static char suggestion_prompt_text[MAX_CMD_PROMPT_LENGTH + 1];
+    snprintf(suggestion_prompt_text, MAX_CMD_PROMPT_LENGTH + 1, 
+             "%s", prompt->prompt_text);
+
+    return suggestion_prompt_text;
+}
+
+static const char *pr_get_suggestion_prompt_text(const Prompt *prompt)
+{
+    size_t suggestion_num = list_size(prompt->suggestions) - 1;
+
+    static char suggestion_prompt_text[MAX_CMD_PROMPT_LENGTH + 1];
+    snprintf(suggestion_prompt_text, MAX_CMD_PROMPT_LENGTH + 1, "%s (%zu of %zu)",
+             prompt->prompt_text, prompt->suggestion_index + 1, suggestion_num);
+
+    return suggestion_prompt_text;
 }
 
 char *pr_get_prompt_content(const Prompt *prompt)
@@ -120,6 +155,16 @@ int pr_prompt_cancelled(const Prompt *prompt)
 void pr_prompt_set_cancelled(Prompt *prompt, int cancelled)
 {
     prompt->cancelled = cancelled;
+}
+
+void pr_show_suggestion_prompt(Prompt *prompt)
+{
+    prompt->show_suggestion_prompt = 1;
+}
+
+void pr_hide_suggestion_prompt(Prompt *prompt)
+{
+    prompt->show_suggestion_prompt = 0;
 }
 
 Status pr_previous_entry(Prompt *prompt)
@@ -156,6 +201,43 @@ Status pr_next_entry(Prompt *prompt)
 
         return bf_set_text(prompt->prompt_buffer, prompt_content);
     }
+
+    return STATUS_SUCCESS;
+}
+
+void pr_clear_suggestions(Prompt *prompt)
+{
+    prompt->suggestion_index = 0;
+    list_free_values_custom(prompt->suggestions, (ListEntryFree)pc_free_suggestion);
+    list_clear(prompt->suggestions);
+}
+
+Status pr_show_next_suggestion(Prompt *prompt)
+{
+    size_t suggestion_num = list_size(prompt->suggestions);
+
+    if (suggestion_num == 0) {
+        return STATUS_SUCCESS;
+    }
+
+    size_t suggestion_index = prompt->suggestion_index + 1;
+    suggestion_index %= suggestion_num;
+    
+    return pr_show_suggestion(prompt, suggestion_index);
+}
+
+Status pr_show_suggestion(Prompt *prompt, size_t suggestion_index)
+{
+    size_t suggestion_num = list_size(prompt->suggestions);
+    assert(suggestion_index < suggestion_num);
+
+    if (!(suggestion_index < suggestion_num)) {
+        return STATUS_SUCCESS;
+    }
+    
+    const PromptSuggestion *suggestion = list_get(prompt->suggestions, suggestion_index);
+    RETURN_IF_FAIL(bf_set_text(prompt->prompt_buffer, suggestion->text));
+    prompt->suggestion_index = suggestion_index;
 
     return STATUS_SUCCESS;
 }

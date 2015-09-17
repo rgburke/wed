@@ -68,6 +68,10 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
+    if ((sess->buffer_history = list_new()) == NULL) {
+        return 0;
+    }
+
     if (!cm_init_keymap(sess)) {
         return 0;
     }
@@ -151,10 +155,11 @@ void se_free(Session *sess)
     pr_free(sess->prompt, 1);
     bf_free(sess->error_buffer);
     bf_free(sess->msg_buffer);
-    list_free_all(sess->search_history, NULL);
-    list_free_all(sess->replace_history, NULL);
-    list_free_all(sess->command_history, NULL);
-    list_free_all(sess->lineno_history, NULL);
+    list_free_all(sess->search_history);
+    list_free_all(sess->replace_history);
+    list_free_all(sess->command_history);
+    list_free_all(sess->lineno_history);
+    list_free_all(sess->buffer_history);
     free_hashmap_values(sess->filetypes, (void (*)(void *))ft_free);
     free_hashmap(sess->filetypes);
     free_hashmap_values(sess->syn_defs, (void (*)(void *))sy_free_def);
@@ -205,10 +210,34 @@ int se_add_buffer(Session *sess, Buffer *buffer)
     return 1;
 }
 
+int se_is_valid_buffer_index(const Session *sess, size_t buffer_index)
+{
+    return sess->buffers != NULL &&
+           buffer_index < sess->buffer_num; 
+}
+
+int se_get_buffer_index(const Session *sess, const Buffer *find_buffer,
+                        size_t *buffer_index_ptr)
+{
+    const Buffer *buffer = sess->buffers;
+    size_t buffer_index = 0;
+
+    while (buffer != NULL) {
+        if (buffer == find_buffer) {
+            *buffer_index_ptr = buffer_index;
+            return 1;
+        }
+
+        buffer = buffer->next;
+        buffer_index++; 
+    }
+
+    return 0;
+}
+
 int se_set_active_buffer(Session *sess, size_t buffer_index)
 {
-    assert(sess->buffers != NULL);
-    assert(buffer_index < sess->buffer_num);
+    assert(se_is_valid_buffer_index(sess, buffer_index));
 
     if (sess->buffers == NULL || buffer_index >= sess->buffer_num) {
         return 0;
@@ -230,8 +259,7 @@ int se_set_active_buffer(Session *sess, size_t buffer_index)
 
 Buffer *se_get_buffer(const Session *sess, size_t buffer_index)
 {
-    assert(sess->buffers != NULL);
-    assert(buffer_index < sess->buffer_num);
+    assert(se_is_valid_buffer_index(sess, buffer_index));
 
     if (sess->buffers == NULL || buffer_index >= sess->buffer_num) {
         return NULL;
@@ -494,7 +522,7 @@ Status se_add_new_empty_buffer(Session *sess)
     return STATUS_SUCCESS;
 }
 
-Status se_get_buffer_index(const Session *sess, const char *file_path, int *buffer_index_ptr)
+Status se_get_buffer_index_by_path(const Session *sess, const char *file_path, int *buffer_index_ptr)
 {
     assert(!is_null_or_empty(file_path));
     assert(buffer_index_ptr != NULL);
@@ -556,6 +584,11 @@ Status se_add_cmd_to_history(Session *sess, char *cmd_text)
 Status se_add_lineno_to_history(Session *sess, char *lineno_text)
 {
     return se_add_to_history(sess->lineno_history, lineno_text);
+}
+
+Status se_add_buffer_to_history(Session *sess, char *buffer_text)
+{
+    return se_add_to_history(sess->buffer_history, buffer_text);
 }
 
 Status se_add_filetype_def(Session *sess, FileType *file_type)
@@ -783,3 +816,12 @@ int se_initialised(const Session *sess)
     return sess->initialised;
 }
 
+void se_save_key(Session *sess, const char *key)
+{
+    snprintf(sess->prev_key, MAX_KEY_STR_SIZE, "%s", key);
+}
+
+const char *se_get_prev_key(const Session *sess)
+{
+    return sess->prev_key;
+}

@@ -45,5 +45,6 @@ void re_free_instance(const RegexInstance *);
 Status re_exec(RegexResult *, const RegexInstance *, const char *, size_t, size_t);
 Status re_exec_custom_error_msg(RegexResult *, const RegexInstance *, const char *, 
                                 size_t, size_t, const char *, ...);
+Status re_get_group(const RegexResult *, const char *, size_t, size_t, char **);
 
 #endif

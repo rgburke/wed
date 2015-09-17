@@ -487,8 +487,9 @@ void draw_errors(Session *sess)
 
 static void draw_prompt(Session *sess)
 {
-    Buffer *prompt_buffer = pr_get_prompt_buffer(sess->prompt);
-    const char *prompt_text = pr_get_prompt_text(sess->prompt);
+    Prompt *prompt = sess->prompt;
+    Buffer *prompt_buffer = pr_get_prompt_buffer(prompt);
+    const char *prompt_text = pr_get_prompt_text(prompt);
 
     wmove(status, 0, 0);
     wbkgd(status, COLOR_PAIR(0));
@@ -501,6 +502,8 @@ static void draw_prompt(Session *sess)
     WindowInfo *win_info = &prompt_buffer->win_info;
     win_info->start_x = prompt_size;
     win_info->width = text_x - prompt_size;
+
+    pr_hide_suggestion_prompt(prompt);
 }
 
 static SyntaxMatches *setup_syntax(const Session *sess, Buffer *buffer, 

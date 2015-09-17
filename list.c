@@ -28,7 +28,7 @@ static void list_free_entry(void *);
 /* Code in this file doesn't use alloc and ralloc from
  * util.c in order to make it easier to reuse elsewhere */
 
-List *list_new()
+List *list_new(void)
 {
     return list_new_prealloc(LIST_ALLOC);        
 }
@@ -190,6 +190,11 @@ void *list_remove_at(List *list, size_t index)
     return value;
 }
 
+void list_sort(List *list, ListComparator comparator)
+{
+    qsort(list->values, list->size, sizeof(void *), comparator);
+}
+
 void list_clear(List *list)
 {
     memset(list->values, 0, sizeof(void *) * list->allocated);
@@ -203,7 +208,12 @@ static void list_free_entry(void *entry)
     }
 }
 
-void list_free_all(List *list, void (*free_entry)(void *))
+void list_free_values(List *list)
+{
+    list_free_values_custom(list, list_free_entry); 
+}
+
+void list_free_values_custom(List *list, ListEntryFree free_entry)
 {
     if (!list) {
         return;
@@ -216,7 +226,17 @@ void list_free_all(List *list, void (*free_entry)(void *))
     for (size_t k = 0; k < list->size; k++) {
         free_entry(list->values[k]);
     }
+}
 
+void list_free_all(List *list)
+{
+    list_free_values(list);
+    list_free(list);
+}
+
+void list_free_all_custom(List *list, ListEntryFree free_entry)
+{
+    list_free_values_custom(list, free_entry);
     list_free(list);
 }
 

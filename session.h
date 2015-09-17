@@ -28,6 +28,8 @@
 #include "theme.h"
 #include "prompt.h"
 
+#define MAX_KEY_STR_SIZE 50
+
 /* Top level structure containing all state.
  * A new session is created when wed is invoked. */
 typedef struct {
@@ -49,17 +51,21 @@ typedef struct {
     List *replace_history;
     List *command_history;
     List *lineno_history;
+    List *buffer_history;
     HashMap *filetypes;
     HashMap *syn_defs;
     HashMap *themes;
     int initialised;
     List *cfg_buffer_stack;
+    char prev_key[MAX_KEY_STR_SIZE]; /* TODO create Input structure and put this in there */
 } Session;
 
 Session *se_new(void);
 int se_init(Session *, char **, int);
 void se_free(Session *);
 int se_add_buffer(Session *, Buffer *);
+int se_is_valid_buffer_index(const Session *, size_t);
+int se_get_buffer_index(const Session *, const Buffer *, size_t *);
 int se_set_active_buffer(Session *, size_t);
 Buffer *se_get_buffer(const Session *, size_t);
 int se_remove_buffer(Session *, Buffer *);
@@ -81,11 +87,12 @@ int se_enable_msgs(Session *);
 int se_disable_msgs(Session *);
 Status se_add_new_buffer(Session *, const char *);
 Status se_add_new_empty_buffer(Session *);
-Status se_get_buffer_index(const Session *, const char *, int *);
+Status se_get_buffer_index_by_path(const Session *, const char *, int *);
 Status se_add_search_to_history(Session *, char *);
 Status se_add_replace_to_history(Session *, char *);
 Status se_add_cmd_to_history(Session *, char *);
 Status se_add_lineno_to_history(Session *, char *);
+Status se_add_buffer_to_history(Session *, char *);
 Status se_add_filetype_def(Session *, FileType *);
 Status se_add_syn_def(Session *, SyntaxDefinition *, const char *);
 void se_determine_syntaxtype(Session *, Buffer *);
@@ -95,5 +102,7 @@ int se_is_valid_theme(Session *, const char *);
 Status se_add_theme(Session *, Theme *, const char *);
 const Theme *se_get_active_theme(const Session *);
 int se_initialised(const Session *);
+void se_save_key(Session *, const char *);
+const char *se_get_prev_key(const Session *);
 
 #endif

@@ -26,7 +26,9 @@
 #define LIST_SHRINK -1
 
 /* Simple list implementation */
-/* TODO Consider inlining some of these functions */
+
+typedef void (*ListEntryFree)(void *);
+typedef int (*ListComparator)(const void *, const void *);
 
 typedef struct {
     void **values;
@@ -34,7 +36,7 @@ typedef struct {
     size_t allocated;
 } List;
 
-List *list_new();
+List *list_new(void);
 List *list_new_prealloc(size_t);
 List *list_new_sized(size_t);
 size_t list_size(List *);
@@ -44,8 +46,12 @@ int list_add(List *, void *);
 int list_add_at(List *, void *, size_t);
 void *list_pop(List *);
 void *list_remove_at(List *, size_t);
+void list_sort(List *, ListComparator);
 void list_clear(List *);
-void list_free_all(List *, void (*)(void *));
+void list_free_values(List *);
+void list_free_values_custom(List *, ListEntryFree);
+void list_free_all(List *);
+void list_free_all_custom(List *, ListEntryFree);
 void list_free(List *);
 
 #endif

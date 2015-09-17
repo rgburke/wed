@@ -37,8 +37,7 @@
 #include "config_parse_util.h"
 #include "search.h"
 #include "replace.h"
-
-#define MAX_CMD_PROMPT_LENGTH 50
+#include "prompt_completer.h"
 
 typedef enum {
     QR_NONE = 0,
@@ -91,6 +90,8 @@ static Status cm_session_run_command(Session *, Value, const char *, int *);
 static Status cm_previous_cmd_entry(Session *, Value, const char *, int *);
 static Status cm_next_cmd_entry(Session *, Value, const char *, int *);
 static Status cm_finished_processing_input(Session *, Value, const char *, int *);
+static Status cm_session_change_buffer(Session *, Value, const char *, int *);
+static Status cm_determine_buffer(Session *, const char *, const Buffer **);
 static Status cm_suspend(Session *, Value, const char *, int *);
 static Status cm_session_end(Session *, Value, const char *, int *);
 
@@ -98,6 +99,7 @@ static Status cm_cmd_input_prompt(Session *, PromptType, const char *, List *, i
 static QuestionRespose cm_question_prompt(Session *, PromptType, const char *, QuestionRespose, QuestionRespose);
 static Status cm_cancel_cmd_input_prompt(Session *, Value, const char *, int *);
 static int cm_update_command_function(Session *, const char *, CommandHandler);
+static Status cm_run_input_completion(Session *, Value, const char *, int *);
 
 static const Command commands[] = {
     { "<Up>"         , cm_bp_change_line                , INT_VAL_STRUCT(DIRECTION_UP)                           , CMDT_BUFFER_MOVE },
@@ -156,8 +158,9 @@ static const Command commands[] = {
     { "<M-Right>"    , cm_session_change_tab            , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
     { "<M-C-Left>"   , cm_session_change_tab            , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
     { "<M-Left>"     , cm_session_change_tab            , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
-    { "<C-w>"        , cm_session_close_buffer          , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
-    { "<C-\\>"       , cm_session_run_command           , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
+    { "<C-w>"        , cm_session_close_buffer          , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<C-\\>"       , cm_session_run_command           , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<C-_>"        , cm_session_change_buffer         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<M-z>"        , cm_suspend                       , INT_VAL_STRUCT(0)                                      , CMDT_SUSPEND     },
     { "<M-c>"        , cm_session_end                   , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        },
     { "<Escape>"     , cm_session_end                   , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
@@ -900,7 +903,7 @@ static Status cm_session_open_file(Session *sess, Value param, const char *keyst
     } else if (*input == '\0') {
         status = st_get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", input);
     } else {
-        status = se_get_buffer_index(sess, input, &buffer_index);
+        status = se_get_buffer_index_by_path(sess, input, &buffer_index);
 
         if (STATUS_IS_SUCCESS(status) && buffer_index == -1) {
             status = se_add_new_buffer(sess, input); 
@@ -1056,13 +1059,118 @@ static Status cm_finished_processing_input(Session *sess, Value param, const cha
     return STATUS_SUCCESS;
 }
 
+static Status cm_session_change_buffer(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    cm_cmd_input_prompt(sess, PT_BUFFER, "Buffer:", sess->buffer_history, 0);
+
+    if (pr_prompt_cancelled(sess->prompt)) {
+        return STATUS_SUCCESS;
+    }
+
+    char *input = pr_get_prompt_content(sess->prompt);
+    Status status = STATUS_SUCCESS;
+
+    if (input == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
+                            "Unable to process input");
+    } else if (*input != '\0') {
+        status = se_add_buffer_to_history(sess, input);
+
+        if (!STATUS_IS_SUCCESS(status)) {
+            free(input);
+            return status;
+        }
+
+        const Buffer *buffer;
+        status = cm_determine_buffer(sess, input, &buffer);
+
+        if (!STATUS_IS_SUCCESS(status)) {
+            free(input);
+            return status;
+        }
+
+        size_t buffer_index;
+
+        if (!se_get_buffer_index(sess, buffer, &buffer_index)) {
+            assert(!"Buffer has no valid buffer index");
+        }
+
+        se_set_active_buffer(sess, buffer_index);
+    } else {
+        free(input);
+    }
+    
+    return status;
+}
+
+static Status cm_determine_buffer(Session *sess, const char *input, 
+                                  const Buffer **buffer_ptr)
+{
+    Prompt *prompt = sess->prompt;
+    size_t input_len = strlen(input);
+
+    RegexInstance regex;
+    RegexResult regex_result; 
+    Regex numeric_regex = { 
+        .regex_pattern = "^\\s*([0-9]+)\\s*$",
+        .modifiers = 0
+    };
+
+    RETURN_IF_FAIL(re_compile(&regex, &numeric_regex));
+    Status status = re_exec(&regex_result, &regex, input, input_len, 0);
+    re_free_instance(&regex);
+    RETURN_IF_FAIL(status);
+
+    int is_numeric = (regex_result.return_code == 2);
+
+    if (is_numeric) {
+        char *group_str;
+        RETURN_IF_FAIL(re_get_group(&regex_result, input, input_len, 1, &group_str));
+        errno = 0;
+        size_t buffer_index = strtoull(input, NULL, 10);
+        free(group_str);
+
+        if (errno == 0 && 
+            buffer_index-- > 0 &&
+            se_is_valid_buffer_index(sess, buffer_index)) {
+            *buffer_ptr = se_get_buffer(sess, buffer_index);
+            return STATUS_SUCCESS;  
+        }
+    }
+
+    RETURN_IF_FAIL(pc_run_prompt_completer(sess, prompt));
+    size_t suggestion_num = list_size(prompt->suggestions);
+
+    if (suggestion_num < 2) {
+        return st_get_error(ERR_NO_BUFFERS_MATCH,
+                            "No buffers match \"%s\"",
+                            input);
+    }
+
+    const PromptSuggestion *suggestion = list_get(prompt->suggestions, 0);
+
+    if (!(suggestion->rank == SR_EXACT_MATCH ||
+          suggestion_num == 2)) {
+        return st_get_error(ERR_MULTIPLE_BUFFERS_MATCH, 
+                            "Multiple (%zu) buffers match \"%s\"",
+                            suggestion_num - 1, input);
+    }
+
+    *buffer_ptr = suggestion->data;
+    return STATUS_SUCCESS;
+}
+
 static Status cm_suspend(Session *sess, Value param, const char *keystr, int *finished)
 {
     (void)param;
     (void)keystr;
     (void)finished;
 
-    suspend_display();    
+    suspend_display();
     raise(SIGTSTP);
     resize_display(sess);
 
@@ -1129,6 +1237,11 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
     cm_update_command_function(sess, "<Down>", cm_next_cmd_entry);
     cm_update_command_function(sess, "<Enter>", cm_finished_processing_input);
     cm_update_command_function(sess, "<Escape>", cm_cancel_cmd_input_prompt);
+
+    if (pc_has_prompt_completer(prompt_type)) {
+        cm_update_command_function(sess, "<Tab>", cm_run_input_completion);
+    }
+
     se_exclude_command_type(sess, CMDT_CMD_INPUT);
 
     update_display(sess);
@@ -1139,6 +1252,11 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
     cm_update_command_function(sess, "<Down>", cm_bp_change_line);
     cm_update_command_function(sess, "<Enter>", cm_buffer_insert_line);
     cm_update_command_function(sess, "<Escape>", cm_session_end);
+
+    if (pc_has_prompt_completer(prompt_type)) {
+        cm_update_command_function(sess, "<Tab>", cm_buffer_insert_char);
+    }
+
     se_end_prompt(sess);
 
     return STATUS_SUCCESS;
@@ -1166,5 +1284,29 @@ static int cm_update_command_function(Session *sess, const char *keystr, Command
     command->command_handler = new_command_handler;
 
     return 1;
+}
+
+static Status cm_run_input_completion(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    assert(se_prompt_active(sess));
+
+    Prompt *prompt = sess->prompt;
+    Status status = STATUS_SUCCESS;
+
+    if (strncmp(se_get_prev_key(sess), "<Tab>", MAX_KEY_STR_SIZE) == 0) {
+        status = pr_show_next_suggestion(prompt);
+    } else {
+        status = pc_run_prompt_completer(sess, prompt);
+    }
+
+    if (STATUS_IS_SUCCESS(status)) {
+        pr_show_suggestion_prompt(prompt);
+    }
+
+    return status;
 }
 

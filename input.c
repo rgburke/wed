@@ -31,8 +31,6 @@
 #include "util.h"
 #include "lib/libtermkey/termkey.h"
 
-#define MAX_KEY_STR_SIZE 50
-
 static void ip_handle_keypress(Session *, TermKeyKey *, char *, int *);
 static void ip_handle_error(Session *);
 
@@ -135,6 +133,7 @@ static void ip_handle_keypress(Session *sess, TermKeyKey *key, char *keystr, int
     termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE, key, TERMKEY_FORMAT_VIM);
     se_add_error(sess, cm_do_command(sess, keystr, finished));
     ip_handle_error(sess);
+    se_save_key(sess, keystr);
 
     if (!*finished) {
         update_display(sess);

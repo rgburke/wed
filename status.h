@@ -22,7 +22,11 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#define RETURN_IF_NULL(ptr) if ((ptr) == NULL) { return NULL; }
+#define RETURN_IF_NULL(ptr) do { \
+                                if ((ptr) == NULL) { \
+                                    return NULL; \
+                                } \
+                            } while (0)
 
 #define STATUS_ERROR(ecode, emsg, emliteral) \
                         (Status) { \
@@ -82,10 +86,13 @@ typedef enum {
     ERR_TOO_MANY_REGEX_CAPTURE_GROUPS,
     ERR_TOO_MANY_REGEX_BACKREFERENCES,
     ERR_INVALID_CAPTURE_GROUP_BACKREFERENCE,
+    ERR_INVALID_REGEX_GROUP,
     ERR_OVERRIDE_DEFAULT_THEME,
     ERR_INVALID_THEME,
     ERR_INVALID_FILE_FORMAT,
-    ERR_INVALID_LINE_NO
+    ERR_INVALID_LINE_NO,
+    ERR_NO_BUFFERS_MATCH,
+    ERR_MULTIPLE_BUFFERS_MATCH
 } ErrorCode;
 
 /* Used to determine the success of an action.
