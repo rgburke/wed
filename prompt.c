@@ -116,7 +116,7 @@ PromptType pr_get_prompt_type(const Prompt *prompt)
 
 const char *pr_get_prompt_text(const Prompt *prompt)
 {
-    size_t suggestion_num = list_size(prompt->suggestions);
+    size_t suggestion_num = pr_suggestion_num(prompt);
 
     if (prompt->show_suggestion_prompt &&
         suggestion_num > 1 &&
@@ -133,7 +133,7 @@ const char *pr_get_prompt_text(const Prompt *prompt)
 
 static const char *pr_get_suggestion_prompt_text(const Prompt *prompt)
 {
-    size_t suggestion_num = list_size(prompt->suggestions) - 1;
+    size_t suggestion_num = pr_suggestion_num(prompt) - 1;
 
     static char suggestion_prompt_text[MAX_CMD_PROMPT_LENGTH + 1];
     snprintf(suggestion_prompt_text, MAX_CMD_PROMPT_LENGTH + 1, "%s (%zu of %zu)",
@@ -205,6 +205,11 @@ Status pr_next_entry(Prompt *prompt)
     return STATUS_SUCCESS;
 }
 
+size_t pr_suggestion_num(const Prompt *prompt)
+{
+    return list_size(prompt->suggestions);    
+}
+
 void pr_clear_suggestions(Prompt *prompt)
 {
     prompt->suggestion_index = 0;
@@ -214,9 +219,9 @@ void pr_clear_suggestions(Prompt *prompt)
 
 Status pr_show_next_suggestion(Prompt *prompt)
 {
-    size_t suggestion_num = list_size(prompt->suggestions);
+    size_t suggestion_num = pr_suggestion_num(prompt);
 
-    if (suggestion_num == 0) {
+    if (suggestion_num < 2) {
         return STATUS_SUCCESS;
     }
 
@@ -226,9 +231,28 @@ Status pr_show_next_suggestion(Prompt *prompt)
     return pr_show_suggestion(prompt, suggestion_index);
 }
 
+Status pr_show_previous_suggestion(Prompt *prompt)
+{
+    size_t suggestion_num = pr_suggestion_num(prompt);
+
+    if (suggestion_num < 2) {
+        return STATUS_SUCCESS;
+    }
+
+    size_t suggestion_index = prompt->suggestion_index;
+
+    if (suggestion_index == 0) {
+        suggestion_index = suggestion_num - 1;
+    } else {
+        suggestion_index--;
+    }
+    
+    return pr_show_suggestion(prompt, suggestion_index);
+}
+
 Status pr_show_suggestion(Prompt *prompt, size_t suggestion_index)
 {
-    size_t suggestion_num = list_size(prompt->suggestions);
+    size_t suggestion_num = pr_suggestion_num(prompt);
     assert(suggestion_index < suggestion_num);
 
     if (!(suggestion_index < suggestion_num)) {

@@ -27,6 +27,7 @@ typedef enum {
     SR_EXACT_MATCH,
     SR_STARTS_WITH,
     SR_CONTAINS,
+    SR_DEFAULT_MATCH,
     SR_NO_MATCH
 } SuggestionRank;
 
@@ -40,6 +41,7 @@ typedef struct {
 PromptSuggestion *pc_new_suggestion(const char *, SuggestionRank, const void *);
 void pc_free_suggestion(PromptSuggestion *);
 int pc_has_prompt_completer(PromptType);
-Status pc_run_prompt_completer(const Session *, Prompt *);
+int pc_show_suggestion_prompt(PromptType);
+Status pc_run_prompt_completer(const Session *, Prompt *, int);
 
 #endif

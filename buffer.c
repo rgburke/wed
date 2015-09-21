@@ -187,7 +187,7 @@ Status bf_load_file(Buffer *buffer)
         return reset_buffer(buffer);
     }
 
-    FILE *input_file = fopen(buffer->file_info.rel_path, "rb");
+    FILE *input_file = fopen(buffer->file_info.abs_path, "rb");
 
     if (input_file == NULL) {
         return st_get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open file %s for reading - %s", 
@@ -242,7 +242,7 @@ Status bf_write_file(Buffer *buffer, const char *file_path)
 
     if (output_file == -1) {
         free(tmp_file_path);
-        return st_get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open file temporary for writing - %s",
+        return st_get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open temporary file for writing - %s",
                          strerror(errno));
     }
 
@@ -288,7 +288,7 @@ Status bf_write_file(Buffer *buffer, const char *file_path)
 
     if (rename(tmp_file_path, file_path) == -1) {
         status = st_get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to overwrite file %s - %s",
-                           file_info->rel_path, strerror(errno)); 
+                              file_info->rel_path, strerror(errno)); 
     }
 
 cleanup:

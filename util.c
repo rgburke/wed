@@ -74,25 +74,57 @@ char *strdupe(const char *str)
 
 char *concat(const char *str1, const char *str2)
 {
-    if (str1 == NULL) {
-        str1 = "NULL";
-    }
+    return concat_all(2, str1, str2);
+}
 
-    if (str2 == NULL) {
-        str2 = "NULL";
-    }
-
-    size_t result_size = strlen(str1) + strlen(str2) + 1;
-
-    char *result = malloc(result_size);
-
-    if (result == NULL) {
+char *concat_all(size_t str_num, ...)
+{
+    if (str_num == 0) {
         return NULL;
     }
 
-    snprintf(result, result_size, "%s%s", str1, str2);
+    const char *strings[str_num];
+    size_t strings_len[str_num];
+    size_t result_str_len = 1;
 
-    return result;
+    va_list varg_list;
+    const char *str;
+
+    va_start(varg_list, str_num);
+
+    for (size_t k = 0; k < str_num; k++) {
+        str = va_arg(varg_list, const char *); 
+
+        if (str == NULL) {
+            str = "NULL";
+        }
+
+        strings_len[k] = strlen(str);
+        result_str_len += strings_len[k];
+        strings[k] = str;
+    }
+
+    char *result_str = malloc(result_str_len);
+
+    if (result_str == NULL) {
+        goto cleanup;
+    }
+
+    char *iter = result_str;
+
+    for (size_t k = 0; k < str_num; k++) {
+        if (strings_len[k] != 0) {
+            memcpy(iter, strings[k], strings_len[k]);
+            iter += strings_len[k];
+        }
+    }
+
+    *iter = '\0';
+
+cleanup:
+    va_end(varg_list);
+
+    return result_str;
 }
 
 int is_null_or_empty(const char *str)

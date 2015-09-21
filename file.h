@@ -44,6 +44,7 @@ typedef struct {
 Status fi_init(FileInfo *, const char *);
 int fi_init_empty(FileInfo *, const char *);
 void fi_free(FileInfo *);
+char *fi_process_path(const char *);
 int fi_is_directory(const FileInfo *);
 int fi_is_special(const FileInfo *);
 int fi_file_exists(const FileInfo *);

@@ -20,6 +20,7 @@
 #define WED_UTIL_H
 
 #include <stddef.h>
+#include <stdarg.h>
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -35,6 +36,7 @@ int sign(int);
 size_t utf8_char_num(const char *);
 char *strdupe(const char *);
 char *concat(const char *, const char *);
+char *concat_all(size_t, ...);
 int is_null_or_empty(const char *);
 size_t occurrences(const char *, const char *);
 char *replace(const char *, const char *, const char *);

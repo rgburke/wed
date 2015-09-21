@@ -61,8 +61,10 @@ void pr_show_suggestion_prompt(Prompt *);
 void pr_hide_suggestion_prompt(Prompt *);
 Status pr_previous_entry(Prompt *);
 Status pr_next_entry(Prompt *);
+size_t pr_suggestion_num(const Prompt *);
 void pr_clear_suggestions(Prompt *);
 Status pr_show_next_suggestion(Prompt *);
+Status pr_show_previous_suggestion(Prompt *);
 Status pr_show_suggestion(Prompt *, size_t);
 
 #endif

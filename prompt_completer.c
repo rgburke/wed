@@ -16,26 +16,41 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+/* For DT_DIR */
+#define _BSD_SOURCE
+
+/* In case user invokes completion on a directory 
+ * containing many files */
+#define MAX_DIR_ENT_NUM 1000
+
+#include <stdio.h> 
+#include <dirent.h> 
+#include <libgen.h>
+#include <errno.h>
 #include <string.h>
 #include <assert.h>
 #include "prompt_completer.h"
 #include "util.h"
 
-#define MAX_SUGGESTION_NUM 10
-
 typedef Status (*PromptCompleter)(const Session *, List *, const char *, size_t);
+
+typedef struct {
+    PromptCompleter prompt_completer;
+    int show_suggestion_prompt;
+} PromptCompleterConfig;
 
 static int pc_suggestion_comparator(const void *, const void *);
 static Status pc_complete_buffer(const Session *, List *, const char *, size_t);
+static Status pc_complete_path(const Session *, List *, const char *, size_t);
 
-static const PromptCompleter pc_prompt_completers[PT_ENTRY_NUM] = {
-    [PT_SAVE_FILE] = NULL,
-    [PT_OPEN_FILE] = NULL,
-    [PT_FIND]      = NULL,
-    [PT_REPLACE]   = NULL,
-    [PT_COMMAND]   = NULL,
-    [PT_GOTO]      = NULL,
-    [PT_BUFFER]    = pc_complete_buffer
+static const PromptCompleterConfig pc_prompt_completers[PT_ENTRY_NUM] = {
+    [PT_SAVE_FILE] = { pc_complete_path  , 0 },
+    [PT_OPEN_FILE] = { pc_complete_path  , 0 },
+    [PT_FIND]      = { NULL              , 0 },
+    [PT_REPLACE]   = { NULL              , 0 },
+    [PT_COMMAND]   = { NULL              , 0 },
+    [PT_GOTO]      = { NULL              , 0 },
+    [PT_BUFFER]    = { pc_complete_buffer, 1 }
 };
 
 PromptSuggestion *pc_new_suggestion(const char *text, SuggestionRank rank, const void *data)
@@ -70,10 +85,17 @@ void pc_free_suggestion(PromptSuggestion *suggestion)
 int pc_has_prompt_completer(PromptType prompt_type)
 {
     assert(prompt_type < PT_ENTRY_NUM);
-    return pc_prompt_completers[prompt_type] != NULL;
+    return pc_prompt_completers[prompt_type].prompt_completer != NULL;
 }
 
-Status pc_run_prompt_completer(const Session *sess, Prompt *prompt)
+int pc_show_suggestion_prompt(PromptType prompt_type)
+{
+    assert(prompt_type < PT_ENTRY_NUM);
+    return pc_has_prompt_completer(prompt_type) &&
+           pc_prompt_completers[prompt_type].show_suggestion_prompt; 
+}
+
+Status pc_run_prompt_completer(const Session *sess, Prompt *prompt, int reverse)
 {
     PromptType prompt_type = prompt->prompt_type;
 
@@ -91,7 +113,8 @@ Status pc_run_prompt_completer(const Session *sess, Prompt *prompt)
         return STATUS_SUCCESS;
     }
 
-    PromptCompleter completer = pc_prompt_completers[prompt_type];
+    const PromptCompleterConfig *pcc = &pc_prompt_completers[prompt_type];
+    PromptCompleter completer = pcc->prompt_completer;
     Status status = completer(sess, prompt->suggestions, prompt_content, prompt_content_len);
 
     if (!STATUS_IS_SUCCESS(status)) {
@@ -99,17 +122,13 @@ Status pc_run_prompt_completer(const Session *sess, Prompt *prompt)
         return status;
     }
 
-    if (list_size(prompt->suggestions) == 0) {
+    if (pr_suggestion_num(prompt) == 0) {
         free(prompt_content);
         return STATUS_SUCCESS;
     }
 
     list_sort(prompt->suggestions, pc_suggestion_comparator);
     
-    if (list_size(prompt->suggestions) > MAX_SUGGESTION_NUM) {
-
-    }
-
     PromptSuggestion *inital_input = pc_new_suggestion(prompt_content,
                                                        SR_NO_MATCH, NULL);
 
@@ -119,7 +138,15 @@ Status pc_run_prompt_completer(const Session *sess, Prompt *prompt)
                             "Unable to allocated suggestions");
     }
 
-    status = pr_show_suggestion(prompt, 0);
+    assert(pr_suggestion_num(prompt) > 1);
+
+    size_t start_index = 0;
+
+    if (reverse) {
+        start_index = pr_suggestion_num(prompt) - 2;
+    }
+
+    status = pr_show_suggestion(prompt, start_index);
 
     return status;
 }
@@ -170,4 +197,148 @@ static Status pc_complete_buffer(const Session *sess, List *suggestions,
     }
 
     return STATUS_SUCCESS;
+}
+
+static Status pc_complete_path(const Session *sess, List *suggestions,
+                               const char *str, size_t str_len)
+{
+    (void)sess;
+
+    if (strcmp("~", str) == 0) {
+        str = getenv("HOME"); 
+        str_len = strlen(str); 
+    }
+
+    char *path1 = strdupe(str); 
+    char *path2 = strdupe(str);
+
+    if (path1 == NULL || path2 == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to allocate memory for path");
+    }
+
+    Status status = STATUS_SUCCESS;
+
+    const char *dir_path;
+    const char *file_name;
+    size_t file_name_len;
+    int is_root_only = (strcmp("/", path1) == 0);
+
+    if (!is_root_only &&
+        path1[str_len - 1] == '/') {
+
+        path1[str_len - 1] = '\0';
+        dir_path = path1;
+        free(path2);
+        path2 = NULL;
+        file_name = NULL;
+        file_name_len = 0;
+    } else {
+        dir_path = dirname(path1);
+        
+        if (is_root_only) {
+            file_name = NULL;
+            file_name_len = 0;
+        } else {
+            file_name = basename(path2);
+            file_name_len = strlen(file_name);
+        }
+    }
+
+    int home_dir_path = (dir_path[0] == '~');
+    const char *canon_dir_path;
+
+    if (home_dir_path) {
+        const char *home_path = getenv("HOME"); 
+        canon_dir_path = concat(home_path, dir_path + 1);
+
+        if (canon_dir_path == NULL) {
+            status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                 "Unable to allocated path");
+            goto cleanup;
+        }
+    } else {
+        canon_dir_path = dir_path;
+    }
+
+    struct dirent *dir_ent;
+    DIR *dir = opendir(canon_dir_path);
+
+    if (home_dir_path) {
+        free((char *)canon_dir_path);
+    }
+
+    if (dir == NULL) {
+        goto cleanup;
+    }
+    
+    if (strcmp(dir_path, "/") == 0) {
+        dir_path = "";
+    }
+
+    PromptSuggestion *suggestion;
+    SuggestionRank rank;
+    size_t dir_ent_num = 0;
+    errno = 0;
+
+    while (dir_ent_num++ < MAX_DIR_ENT_NUM &&
+           (dir_ent = readdir(dir)) != NULL) {
+        if (errno) {
+            status = st_get_error(ERR_UNABLE_TO_READ_DIRECTORY,
+                                  "Unable to read from directory - %s",
+                                  strerror(errno));
+            goto cleanup;
+        }
+
+        if (strcmp(".", dir_ent->d_name) == 0 ||
+            strcmp("..", dir_ent->d_name) == 0) {
+            continue;
+        }
+
+        rank = SR_NO_MATCH;
+
+        if (file_name == NULL) {
+            rank = SR_DEFAULT_MATCH;            
+        } else if (strcmp(file_name, dir_ent->d_name) == 0) {
+            rank = SR_EXACT_MATCH;
+        } else if (strncmp(file_name, dir_ent->d_name, file_name_len) == 0) {
+            rank = SR_STARTS_WITH; 
+        } else if (strstr(file_name, dir_ent->d_name) != NULL) {
+            rank = SR_CONTAINS;
+        }
+
+        if (rank != SR_NO_MATCH) {
+            char *suggestion_path;
+
+            if (dir_ent->d_type == DT_DIR) {
+                suggestion_path = concat_all(4, dir_path, "/", dir_ent->d_name, "/");
+            } else {
+                suggestion_path = concat_all(3, dir_path, "/", dir_ent->d_name);
+            }
+
+            if (suggestion_path == NULL) {
+                status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                      "Unable to allocated suggested path");
+                goto cleanup;
+            }
+
+            suggestion = pc_new_suggestion(suggestion_path, rank, NULL);
+
+            free(suggestion_path);
+            
+            if (suggestion == NULL || !list_add(suggestions, suggestion)) {
+                free(suggestion);
+                status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                      "Unable to allocated suggested buffer");
+                goto cleanup;
+            }
+        }
+    }
+
+cleanup:
+    closedir(dir);
+    free(path1);
+    free(path2);
+
+    return status;
 }

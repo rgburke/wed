@@ -161,6 +161,7 @@ static const Command commands[] = {
     { "<C-w>"        , cm_session_close_buffer          , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-\\>"       , cm_session_run_command           , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-_>"        , cm_session_change_buffer         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
+    { "<S-Tab>"      , cm_run_input_completion          , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
     { "<M-z>"        , cm_suspend                       , INT_VAL_STRUCT(0)                                      , CMDT_SUSPEND     },
     { "<M-c>"        , cm_session_end                   , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        },
     { "<Escape>"     , cm_session_end                   , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
@@ -462,6 +463,17 @@ static Status cm_buffer_save_file(Session *sess, Value param, const char *keystr
             free(file_path);
             return status;
         } 
+
+        char *processed_path = fi_process_path(file_path);
+        free(file_path);
+
+        if (processed_path == NULL) {
+            return st_get_error(ERR_OUT_OF_MEMORY, 
+                                "Out of memory - "
+                                "Unable to process input");
+        }
+
+        file_path = processed_path; 
     } else if (file_exists_on_disk) {
         file_path = buffer->file_info.abs_path;
     } else {
@@ -1142,7 +1154,7 @@ static Status cm_determine_buffer(Session *sess, const char *input,
         }
     }
 
-    RETURN_IF_FAIL(pc_run_prompt_completer(sess, prompt));
+    RETURN_IF_FAIL(pc_run_prompt_completer(sess, prompt, 0));
     size_t suggestion_num = list_size(prompt->suggestions);
 
     if (suggestion_num < 2) {
@@ -1292,18 +1304,31 @@ static Status cm_run_input_completion(Session *sess, Value param, const char *ke
     (void)keystr;
     (void)finished;
 
-    assert(se_prompt_active(sess));
+    if (!se_prompt_active(sess)) {
+        return STATUS_SUCCESS;
+    }
 
     Prompt *prompt = sess->prompt;
     Status status = STATUS_SUCCESS;
+    const char *prev_key = se_get_prev_key(sess);
 
-    if (strncmp(se_get_prev_key(sess), "<Tab>", MAX_KEY_STR_SIZE) == 0) {
-        status = pr_show_next_suggestion(prompt);
+    int prev_key_is_completer = 
+        strncmp(prev_key, "<Tab>", MAX_KEY_STR_SIZE) == 0 ||
+        strncmp(prev_key, "<S-Tab>", MAX_KEY_STR_SIZE) == 0;
+
+    if (prev_key_is_completer) {
+        if (strncmp(keystr, "<Tab>", MAX_KEY_STR_SIZE) == 0) {
+            status = pr_show_next_suggestion(prompt);
+        } else if (strncmp(keystr, "<S-Tab>", MAX_KEY_STR_SIZE) == 0) {
+            status = pr_show_previous_suggestion(prompt);
+        }
     } else {
-        status = pc_run_prompt_completer(sess, prompt);
+        int reverse = (strncmp(keystr, "<S-Tab>", MAX_KEY_STR_SIZE) == 0);
+        status = pc_run_prompt_completer(sess, prompt, reverse);
     }
 
-    if (STATUS_IS_SUCCESS(status)) {
+    if (STATUS_IS_SUCCESS(status) &&
+        pc_show_suggestion_prompt(prompt->prompt_type)) {
         pr_show_suggestion_prompt(prompt);
     }
 

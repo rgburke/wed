@@ -92,7 +92,9 @@ typedef enum {
     ERR_INVALID_FILE_FORMAT,
     ERR_INVALID_LINE_NO,
     ERR_NO_BUFFERS_MATCH,
-    ERR_MULTIPLE_BUFFERS_MATCH
+    ERR_MULTIPLE_BUFFERS_MATCH,
+    ERR_UNABLE_TO_OPEN_DIRECTORY,
+    ERR_UNABLE_TO_READ_DIRECTORY
 } ErrorCode;
 
 /* Used to determine the success of an action.

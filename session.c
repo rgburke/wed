@@ -498,8 +498,11 @@ Status se_add_new_buffer(Session *sess, const char *file_path)
     return STATUS_SUCCESS;
 
 cleanup:
-    fi_free(&file_info);
-    bf_free(buffer);
+    if (buffer == NULL) {
+        fi_free(&file_info);
+    } else {
+        bf_free(buffer);
+    }
 
     return status;
 }

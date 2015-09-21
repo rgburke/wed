@@ -33,8 +33,9 @@
 Status fi_init(FileInfo *file_info, const char *path)
 {
     assert(!is_null_or_empty(path));
+    memset(file_info, 0, sizeof(FileInfo));
 
-    file_info->rel_path = strdupe(path);
+    file_info->rel_path = fi_process_path(path);
 
     if (file_info->rel_path == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, 
@@ -44,10 +45,11 @@ Status fi_init(FileInfo *file_info, const char *path)
     }
 
     file_info->file_name = basename(file_info->rel_path);
-    file_info->abs_path = NULL;
     file_info->file_attrs = FATTR_NONE;
 
-    if (stat(path, &file_info->file_stat) != 0) {
+    int exists = (stat(file_info->rel_path, &file_info->file_stat) == 0);
+
+    if (!exists) {
         return STATUS_SUCCESS;
     }
 
@@ -112,6 +114,21 @@ void fi_free(FileInfo *file_info)
     } else {
         free(file_info->file_name);
     }
+}
+
+char *fi_process_path(const char *path)
+{
+    if (path == NULL) {
+        return NULL;
+    }
+
+    int home_dir_path = (path[0] == '~');
+
+    if (home_dir_path) {
+        return concat(getenv("HOME"), path + 1);
+    }
+
+    return strdupe(path);
 }
 
 int fi_is_directory(const FileInfo *file_info)
