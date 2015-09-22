@@ -37,6 +37,7 @@
 #define DETECT_FF_LINE_NUM 5
 
 static Status reset_buffer(Buffer *);
+static Status bf_add_new_line_at_buffer_end(Buffer *);
 static int is_selection(Direction *);
 static void bf_default_movement_selection_handler(Buffer *, int, Direction *);
 static Status bf_change_real_line(Buffer *, BufferPos *, Direction, int);
@@ -222,10 +223,33 @@ Status bf_load_file(Buffer *buffer)
     return status;
 }
 
+static Status bf_add_new_line_at_buffer_end(Buffer *buffer)
+{
+    size_t buffer_len = gb_length(buffer->data);
+
+    if (buffer_len == 0 ||
+        gb_get_at(buffer->data, buffer_len - 1) == '\n') {
+        return STATUS_SUCCESS;
+    }
+
+    const char *new_line = bf_new_line_str(buffer->file_format);
+
+    BufferPos tmp = buffer->pos;
+    bp_to_buffer_end(&buffer->pos);
+
+    Status status = bf_insert_string(buffer, new_line, strlen(new_line), 0);
+
+    buffer->pos = tmp;
+
+    return status;
+}
+
 /* Used when loading a file into a buffer */
 Status bf_write_file(Buffer *buffer, const char *file_path)
 {
     assert(!is_null_or_empty(file_path));
+
+    RETURN_IF_FAIL(bf_add_new_line_at_buffer_end(buffer));
 
     const FileInfo *file_info = &buffer->file_info;
 
