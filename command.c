@@ -85,6 +85,7 @@ static Status cm_prepare_replace(Session *, char **, size_t *);
 static Status cm_session_open_file(Session *, Value, const char *, int *);
 static Status cm_session_add_empty_buffer(Session *, Value, const char *, int *);
 static Status cm_session_change_tab(Session *, Value, const char *, int *);
+static Status cm_session_save_all(Session *, Value, const char *, int *);
 static Status cm_session_close_buffer(Session *, Value, const char *, int *);
 static Status cm_session_run_command(Session *, Value, const char *, int *);
 static Status cm_previous_cmd_entry(Session *, Value, const char *, int *);
@@ -158,6 +159,7 @@ static const Command commands[] = {
     { "<M-Right>"    , cm_session_change_tab            , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_SESS_MOD    },
     { "<M-C-Left>"   , cm_session_change_tab            , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
     { "<M-Left>"     , cm_session_change_tab            , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_SESS_MOD    },
+    { "<C-^>"        , cm_session_save_all              , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
     { "<C-w>"        , cm_session_close_buffer          , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-\\>"       , cm_session_run_command           , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-_>"        , cm_session_change_buffer         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
@@ -970,6 +972,54 @@ static Status cm_session_change_tab(Session *sess, Value param, const char *keys
     se_set_active_buffer(sess, new_active_buffer_index);
 
     return STATUS_SUCCESS;
+}
+
+static Status cm_session_save_all(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    
+    size_t start_buffer_index;
+    
+    se_get_buffer_index(sess, sess->active_buffer, &start_buffer_index);
+    
+    Status status = STATUS_SUCCESS;
+    Buffer *buffer = sess->buffers;
+    size_t buffer_save_num = 0;
+    size_t buffer_index = 0;
+    int re_enable_msgs = se_disable_msgs(sess);
+
+    while (buffer != NULL) {
+        if (buffer->is_dirty) {
+            se_set_active_buffer(sess, buffer_index);
+            
+            status = cm_buffer_save_file(sess, INT_VAL(0), keystr, finished);
+            
+            if (!STATUS_IS_SUCCESS(status)) {
+                break;
+            }
+            
+            buffer_save_num++;
+        }
+        
+        buffer = buffer->next;
+        buffer_index++;
+    }
+    
+    se_set_active_buffer(sess, start_buffer_index);
+    
+    if (re_enable_msgs) {
+        se_enable_msgs(sess);
+    }
+    
+    if (STATUS_IS_SUCCESS(status) &&
+        buffer_save_num > 0) {
+        char msg[MAX_MSG_SIZE];
+        snprintf(msg, MAX_MSG_SIZE, "Save successful: "
+                 "%zu buffers saved", buffer_save_num);
+        se_add_msg(sess, msg);
+    }
+
+    return status;
 }
 
 static Status cm_session_close_buffer(Session *sess, Value param, const char *keystr, int *finished)
