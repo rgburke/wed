@@ -1339,7 +1339,8 @@ Status bf_cut_selected_text(Buffer *buffer, TextSelection *text_selection)
     return bf_delete_range(buffer, &range);
 }
 
-Status bf_insert_textselection(Buffer *buffer, TextSelection *text_selection)
+Status bf_insert_textselection(Buffer *buffer, TextSelection *text_selection,
+                               int advance_cursor)
 {
     assert(text_selection->str != NULL);
     
@@ -1357,14 +1358,15 @@ Status bf_insert_textselection(Buffer *buffer, TextSelection *text_selection)
 
         if (conversion_perfomed) {
             status = bf_insert_string(buffer, converted_selection.str, 
-                                      converted_selection.str_len, 1);
+                                      converted_selection.str_len, advance_cursor);
 
             bf_free_textselection(&converted_selection);
             return status;
         }
     }
 
-    return bf_insert_string(buffer, text_selection->str, text_selection->str_len, 1);
+    return bf_insert_string(buffer, text_selection->str, 
+                            text_selection->str_len, advance_cursor);
 }
 
 static Status bf_convert_fileformat(TextSelection *in_ts, TextSelection *out_ts,
@@ -1510,3 +1512,90 @@ Status bf_goto_line(Buffer *buffer, size_t line_no)
     bf_update_line_col_offset(buffer, &buffer->pos);
     return STATUS_SUCCESS;
 }
+
+Status bf_vert_move_lines(Buffer *buffer, Direction direction)
+{
+    assert(direction == DIRECTION_UP || direction == DIRECTION_DOWN);
+
+    if (!(direction == DIRECTION_UP || direction == DIRECTION_DOWN)) {
+        return STATUS_SUCCESS;
+    }
+
+    Range range;
+    int is_selection = 1;
+    
+    if (!bf_get_range(buffer, &range)) {
+        range.start = range.end = buffer->pos;
+        is_selection = 0;
+    }
+
+    bp_to_line_start(&range.start);
+    bp_to_line_end(&range.end);
+
+    if ((direction == DIRECTION_UP &&
+         bp_at_first_line(&range.start)) ||
+        (direction == DIRECTION_DOWN &&
+         bp_at_last_line(&range.end))) {
+        return STATUS_SUCCESS;
+    }
+
+    RETURN_IF_FAIL(bc_start_grouped_changes(&buffer->changes));
+    Status status;
+
+    if (bp_at_last_line(&range.start)) {
+        status = bf_add_new_line_at_buffer_end(buffer);
+
+        if (!STATUS_IS_SUCCESS(status)) {
+            goto cleanup;
+        }
+    }
+
+    bp_next_char(&range.end);
+
+    if (bp_at_last_line(&range.end)) {
+        status = bf_add_new_line_at_buffer_end(buffer);
+
+        if (!STATUS_IS_SUCCESS(status)) {
+            goto cleanup;
+        }
+    }
+
+    buffer->pos = range.start;
+    buffer->select_start = range.end;
+
+    TextSelection text_selection;
+    status = bf_cut_selected_text(buffer, &text_selection);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        goto cleanup;
+    }
+
+    if (direction == DIRECTION_UP) {
+        if (!bp_prev_line(&buffer->pos)) {
+            bp_to_buffer_start(&buffer->pos);
+        }
+    } else {
+        if (!bp_next_line(&buffer->pos)) {
+            bp_to_buffer_end(&buffer->pos);
+        }
+    }
+
+    status = bf_insert_textselection(buffer, &text_selection, 0);
+    bf_free_textselection(&text_selection);
+
+    if (STATUS_IS_SUCCESS(status)) {
+        if (is_selection) {
+            size_t select_start_offset = buffer->pos.offset + 
+                                         (range.end.offset - 1 - range.start.offset);
+            buffer->select_start = bp_init_from_offset(select_start_offset, &buffer->pos);
+        } else {
+            bf_select_reset(buffer);
+        }
+    }
+
+cleanup:
+    bc_end_grouped_changes(&buffer->changes);
+
+    return status;
+}
+

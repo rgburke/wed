@@ -71,6 +71,7 @@ static Status cm_buffer_cut_selected_text(Session *, Value, const char *, int *)
 static Status cm_buffer_paste_text(Session *, Value, const char *, int *);
 static Status cm_buffer_undo(Session *, Value, const char *, int *);
 static Status cm_buffer_redo(Session *, Value, const char *, int *);
+static Status cm_buffer_vert_move_lines(Session *, Value, const char *, int *);
 static Status cm_buffer_save_file(Session *, Value, const char *, int *);
 static void cm_generate_find_prompt(const BufferSearch *, char prompt_text[MAX_CMD_PROMPT_LENGTH]);
 static Status cm_prerpare_search(Session *, const BufferPos *);
@@ -144,6 +145,8 @@ static const Command commands[] = {
     { "<C-v>"        , cm_buffer_paste_text             , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  }, 
     { "<C-z>"        , cm_buffer_undo                   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  },
     { "<C-y>"        , cm_buffer_redo                   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  },
+    { "<C-S-Up>"     , cm_buffer_vert_move_lines        , INT_VAL_STRUCT(DIRECTION_UP)                           , CMDT_BUFFER_MOD  },
+    { "<C-S-Down>"   , cm_buffer_vert_move_lines        , INT_VAL_STRUCT(DIRECTION_DOWN)                         , CMDT_BUFFER_MOD  },
     { "<C-s>"        , cm_buffer_save_file              , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-f>"        , cm_buffer_find                   , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<F3>"         , cm_buffer_find_next              , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
@@ -414,7 +417,7 @@ static Status cm_buffer_paste_text(Session *sess, Value param, const char *keyst
         return STATUS_SUCCESS;
     }
 
-    return bf_insert_textselection(sess->active_buffer, &sess->clipboard);
+    return bf_insert_textselection(sess->active_buffer, &sess->clipboard, 1);
 }
 
 static Status cm_buffer_undo(Session *sess, Value param, const char *keystr, int *finished)
@@ -435,6 +438,15 @@ static Status cm_buffer_redo(Session *sess, Value param, const char *keystr, int
 
     Buffer *buffer = sess->active_buffer;
     return bc_redo(&buffer->changes, buffer);
+}
+
+static Status cm_buffer_vert_move_lines(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)keystr;
+    (void)finished;
+
+    Buffer *buffer = sess->active_buffer;
+    return bf_vert_move_lines(buffer, IVAL(param));
 }
 
 static Status cm_buffer_save_file(Session *sess, Value param, const char *keystr, int *finished)

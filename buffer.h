@@ -142,7 +142,7 @@ Status bf_delete_range(Buffer *, const Range *);
 Status bf_select_all_text(Buffer *);
 Status bf_copy_selected_text(Buffer *, TextSelection *);
 Status bf_cut_selected_text(Buffer *, TextSelection *);
-Status bf_insert_textselection(Buffer *, TextSelection *);
+Status bf_insert_textselection(Buffer *, TextSelection *, int);
 void bf_free_textselection(TextSelection *);
 Status bf_delete_word(Buffer *);
 Status bf_delete_prev_word(Buffer *);
@@ -151,5 +151,6 @@ Status bf_set_mask(Buffer *, const Regex *);
 int bf_has_mask(const Buffer *);
 void bf_remove_mask(Buffer *);
 Status bf_goto_line(Buffer *, size_t);
+Status bf_vert_move_lines(Buffer *, Direction);
 
 #endif
