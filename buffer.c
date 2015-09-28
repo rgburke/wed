@@ -43,7 +43,7 @@ static void bf_default_movement_selection_handler(Buffer *, int, Direction *);
 static Status bf_change_real_line(Buffer *, BufferPos *, Direction, int);
 static Status bf_change_screen_line(Buffer *, BufferPos *, Direction, int);
 static Status bf_advance_bp_to_line_offset(Buffer *, BufferPos *, int);
-static void bf_update_line_col_offset(Buffer *, BufferPos *);
+static void bf_update_line_col_offset(Buffer *, const BufferPos *);
 static Status bf_insert_expanded_tab(Buffer *, int);
 static Status bf_auto_indent(Buffer *, int);
 static Status bf_convert_fileformat(TextSelection *, TextSelection *, int *);
@@ -567,6 +567,8 @@ Status bf_set_bp(Buffer *buffer, const BufferPos *pos)
         bf_select_reset(buffer);
     }
 
+    bf_update_line_col_offset(buffer, &buffer->pos);
+
     return STATUS_SUCCESS;
 }
 
@@ -774,7 +776,7 @@ Status bf_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction,
     return STATUS_SUCCESS;
 }
 
-static void bf_update_line_col_offset(Buffer *buffer, BufferPos *pos)
+static void bf_update_line_col_offset(Buffer *buffer, const BufferPos *pos)
 {
     if (cf_bool(buffer->config, CV_LINEWRAP)) {
         /* Windowinfo may not be initialised when the error buffer is populated,
@@ -1710,5 +1712,113 @@ Status bf_indent(Buffer *buffer, Direction direction)
     bc_end_grouped_changes(&buffer->changes);
 
     return status;
+}
+
+Status bf_jump_to_matching_bracket(Buffer *buffer)
+{
+    size_t offset = buffer->pos.offset;
+    char current_char = gb_get_at(buffer->data, offset);
+    char search_char;
+    Direction direction;
+
+    switch (current_char) {
+        case '{':
+            {
+                search_char = '}';
+                direction = DIRECTION_RIGHT;
+                break;
+            }
+        case '}':
+            {
+                search_char = '{';
+                direction = DIRECTION_LEFT;
+                break;
+            }
+        case '[':
+            {
+                search_char = ']';
+                direction = DIRECTION_RIGHT;
+                break;
+            }
+        case ']':
+            {
+                search_char = '[';
+                direction = DIRECTION_LEFT;
+                break;
+            }
+        case '(':
+            {
+                search_char = ')';
+                direction = DIRECTION_RIGHT;
+                break;
+            }
+        case ')':
+            {
+                search_char = '(';
+                direction = DIRECTION_LEFT;
+                break;
+            }
+        case '<':
+            {
+                search_char = '>';
+                direction = DIRECTION_RIGHT;
+                break;
+            }
+        case '>':
+            {
+                search_char = '<';
+                direction = DIRECTION_LEFT;
+                break;
+            }
+        default:
+            {
+                return STATUS_SUCCESS;
+            }
+    }
+
+    size_t buffer_len = bf_length(buffer);
+    size_t scope = 0;
+    int match_found = 0;
+    char iter;
+
+    if (direction == DIRECTION_RIGHT) {
+        while (++offset < buffer_len) {
+            iter = gb_get_at(buffer->data, offset);
+
+            if (iter == current_char) {
+                scope++;
+            } else if (iter == search_char) {
+                if (scope == 0) {
+                    match_found = 1;
+                    break;
+                } else {
+                    scope--;
+                }
+            }
+        }
+    } else {
+        while (offset > 0) {
+            iter = gb_get_at(buffer->data, --offset);
+
+            if (iter == current_char) {
+                scope++;
+            } else if (iter == search_char) {
+                if (scope == 0) {
+                    match_found = 1;
+                    break;
+                } else {
+                    scope--;
+                }
+            }
+        }
+    }
+
+    if (!match_found) {
+        return STATUS_SUCCESS;
+    }
+
+    BufferPos pos = bp_init_from_offset(offset, &buffer->pos);
+    
+    return bf_set_bp(buffer, &pos);
 }
 

@@ -59,6 +59,7 @@ static Status cm_bp_to_prev_word(Session *, Value, const char *, int *);
 static Status cm_bp_to_buffer_start(Session *, Value, const char *, int *);
 static Status cm_bp_to_buffer_end(Session *, Value, const char *, int *);
 static Status cm_bp_change_page(Session *, Value, const char *, int *);
+static Status cm_bp_goto_matching_bracket(Session *, Value, const char *, int *);
 static Status cm_buffer_insert_char(Session *, Value, const char *, int *);
 static Status cm_buffer_delete_char(Session *, Value, const char *, int *);
 static Status cm_buffer_backspace(Session *, Value, const char *, int *);
@@ -129,6 +130,7 @@ static const Command commands[] = {
     { "<C-S-End>"    , cm_bp_to_buffer_end              , INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                  , CMDT_BUFFER_MOVE },
     { "<S-PageUp>"   , cm_bp_change_page                , INT_VAL_STRUCT(DIRECTION_UP   | DIRECTION_WITH_SELECT) , CMDT_BUFFER_MOVE },
     { "<S-PageDown>" , cm_bp_change_page                , INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) , CMDT_BUFFER_MOVE },
+    { "<C-b>"        , cm_bp_goto_matching_bracket      , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOVE },
     { "<Space>"      , cm_buffer_insert_char            , STR_VAL_STRUCT(" ")                                    , CMDT_BUFFER_MOD  }, 
     { "<Tab>"        , cm_buffer_indent                 , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_BUFFER_MOD  }, 
     { "<S-Tab>"      , cm_buffer_indent                 , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_BUFFER_MOD  },
@@ -299,6 +301,14 @@ static Status cm_bp_change_page(Session *sess, Value param, const char *keystr, 
     (void)keystr;
     (void)finished;
     return bf_change_page(sess->active_buffer, IVAL(param));
+}
+
+static Status cm_bp_goto_matching_bracket(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+    return bf_jump_to_matching_bracket(sess->active_buffer);
 }
 
 static Status cm_buffer_insert_char(Session *sess, Value param, const char *keystr, int *finished)
