@@ -1599,3 +1599,116 @@ cleanup:
     return status;
 }
 
+Status bf_indent(Buffer *buffer, Direction direction)
+{
+    assert(direction == DIRECTION_RIGHT || direction == DIRECTION_LEFT);
+
+    if (!(direction == DIRECTION_RIGHT || direction == DIRECTION_LEFT)) {
+        return STATUS_SUCCESS;
+    }
+
+    Range range;
+    
+    if (!bf_get_range(buffer, &range) ||
+        range.end.line_no == range.start.line_no) {
+        return STATUS_SUCCESS;
+    }
+
+    RETURN_IF_FAIL(bc_start_grouped_changes(&buffer->changes));
+
+    bp_to_line_start(&range.start);
+    bp_to_line_end(&range.end);
+
+    int pos_at_range_start = bp_compare(&buffer->select_start,
+                                        &buffer->pos) > 0;
+
+    Status status = STATUS_SUCCESS;
+
+    buffer->pos = range.start;
+    bf_select_reset(buffer);
+    size_t lines = range.end.line_no - range.start.line_no;
+    size_t start_bytes = bf_length(buffer);
+
+    assert(lines > 0);
+
+    for (size_t k = 0; k <= lines; k++) {
+        assert(buffer->pos.col_no == 1);
+
+        switch (direction) {
+            case DIRECTION_RIGHT: 
+                {
+                    status = bf_insert_character(buffer, "\t", 0);
+                    break;
+                }
+            case DIRECTION_LEFT:
+                {
+                    CharInfo char_info;
+                    size_t space_remaining = cf_int(buffer->config, CV_TABWIDTH);
+
+                    while (bf_character_class(buffer, &buffer->pos) 
+                           == CCLASS_WHITESPACE &&
+                           space_remaining != 0 &&
+                           !bp_at_line_end(&buffer->pos)) {
+                        
+                        buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH,
+                                              buffer->pos, buffer->config);
+
+                        if (char_info.screen_length <= space_remaining) {
+                            status = bf_delete_character(buffer);
+
+                            if (!STATUS_IS_SUCCESS(status)) {
+                                break; 
+                            }
+
+                            space_remaining -= char_info.screen_length;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    break;
+                }
+            default:
+                {
+                    assert(!"Invalid direction");
+                    break;
+                }
+        }
+
+        if (!STATUS_IS_SUCCESS(status)) {
+            break;
+        }
+
+        if (!bp_next_line(&buffer->pos)) {
+            bp_to_line_end(&buffer->pos);
+            bp_next_char(&buffer->pos);
+        }
+    }
+
+    if (STATUS_IS_SUCCESS(status)) {
+        size_t end_bytes = bf_length(buffer);
+
+        if (direction == DIRECTION_RIGHT) {
+            assert(end_bytes > start_bytes);
+            range.end.offset += end_bytes - start_bytes;            
+        } else {
+            assert(start_bytes >= end_bytes);
+            range.end.offset -= start_bytes - end_bytes;            
+        }
+
+        bp_recalc_col(&range.end);
+
+        if (pos_at_range_start) {
+            buffer->pos = range.start;
+            buffer->select_start = range.end;
+        } else {
+            buffer->pos = range.end;
+            buffer->select_start = range.start;
+        }
+    }
+
+    bc_end_grouped_changes(&buffer->changes);
+
+    return status;
+}
+

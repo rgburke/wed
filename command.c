@@ -72,6 +72,7 @@ static Status cm_buffer_paste_text(Session *, Value, const char *, int *);
 static Status cm_buffer_undo(Session *, Value, const char *, int *);
 static Status cm_buffer_redo(Session *, Value, const char *, int *);
 static Status cm_buffer_vert_move_lines(Session *, Value, const char *, int *);
+static Status cm_buffer_indent(Session *, Value, const char *, int *);
 static Status cm_buffer_save_file(Session *, Value, const char *, int *);
 static void cm_generate_find_prompt(const BufferSearch *, char prompt_text[MAX_CMD_PROMPT_LENGTH]);
 static Status cm_prerpare_search(Session *, const BufferPos *);
@@ -129,7 +130,8 @@ static const Command commands[] = {
     { "<S-PageUp>"   , cm_bp_change_page                , INT_VAL_STRUCT(DIRECTION_UP   | DIRECTION_WITH_SELECT) , CMDT_BUFFER_MOVE },
     { "<S-PageDown>" , cm_bp_change_page                , INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) , CMDT_BUFFER_MOVE },
     { "<Space>"      , cm_buffer_insert_char            , STR_VAL_STRUCT(" ")                                    , CMDT_BUFFER_MOD  }, 
-    { "<Tab>"        , cm_buffer_insert_char            , STR_VAL_STRUCT("\t")                                   , CMDT_BUFFER_MOD  }, 
+    { "<Tab>"        , cm_buffer_indent                 , INT_VAL_STRUCT(DIRECTION_RIGHT)                        , CMDT_BUFFER_MOD  }, 
+    { "<S-Tab>"      , cm_buffer_indent                 , INT_VAL_STRUCT(DIRECTION_LEFT)                         , CMDT_BUFFER_MOD  },
     { "<KPDiv>"      , cm_buffer_insert_char            , STR_VAL_STRUCT("/")                                    , CMDT_BUFFER_MOD  }, 
     { "<KPMult>"     , cm_buffer_insert_char            , STR_VAL_STRUCT("*")                                    , CMDT_BUFFER_MOD  }, 
     { "<KPMinus>"    , cm_buffer_insert_char            , STR_VAL_STRUCT("-")                                    , CMDT_BUFFER_MOD  }, 
@@ -166,7 +168,6 @@ static const Command commands[] = {
     { "<C-w>"        , cm_session_close_buffer          , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-\\>"       , cm_session_run_command           , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-_>"        , cm_session_change_buffer         , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
-    { "<S-Tab>"      , cm_run_input_completion          , INT_VAL_STRUCT(0)                                      , CMDT_SESS_MOD    },
     { "<M-z>"        , cm_suspend                       , INT_VAL_STRUCT(0)                                      , CMDT_SUSPEND     },
     { "<M-c>"        , cm_session_end                   , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        },
     { "<Escape>"     , cm_session_end                   , INT_VAL_STRUCT(0)                                      , CMDT_EXIT        }
@@ -447,6 +448,22 @@ static Status cm_buffer_vert_move_lines(Session *sess, Value param, const char *
 
     Buffer *buffer = sess->active_buffer;
     return bf_vert_move_lines(buffer, IVAL(param));
+}
+
+static Status cm_buffer_indent(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)keystr;
+    (void)finished;
+
+    Buffer *buffer = sess->active_buffer;
+    Range range;
+
+    if (bf_get_range(buffer, &range) &&
+        range.end.line_no != range.start.line_no) {
+        return bf_indent(buffer, IVAL(param));
+    }
+
+    return bf_insert_character(sess->active_buffer, "\t", 1);
 }
 
 static Status cm_buffer_save_file(Session *sess, Value param, const char *keystr, int *finished)
@@ -1163,7 +1180,6 @@ static Status cm_session_change_buffer(Session *sess, Value param, const char *k
         status = cm_determine_buffer(sess, input, &buffer);
 
         if (!STATUS_IS_SUCCESS(status)) {
-            free(input);
             return status;
         }
 
@@ -1314,6 +1330,7 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
 
     if (pc_has_prompt_completer(prompt_type)) {
         cm_update_command_function(sess, "<Tab>", cm_run_input_completion);
+        cm_update_command_function(sess, "<S-Tab>", cm_run_input_completion);
     }
 
     se_exclude_command_type(sess, CMDT_CMD_INPUT);
@@ -1329,6 +1346,7 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
 
     if (pc_has_prompt_completer(prompt_type)) {
         cm_update_command_function(sess, "<Tab>", cm_buffer_insert_char);
+        cm_update_command_function(sess, "<S-Tab>", cm_buffer_indent);
     }
 
     se_end_prompt(sess);

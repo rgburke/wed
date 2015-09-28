@@ -152,5 +152,6 @@ int bf_has_mask(const Buffer *);
 void bf_remove_mask(Buffer *);
 Status bf_goto_line(Buffer *, size_t);
 Status bf_vert_move_lines(Buffer *, Direction);
+Status bf_indent(Buffer *, Direction);
 
 #endif
