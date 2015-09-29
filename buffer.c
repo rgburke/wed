@@ -1822,3 +1822,49 @@ Status bf_jump_to_matching_bracket(Buffer *buffer)
     return bf_set_bp(buffer, &pos);
 }
 
+Status bf_duplicate_selection(Buffer *buffer)
+{
+    Range range;
+    
+    if (!bf_get_range(buffer, &range)) {
+        range.start = range.end = buffer->pos;
+    }
+    
+    bp_to_line_start(&range.start);
+    bp_to_line_end(&range.end);
+    const char *new_line = bf_new_line_str(buffer->file_format);
+
+    if (bp_compare(&range.start, &range.end) == 0) {
+        return bf_insert_string(buffer, new_line, strlen(new_line), 0);
+    }
+
+    RETURN_IF_FAIL(bc_start_grouped_changes(&buffer->changes));
+
+    BufferPos pos = buffer->pos;
+    BufferPos select_start = buffer->select_start;
+
+    buffer->select_start = range.start;
+    buffer->pos = range.end;
+
+    TextSelection text_selection;
+    Status status = bf_copy_selected_text(buffer, &text_selection);
+
+    if (STATUS_IS_SUCCESS(status)) {
+        bf_select_reset(buffer);
+
+        status = bf_insert_string(buffer, new_line, strlen(new_line), 1);
+
+        if (STATUS_IS_SUCCESS(status)) {
+            status = bf_insert_textselection(buffer, &text_selection, 0);
+        }
+    }
+
+    bf_free_textselection(&text_selection);
+    bc_end_grouped_changes(&buffer->changes);
+
+    buffer->pos = pos;
+    buffer->select_start = select_start;
+
+    return status;
+}
+

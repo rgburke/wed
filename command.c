@@ -73,6 +73,7 @@ static Status cm_buffer_paste_text(Session *, Value, const char *, int *);
 static Status cm_buffer_undo(Session *, Value, const char *, int *);
 static Status cm_buffer_redo(Session *, Value, const char *, int *);
 static Status cm_buffer_vert_move_lines(Session *, Value, const char *, int *);
+static Status cm_buffer_duplicate_selection(Session *, Value, const char *, int *);
 static Status cm_buffer_indent(Session *, Value, const char *, int *);
 static Status cm_buffer_save_file(Session *, Value, const char *, int *);
 static void cm_generate_find_prompt(const BufferSearch *, char prompt_text[MAX_CMD_PROMPT_LENGTH]);
@@ -151,11 +152,11 @@ static const Command commands[] = {
     { "<C-y>"        , cm_buffer_redo                   , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  },
     { "<C-S-Up>"     , cm_buffer_vert_move_lines        , INT_VAL_STRUCT(DIRECTION_UP)                           , CMDT_BUFFER_MOD  },
     { "<C-S-Down>"   , cm_buffer_vert_move_lines        , INT_VAL_STRUCT(DIRECTION_DOWN)                         , CMDT_BUFFER_MOD  },
+    { "<C-d>"        , cm_buffer_duplicate_selection    , INT_VAL_STRUCT(0)                                      , CMDT_BUFFER_MOD  },
     { "<C-s>"        , cm_buffer_save_file              , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<C-f>"        , cm_buffer_find                   , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<F3>"         , cm_buffer_find_next              , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
     { "<F15>"        , cm_buffer_find_next              , INT_VAL_STRUCT(1)                                      , CMDT_CMD_INPUT   },
-    { "<C-d>"        , cm_buffer_toggle_search_direction, INT_VAL_STRUCT(0)                                      , CMDT_CMD_MOD     },
     { "<C-r>"        , cm_buffer_toggle_search_type     , INT_VAL_STRUCT(0)                                      , CMDT_CMD_MOD     },
     { "<M-i>"        , cm_buffer_toggle_search_case     , INT_VAL_STRUCT(0)                                      , CMDT_CMD_MOD     },
     { "<C-h>"        , cm_buffer_replace                , INT_VAL_STRUCT(0)                                      , CMDT_CMD_INPUT   },
@@ -458,6 +459,21 @@ static Status cm_buffer_vert_move_lines(Session *sess, Value param, const char *
 
     Buffer *buffer = sess->active_buffer;
     return bf_vert_move_lines(buffer, IVAL(param));
+}
+
+static Status cm_buffer_duplicate_selection(Session *sess, Value param, const char *keystr, int *finished)
+{
+    (void)param;
+    (void)keystr;
+    (void)finished;
+
+    if (se_prompt_active(sess) &&
+        pr_get_prompt_type(sess->prompt) == PT_FIND) {
+        return cm_buffer_toggle_search_direction(sess, param, keystr, finished);
+    }
+
+    Buffer *buffer = sess->active_buffer;
+    return bf_duplicate_selection(buffer);
 }
 
 static Status cm_buffer_indent(Session *sess, Value param, const char *keystr, int *finished)
