@@ -72,7 +72,15 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
-    if (!cm_init_keymap(sess)) {
+    if ((sess->keymap = new_hashmap()) == NULL) {
+        return 0;
+    }
+
+    if ((sess->keymap_overrides = new_hashmap()) == NULL) {
+        return 0;
+    }
+
+    if (!cm_populate_keymap(sess->keymap, OM_STANDARD)) {
         return 0;
     }
 
@@ -149,7 +157,10 @@ void se_free(Session *sess)
         buffer = tmp;
     }
 
-    cm_free_keymap(sess);
+    cm_clear_keymap_entries(sess->keymap);
+    cm_clear_keymap_entries(sess->keymap_overrides);
+    free_hashmap(sess->keymap);
+    free_hashmap(sess->keymap_overrides);
     bf_free_textselection(&sess->clipboard);
     cf_free_config(sess->config);
     pr_free(sess->prompt, 1);

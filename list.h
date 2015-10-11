@@ -47,6 +47,7 @@ int list_add_at(List *, void *, size_t);
 void *list_pop(List *);
 void *list_remove_at(List *, size_t);
 void list_sort(List *, ListComparator);
+void list_nullify(List *);
 void list_clear(List *);
 void list_free_values(List *);
 void list_free_values_custom(List *, ListEntryFree);

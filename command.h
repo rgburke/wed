@@ -24,18 +24,89 @@
 #include "session.h"
 #include "value.h"
 
-typedef Status (*CommandHandler)(Session *, Value, const char *, int *);
+#define MAX_CMD_ARG_NUM 5
 
-/* Represents a command. Move up, down etc... */
-typedef struct {
-    const char *keystr; /* Key combo string representiation */
-    CommandHandler command_handler; /* Pointer to command function */
-    Value param; /* Argument passed to command function */
-    CommandType cmd_type; /* What type of action does this command perform */
+typedef enum {
+    CMD_BP_CHANGE_LINE,
+    CMD_BP_CHANGE_CHAR,
+    CMD_BP_TO_LINE_START,
+    CMD_BP_TO_LINE_END,
+    CMD_BP_TO_NEXT_WORD,
+    CMD_BP_TO_PREV_WORD,
+    CMD_BP_TO_BUFFER_START,
+    CMD_BP_TO_BUFFER_END,
+    CMD_BP_CHANGE_PAGE,
+    CMD_BP_GOTO_MATCHING_BRACKET,
+    CMD_BUFFER_INSERT_CHAR,
+    CMD_BUFFER_INDENT,
+    CMD_BUFFER_DELETE_CHAR,
+    CMD_BUFFER_BACKSPACE,
+    CMD_BUFFER_DELETE_WORD,
+    CMD_BUFFER_DELETE_PREV_WORD,
+    CMD_BUFFER_INSERT_LINE,
+    CMD_BUFFER_SELECT_ALL_TEXT,
+    CMD_BUFFER_COPY_SELECTED_TEXT,
+    CMD_BUFFER_CUT_SELECTED_TEXT,
+    CMD_BUFFER_PASTE_TEXT,
+    CMD_BUFFER_UNDO,
+    CMD_BUFFER_REDO,
+    CMD_BUFFER_VERT_MOVE_LINES,
+    CMD_BUFFER_DUPLICATE_SELECTION,
+    CMD_BUFFER_SAVE_FILE,
+    CMD_BUFFER_FIND,
+    CMD_BUFFER_FIND_NEXT,
+    CMD_BUFFER_TOGGLE_SEARCH_TYPE,
+    CMD_BUFFER_TOGGLE_SEARCH_CASE,
+    CMD_BUFFER_TOGGLE_SEARCH_DIRECTION,
+    CMD_BUFFER_REPLACE,
+    CMD_PREVIOUS_PROMPT_ENTRY,
+    CMD_NEXT_PROMPT_ENTRY,
+    CMD_PROMPT_INPUT_FINISHED,
+    CMD_CANCEL_PROMPT,
+    CMD_RUN_PROMPT_COMPLETION,
+    CMD_BUFFER_GOTO_LINE,
+    CMD_SESSION_OPEN_FILE,
+    CMD_SESSION_ADD_EMPTY_BUFFER,
+    CMD_SESSION_CHANGE_TAB,
+    CMD_SESSION_SAVE_ALL,
+    CMD_SESSION_CLOSE_BUFFER,
+    CMD_SESSION_RUN_COMMAND,
+    CMD_SESSION_CHANGE_BUFFER,
+    CMD_SUSPEND,
+    CMD_SESSION_END,
 } Command;
 
-int cm_init_keymap(Session *);
-void cm_free_keymap(Session *);
-Status cm_do_command(Session *, const char *, int *);
+typedef struct {
+    Session *sess;
+    Value args[MAX_CMD_ARG_NUM];
+    size_t arg_num;
+    const char *key;
+    int *finished;
+} CommandArgs;
+
+typedef Status (*CommandHandler)(const CommandArgs *);
+
+typedef struct {
+    CommandHandler command_handler;
+    CommandType cmd_type;
+} CommandDefinition;
+
+typedef enum {
+    OM_STANDARD = 1,
+    OM_PROMPT = 1 << 1,
+    OM_PROMPT_COMPLETER = 1 << 2
+} OperationMode;
+
+typedef struct {
+    const char *key;
+    OperationMode op_mode;
+    Value args[MAX_CMD_ARG_NUM];
+    size_t arg_num;
+    Command command;
+} Operation;
+
+int cm_populate_keymap(HashMap *, OperationMode);
+void cm_clear_keymap_entries(HashMap *);
+Status cm_do_operation(Session *, const char *, int *);
 
 #endif

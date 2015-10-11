@@ -195,9 +195,14 @@ void list_sort(List *list, ListComparator comparator)
     qsort(list->values, list->size, sizeof(void *), comparator);
 }
 
-void list_clear(List *list)
+void list_nullify(List *list)
 {
     memset(list->values, 0, sizeof(void *) * list->allocated);
+}
+
+void list_clear(List *list)
+{
+    list_nullify(list);
     list->size = 0;
 }
 

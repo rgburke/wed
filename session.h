@@ -38,6 +38,7 @@ typedef struct {
     Buffer *error_buffer;
     Buffer *msg_buffer;
     HashMap *keymap; /* Maps keyboard inputs to commands */
+    HashMap *keymap_overrides;
     TextSelection clipboard; /* Stores copied and cut text */
     HashMap *config; /* Stores config variables */
     Prompt *prompt;

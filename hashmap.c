@@ -220,7 +220,7 @@ int hashmap_delete(HashMap *hashmap, const char *key)
 void hashmap_clear(HashMap *hashmap)
 {
     free_hashmapnodes(hashmap);
-    list_clear(hashmap->buckets);
+    list_nullify(hashmap->buckets);
     hashmap->entry_num = 0;
 }
 
@@ -351,6 +351,7 @@ void free_hashmap_values(HashMap *hashmap, void (*free_func)(void *))
 
         while (node != NULL) {
             free_func(node->value);
+            node->value = NULL;
             node = node->next;
         } 
     }
