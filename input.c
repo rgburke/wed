@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <ncurses.h>
 #include "input.h"
 #include "session.h"
@@ -31,7 +32,9 @@
 #include "util.h"
 #include "lib/libtermkey/termkey.h"
 
-static void ip_handle_keypress(Session *, TermKeyKey *, char *, int *);
+#define MIN_DRAW_INTERVAL_NS 200000
+
+static void ip_handle_keypress(Session *, TermKeyKey *, char *, int *, struct timespec *, int *);
 static void ip_handle_error(Session *);
 
 static TermKey *termkey = NULL;
@@ -84,9 +87,12 @@ void ip_process_input(Session *sess)
     TermKeyKey key;
     int pselect_res;
     int finished = 0;
+    int redraw_due = 0;
+    struct timespec last_draw; 
     struct timespec *timeout = NULL;
-    struct timespec esc_timeout;
-    memset(&esc_timeout, 0, sizeof(struct timespec));
+    struct timespec wait_timeout;
+    memset(&wait_timeout, 0, sizeof(struct timespec));
+    clock_gettime(CLOCK_MONOTONIC, &last_draw);
     fd_set fds;
 
     while (!finished) {
@@ -107,7 +113,11 @@ void ip_process_input(Session *sess)
             /* TODO Handle general failure of pselect */
         } else if (pselect_res == 0) {
             if (termkey_getkey_force(termkey, &key) == TERMKEY_RES_KEY) {
-                ip_handle_keypress(sess, &key, keystr, &finished);
+                ip_handle_keypress(sess, &key, keystr, &finished, 
+                                   &last_draw, &redraw_due);
+            } else if (redraw_due) {
+                update_display(sess);
+                redraw_due = 0;
             }
 
             timeout = NULL;
@@ -117,26 +127,41 @@ void ip_process_input(Session *sess)
             }
 
             while ((ret = termkey_getkey(termkey, &key)) == TERMKEY_RES_KEY) {
-                ip_handle_keypress(sess, &key, keystr, &finished);
+                ip_handle_keypress(sess, &key, keystr, &finished,
+                                   &last_draw, &redraw_due);
             }
 
             if (ret == TERMKEY_RES_AGAIN) {
-                timeout = &esc_timeout;
+                timeout = &wait_timeout;
                 timeout->tv_nsec = termkey_get_waittime(termkey) * 1000;
             } 
+        }
+
+        if (redraw_due && timeout == NULL) {
+            timeout = &wait_timeout;
+            timeout->tv_nsec = MIN_DRAW_INTERVAL_NS;
         }
     }
 }
 
-static void ip_handle_keypress(Session *sess, TermKeyKey *key, char *keystr, int *finished)
+static void ip_handle_keypress(Session *sess, TermKeyKey *key, char *keystr, 
+                               int *finished, struct timespec *last_draw, int *redraw_due)
 {
+    static struct timespec now;
     termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE, key, TERMKEY_FORMAT_VIM);
     se_add_error(sess, cm_do_operation(sess, keystr, finished));
     ip_handle_error(sess);
     se_save_key(sess, keystr);
 
     if (!*finished) {
-        update_display(sess);
+        clock_gettime(CLOCK_MONOTONIC, &now);
+
+        if (now.tv_nsec - last_draw->tv_nsec >= MIN_DRAW_INTERVAL_NS) {
+            update_display(sess);
+            clock_gettime(CLOCK_MONOTONIC, last_draw);
+        } else {
+            *redraw_due = 1;
+        }
     }
 }
 

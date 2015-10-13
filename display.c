@@ -32,14 +32,13 @@
 #define MAX_MENU_BUFFER_WIDTH 30
 #define SC_COLOR_PAIR(screen_comp) (COLOR_PAIR((screen_comp) + 1))
 
-static WINDOW *menu;
-static WINDOW *status;
-static WINDOW *text;
-static WINDOW *lineno;
+static WINDOW *menu_win;
+static WINDOW *status_win;
+static WINDOW *text_win;
+static WINDOW *line_no_win;
 static WINDOW *windows[WINDOW_NUM];
-static size_t text_y = 0;
-static size_t text_x = 0;
-static size_t line_no_x = 0;
+static size_t text_win_y = 0;
+static size_t text_win_x = 0;
 
 static short ncurses_color(DrawColor);
 static void draw_prompt(Session *);
@@ -77,13 +76,13 @@ void init_display(const Theme *theme)
     keypad(stdscr, TRUE);
     curs_set(1);
 
-    text_y = LINES - 2;
-    text_x = COLS;
+    text_win_y = LINES - 2;
+    text_win_x = COLS;
 
-    windows[0] = menu = newwin(1, COLS, 0, 0); 
-    windows[1] = text = newwin(text_y, text_x, 1, 0);
-    windows[2] = status = newwin(1, COLS, LINES - 1, 0);
-    windows[3] = lineno = newwin(0, 0, 1, 0);
+    windows[0] = menu_win = newwin(1, COLS, 0, 0); 
+    windows[1] = text_win = newwin(text_win_y, text_win_x, 1, 0);
+    windows[2] = status_win = newwin(1, COLS, LINES - 1, 0);
+    windows[3] = line_no_win = newwin(0, 0, 1, 0);
         
     refresh();
 }
@@ -96,13 +95,13 @@ void resize_display(Session *sess)
         /* TODO handle */
     }
 
-    text_y = win_size.ws_row - 2;
-    text_x = win_size.ws_col;
+    text_win_y = win_size.ws_row - 2;
+    text_win_x = win_size.ws_col;
 
     resizeterm(win_size.ws_row, win_size.ws_col);
-    wresize(menu, 1, text_x); 
-    wresize(text, text_y, text_x);
-    wresize(status, 1, text_x);
+    wresize(menu_win, 1, text_win_x); 
+    wresize(text_win, text_win_y, text_win_x);
+    wresize(status_win, 1, text_win_x);
 
     init_all_window_info(sess);
     update_display(sess);
@@ -115,9 +114,9 @@ void suspend_display(void)
 
 void end_display(void)
 {
-    delwin(menu);
-    delwin(text);
-    delwin(status);
+    delwin(menu_win);
+    delwin(text_win);
+    delwin(status_win);
     endwin();
 }
 
@@ -139,8 +138,8 @@ void init_all_window_info(Session *sess)
 
 void init_window_info(WindowInfo *win_info)
 {
-    win_info->height = text_y;
-    win_info->width = text_x;
+    win_info->height = text_win_y;
+    win_info->width = text_win_x;
     win_info->start_y = 0;
     win_info->start_x = 0;
     win_info->line_no_width = 0;
@@ -238,7 +237,7 @@ void draw_menu(Session *sess)
             used_space = snprintf(buffer_display, MAX_MENU_BUFFER_WIDTH, tab_fmt, start_index + 1, buffer->file_info.file_name);
             used_space = (used_space > MAX_MENU_BUFFER_WIDTH ? MAX_MENU_BUFFER_WIDTH : used_space);
 
-            if ((total_used_space + used_space > text_x) ||
+            if ((total_used_space + used_space > text_win_x) ||
                 start_index == 0 || 
                 start_index == sess->menu_first_buffer_index) {
                 break;
@@ -248,7 +247,7 @@ void draw_menu(Session *sess)
             buffer = se_get_buffer(sess, --start_index);
         }
 
-        if (total_used_space + used_space > text_x) {
+        if (total_used_space + used_space > text_win_x) {
             sess->menu_first_buffer_index = start_index + 1;
         }  
 
@@ -258,9 +257,9 @@ void draw_menu(Session *sess)
 
     buffer = se_get_buffer(sess, sess->menu_first_buffer_index);
 
-    werase(menu);
-    wbkgd(menu, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
-    wattron(menu, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
+    werase(menu_win);
+    wbkgd(menu_win, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
+    wattron(menu_win, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
 
     for (size_t buffer_index = sess->menu_first_buffer_index; 
          buffer_index < sess->buffer_num;
@@ -269,24 +268,24 @@ void draw_menu(Session *sess)
         used_space = snprintf(buffer_display, MAX_MENU_BUFFER_WIDTH, tab_fmt, buffer_index + 1, buffer->file_info.file_name);
         used_space = (used_space > MAX_MENU_BUFFER_WIDTH ? MAX_MENU_BUFFER_WIDTH : used_space);
 
-        if (total_used_space + used_space > text_x) {
+        if (total_used_space + used_space > text_win_x) {
             break;
         }
 
         if (buffer_index == sess->active_buffer_index) {
-            wattron(menu, SC_COLOR_PAIR(SC_ACTIVE_BUFFER_TAB_BAR));
-            mvwprintw(menu, 0, total_used_space, buffer_display); 
-            wattroff(menu, SC_COLOR_PAIR(SC_ACTIVE_BUFFER_TAB_BAR));
+            wattron(menu_win, SC_COLOR_PAIR(SC_ACTIVE_BUFFER_TAB_BAR));
+            mvwprintw(menu_win, 0, total_used_space, buffer_display); 
+            wattroff(menu_win, SC_COLOR_PAIR(SC_ACTIVE_BUFFER_TAB_BAR));
         } else {
-            mvwprintw(menu, 0, total_used_space, buffer_display); 
+            mvwprintw(menu_win, 0, total_used_space, buffer_display); 
         }
 
         total_used_space += used_space;
         buffer = buffer->next;
     }
 
-    wattroff(menu, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
-    wnoutrefresh(menu); 
+    wattroff(menu_win, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
+    wnoutrefresh(menu_win); 
 }
 
 void draw_status(Session *sess)
@@ -297,23 +296,23 @@ void draw_status(Session *sess)
         segment_num = 3;
     }
 
-    size_t max_segment_width = text_x / segment_num;
+    size_t max_segment_width = text_win_x / segment_num;
 
-    werase(status);
-    wmove(status, 0, 0);
-    wbkgd(status, SC_COLOR_PAIR(SC_STATUS_BAR));
-    wattron(status, SC_COLOR_PAIR(SC_STATUS_BAR));
+    werase(status_win);
+    wmove(status_win, 0, 0);
+    wbkgd(status_win, SC_COLOR_PAIR(SC_STATUS_BAR));
+    wattron(status_win, SC_COLOR_PAIR(SC_STATUS_BAR));
 
     size_t file_info_size = draw_status_file_info(sess, max_segment_width);
     size_t file_pos_size = draw_status_pos_info(sess, max_segment_width);
 
     if (segment_num == 3) {
-        size_t available_space = text_x - file_info_size - file_pos_size - 1;
+        size_t available_space = text_win_x - file_info_size - file_pos_size - 1;
         draw_status_general_info(sess, file_info_size, available_space);
     }
 
-    wattroff(status, SC_COLOR_PAIR(SC_STATUS_BAR));
-    wnoutrefresh(status); 
+    wattroff(status_win, SC_COLOR_PAIR(SC_STATUS_BAR));
+    wnoutrefresh(status_win); 
 }
 
 static size_t draw_status_file_info(Session *sess, size_t max_segment_width)
@@ -351,7 +350,7 @@ static size_t draw_status_file_info(Session *sess, size_t max_segment_width)
         file_info_size = snprintf(status_text, max_segment_width, " \"%s\"%s", file_path, file_info_text);
     }
 
-    wprintw(status, status_text);
+    wprintw(status_win, status_text);
 
     return file_info_size;
 }
@@ -405,7 +404,7 @@ static size_t draw_status_pos_info(Session *sess, size_t max_segment_width)
                                  "L:%zu C:%zu ", pos.line_no, pos.col_no);
     }
 
-    mvwprintw(status, 0, text_x - strlen(status_text) - 1, status_text);
+    mvwprintw(status_win, 0, text_win_x - strlen(status_text) - 1, status_text);
 
     return pos_info_size;
 }
@@ -421,7 +420,7 @@ static void draw_status_general_info(Session *sess, size_t file_info_size, size_
     }
 
     available_space -= 3;
-    mvwprintw(status, 0, file_info_size - 1, " | ");
+    mvwprintw(status_win, 0, file_info_size - 1, " | ");
 
     size_t msg_length = strlen(msg);
 
@@ -435,7 +434,7 @@ static void draw_status_general_info(Session *sess, size_t file_info_size, size_
         snprintf(status_text, available_space, "%s", msg); 
     }
 
-    mvwprintw(status, 0, file_info_size - 1 + 3, status_text);
+    mvwprintw(status_win, 0, file_info_size - 1 + 3, status_text);
     free(msg);
 }
 
@@ -468,19 +467,19 @@ void draw_errors(Session *sess)
         win_info->height += diff;
     }
 
-    wattron(text, SC_COLOR_PAIR(SC_ERROR_MESSAGE));
+    wattron(text_win, SC_COLOR_PAIR(SC_ERROR_MESSAGE));
     draw_buffer(sess, error_buffer, 1);
-    wattroff(text, SC_COLOR_PAIR(SC_ERROR_MESSAGE));
-    wclrtoeol(text);
-    wnoutrefresh(text);
+    wattroff(text_win, SC_COLOR_PAIR(SC_ERROR_MESSAGE));
+    wclrtoeol(text_win);
+    wnoutrefresh(text_win);
 
     *win_info = win_info_orig;
 
-    wmove(status, 0, 0);
-    werase(status);
-    wbkgd(status, COLOR_PAIR(0));
-    wprintw(status, "Press any key to continue");
-    wnoutrefresh(status);
+    wmove(status_win, 0, 0);
+    werase(status_win);
+    wbkgd(status_win, COLOR_PAIR(0));
+    wprintw(status_win, "Press any key to continue");
+    wnoutrefresh(status_win);
 
     doupdate();
 }
@@ -491,17 +490,17 @@ static void draw_prompt(Session *sess)
     Buffer *prompt_buffer = pr_get_prompt_buffer(prompt);
     const char *prompt_text = pr_get_prompt_text(prompt);
 
-    wmove(status, 0, 0);
-    wbkgd(status, COLOR_PAIR(0));
-    wattron(status, SC_COLOR_PAIR(SC_STATUS_BAR));
-    wprintw(status, prompt_text); 
-    wattroff(status, SC_COLOR_PAIR(SC_STATUS_BAR));
-    wprintw(status, " "); 
+    wmove(status_win, 0, 0);
+    wbkgd(status_win, COLOR_PAIR(0));
+    wattron(status_win, SC_COLOR_PAIR(SC_STATUS_BAR));
+    wprintw(status_win, prompt_text); 
+    wattroff(status_win, SC_COLOR_PAIR(SC_STATUS_BAR));
+    wprintw(status_win, " "); 
 
     size_t prompt_size = strlen(prompt_text) + 1;
     WindowInfo *win_info = &prompt_buffer->win_info;
     win_info->start_x = prompt_size;
-    win_info->width = text_x - prompt_size;
+    win_info->width = text_win_x - prompt_size;
 
     pr_hide_suggestion_prompt(prompt);
 }
@@ -560,7 +559,7 @@ static void draw_buffer(const Session *sess, Buffer *buffer, int line_wrap)
     }
 
     if (buffer->win_info.line_no_width > 0) {
-        werase(lineno);
+        werase(line_no_win);
     }
 
     while (line_count < line_num && draw_pos.offset <= buffer_len) {
@@ -576,14 +575,14 @@ static void draw_buffer(const Session *sess, Buffer *buffer, int line_wrap)
     }
 
     if (buffer->win_info.line_no_width > 0) {
-        wnoutrefresh(lineno);
+        wnoutrefresh(line_no_win);
     }
 
     wstandend(draw_win);
     wattron(draw_win, SC_COLOR_PAIR(SC_BUFFER_END));
 
     while (line_count < buffer->win_info.height) {
-        mvwaddch(text, buffer->win_info.start_y + line_count++, 
+        mvwaddch(text_win, buffer->win_info.start_y + line_count++, 
                  buffer->win_info.start_x, '~');
     }
 
@@ -596,10 +595,10 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
                         SyntaxMatches *syn_matches)
 {
     if (win_info.line_no_width > 0 && (bp_at_line_start(draw_pos) || !line_wrap)) {
-        wmove(lineno, win_info.start_y + y, 0);
-        wattron(lineno, SC_COLOR_PAIR(SC_LINENO));
-        wprintw(lineno, "%*zu ", ((int)win_info.line_no_width - 1), draw_pos->line_no);
-        wattroff(lineno, SC_COLOR_PAIR(SC_LINENO));
+        wmove(line_no_win, win_info.start_y + y, 0);
+        wattron(line_no_win, SC_COLOR_PAIR(SC_LINENO));
+        wprintw(line_no_win, "%*zu ", ((int)win_info.line_no_width - 1), draw_pos->line_no);
+        wattroff(line_no_win, SC_COLOR_PAIR(SC_LINENO));
     }
 
     if (bp_at_line_end(draw_pos)) {
@@ -878,6 +877,7 @@ static void horizontal_scroll(Buffer *buffer)
 
 static size_t update_line_no_width(Buffer *buffer, int line_wrap)
 {
+    static size_t line_no_x = 0;
     BufferPos screen_start = buffer->screen_start;
     WindowInfo *win_info = &buffer->win_info;
     char lineno_str[50];
@@ -924,11 +924,11 @@ static size_t update_line_no_width(Buffer *buffer, int line_wrap)
             vertical_scroll_linewrap(buffer);
         }
 
-        wresize(text, text_y, text_x - line_no_width);
-        mvwin(text, 1, line_no_width);
+        wresize(text_win, text_win_y, text_win_x - line_no_width);
+        mvwin(text_win, 1, line_no_width);
 
-        werase(lineno);
-        wresize(lineno, text_y, line_no_width);
+        werase(line_no_win);
+        wresize(line_no_win, text_win_y, line_no_width);
 
         line_no_x = line_no_width;
     }
