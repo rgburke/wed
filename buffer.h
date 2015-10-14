@@ -82,8 +82,6 @@ struct Buffer {
     size_t line_col_offset; /* Global cursor line offset */
     WindowInfo win_info; /* Window dimension info */
     HashMap *config; /* Stores config variables */
-    CharacterEncodingType encoding_type;
-    CharacterEncodingFunctions cef;
     int is_dirty;
     GapBuffer *data;
     BufferSearch search;

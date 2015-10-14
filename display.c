@@ -445,7 +445,7 @@ void draw_errors(Session *sess)
     size_t screen_lines = 0;
     WindowInfo *win_info = &error_buffer->win_info;
     WindowInfo win_info_orig = *win_info;
-    bp_init(&pos, error_buffer->data, &error_buffer->cef, 
+    bp_init(&pos, error_buffer->data,
             &error_buffer->file_format, error_buffer->config);
 
     while (!bp_at_buffer_end(&pos)) {
@@ -611,7 +611,7 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
         while (draw_pos->col_no < win_info.horizontal_scroll &&
                !bp_at_line_end(draw_pos)) {
 
-            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *draw_pos, buffer->config);
+            en_utf8_char_info(&char_info, CIP_SCREEN_LENGTH, draw_pos, buffer->config);
 
             // TODO Also handle unprintable characters when horizontally scrolling 
             if (draw_pos->col_no + char_info.screen_length > win_info.horizontal_scroll) {
@@ -660,7 +660,7 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y, int is_selec
                 }
             }
 
-            buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH, *draw_pos, buffer->config);
+            en_utf8_char_info(&char_info, CIP_SCREEN_LENGTH, draw_pos, buffer->config);
 
             draw_char(char_info, draw_pos, draw_win, window_width, line_wrap);
 

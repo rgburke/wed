@@ -74,12 +74,10 @@ Buffer *bf_new(const FileInfo *file_info, const HashMap *config)
     }
 
     buffer->file_info = *file_info;
-    buffer->encoding_type = ENC_UTF8;
     buffer->file_format = FF_UNIX;
-    en_init_char_enc_funcs(buffer->encoding_type, &buffer->cef);
-    bp_init(&buffer->pos, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
-    bp_init(&buffer->screen_start, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
-    bp_init(&buffer->select_start, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
+    bp_init(&buffer->pos, buffer->data, &buffer->file_format, buffer->config);
+    bp_init(&buffer->screen_start, buffer->data, &buffer->file_format, buffer->config);
+    bp_init(&buffer->select_start, buffer->data, &buffer->file_format, buffer->config);
     bf_select_reset(buffer);
     init_window_info(&buffer->win_info);
     bs_init_default_opt(&buffer->search);
@@ -136,9 +134,9 @@ static Status reset_buffer(Buffer *buffer)
         return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to reset buffer");
     }
 
-    bp_init(&buffer->pos, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
-    bp_init(&buffer->screen_start, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
-    bp_init(&buffer->select_start, buffer->data, &buffer->cef, &buffer->file_format, buffer->config);
+    bp_init(&buffer->pos, buffer->data, &buffer->file_format, buffer->config);
+    bp_init(&buffer->screen_start, buffer->data, &buffer->file_format, buffer->config);
+    bp_init(&buffer->select_start, buffer->data, &buffer->file_format, buffer->config);
     bf_select_reset(buffer);
     bf_update_line_col_offset(buffer, &buffer->pos);
     bc_free(&buffer->changes);
@@ -404,7 +402,7 @@ int bf_bp_in_range(const Range *range, const BufferPos *pos)
 CharacterClass bf_character_class(const Buffer *buffer, const BufferPos *pos)
 {
     CharInfo char_info;
-    pos->cef->char_info(&char_info, CIP_DEFAULT, *pos, buffer->config);
+    en_utf8_char_info(&char_info, CIP_DEFAULT, pos, buffer->config);
 
     if (char_info.byte_length == 1) {
         uchar character = bp_get_uchar(pos);
@@ -1239,8 +1237,8 @@ Status bf_delete_character(Buffer *buffer)
         byte_length = 2;
     } else {
         CharInfo char_info;
-        buffer->cef.char_info(&char_info, CIP_DEFAULT, 
-                              buffer->pos, buffer->config);
+        en_utf8_char_info(&char_info, CIP_DEFAULT, 
+                          &buffer->pos, buffer->config);
         byte_length = char_info.byte_length;
     }
 
@@ -1652,8 +1650,8 @@ Status bf_indent(Buffer *buffer, Direction direction)
                            space_remaining != 0 &&
                            !bp_at_line_end(&buffer->pos)) {
                         
-                        buffer->cef.char_info(&char_info, CIP_SCREEN_LENGTH,
-                                              buffer->pos, buffer->config);
+                        en_utf8_char_info(&char_info, CIP_SCREEN_LENGTH,
+                                          &buffer->pos, buffer->config);
 
                         if (char_info.screen_length <= space_remaining) {
                             status = bf_delete_character(buffer);

@@ -25,94 +25,39 @@
 #include "config.h"
 #include "gap_buffer.h"
 
-//#include "unicode.c"
-
-static int en_utf8_char_info(CharInfo *, CharInfoProperties, BufferPos, const HashMap *);
-static size_t en_utf8_previous_char_offset(BufferPos);
-static int en_utf8_is_valid_character(BufferPos, size_t *);
+static void en_ascii_char_info(CharInfo *, CharInfoProperties, const BufferPos *, const HashMap *, uchar);
+static int en_utf8_is_valid_character(const BufferPos *, size_t *);
 static uint en_utf8_code_point(const uchar *, uint);
-//static int utf8_is_combining_char(uint);
 
-static const CharacterEncodingFunctions utf8_character_encoding_functions = {
-    en_utf8_char_info,
-    en_utf8_previous_char_offset
-};
-
-int en_init_char_enc_funcs(CharacterEncodingType type, CharacterEncodingFunctions *cef)
+void en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip, 
+                      const BufferPos *pos, const HashMap *config)
 {
-    if (cef == NULL) {
-        return 0;
-    }
-
-    switch (type) {
-        case ENC_UTF8:
-            *cef = utf8_character_encoding_functions;
-            break;
-        default:
-            return 0;
-    }
-
-    return 1;
-}
-
-static int en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip, 
-                             BufferPos pos, const HashMap *config)
-{
-    if (char_info == NULL) {
-        return 0;
-    }
-
     memset(char_info, 0, sizeof(CharInfo));
+    uchar c = gb_getu_at(pos->data, pos->offset);
+
+    if (c < 128) {
+        en_ascii_char_info(char_info, cip, pos, config, c);
+        return;
+    }
 
     if (en_utf8_is_valid_character(pos, &char_info->byte_length)) {
         char_info->is_valid = 1;
     } else {
         char_info->byte_length = 1;
 
-        while (((pos.offset + char_info->byte_length) < gb_length(pos.data)) && 
-               ((uchar)gb_get_at(pos.data, pos.offset + char_info->byte_length) & 0xC0) == 0x80) {
+        while (((pos->offset + char_info->byte_length) < gb_length(pos->data)) && 
+                ((uchar)gb_get_at(pos->data, pos->offset + char_info->byte_length) & 0xC0) == 0x80) {
             char_info->byte_length++;
         }
     }
 
-    /*if (char_info->is_valid) {
-        const uchar *next;
-        size_t next_byte_length;
-
-        while (pos.offset + char_info->byte_length < pos.line->length) {
-            next = ch + char_info->byte_length;
-
-            if (!en_utf8_is_valid_character(next, pos.offset + char_info->byte_length, pos.line->length, &next_byte_length)) {
-                break;
-            }
-
-            if (utf8_is_combining_char(en_utf8_code_point(next, next_byte_length))) {
-                char_info->byte_length += next_byte_length;
-            } else {
-                break;
-            }
-        }
-    }*/
-
     if (cip & CIP_SCREEN_LENGTH) {
         char_info->is_printable = 1;
         uchar ch[5] = { '\0' };
-        gb_get_range(pos.data, pos.offset, (char *)ch, char_info->byte_length);
+        gb_get_range(pos->data, pos->offset, (char *)ch, char_info->byte_length);
 
         if (!char_info->is_valid) {
             char_info->screen_length = 1;
-        } else if (*ch == '\n') {
-            char_info->screen_length = 0;
-        } else if (*pos.file_format == FF_WINDOWS &&
-                   *ch == '\r' && 
-                   gb_get_at(pos.data, pos.offset + 1) == '\n') {
-            char_info->screen_length = 0;
-        } else if (*ch == '\t') {
-            size_t tabwidth = cf_int(config, CV_TABWIDTH);
-            char_info->screen_length = tabwidth - ((pos.col_no - 1) % tabwidth);
-        } else if (*ch < 128 && !isprint(*ch)) {
-            char_info->screen_length = 2;
-            char_info->is_printable = 0;
         } else {
             uint code_point = en_utf8_code_point(ch, char_info->byte_length);    
             int screen_length = wcwidth(code_point);
@@ -124,14 +69,42 @@ static int en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip,
             }
         }
     }
-
-    return 1;
 }
 
-static int en_utf8_is_valid_character(BufferPos pos, size_t *char_byte_length)
+static void en_ascii_char_info(CharInfo *char_info, CharInfoProperties cip, 
+                               const BufferPos *pos, const HashMap *config,
+                               uchar c)
 {
-    uchar byte = gb_get_at(pos.data, pos.offset);
-    size_t byte_space_left = gb_length(pos.data) - pos.offset;
+    assert(c < 128);
+
+    char_info->is_valid = 1;
+    char_info->byte_length = 1;
+
+    if (cip & CIP_SCREEN_LENGTH) {
+        char_info->is_printable = 1;
+
+        if (c == '\n') {
+            char_info->screen_length = 0;
+        } else if (c == '\r' &&
+                   *pos->file_format == FF_WINDOWS &&
+                   gb_get_at(pos->data, pos->offset + 1) == '\n') {
+            char_info->screen_length = 0;
+        } else if (c == '\t') {
+            size_t tabwidth = cf_int(config, CV_TABWIDTH);
+            char_info->screen_length = tabwidth - ((pos->col_no - 1) % tabwidth);
+        } else if (c < 32 || c == 127) {
+            char_info->screen_length = 2;
+            char_info->is_printable = 0;
+        } else {
+            char_info->screen_length = 1;
+        }
+    }
+}
+
+static int en_utf8_is_valid_character(const BufferPos *pos, size_t *char_byte_length)
+{
+    uchar byte = gb_get_at(pos->data, pos->offset);
+    size_t byte_space_left = gb_length(pos->data) - pos->offset;
     *char_byte_length = 0;
 
     if (byte < 0x80) {
@@ -147,7 +120,7 @@ static int en_utf8_is_valid_character(BufferPos pos, size_t *char_byte_length)
             return 0;
         }
 
-        uchar byte2 = gb_get_at(pos.data, pos.offset + 1);
+        uchar byte2 = gb_get_at(pos->data, pos->offset + 1);
 
         if (byte == 0xE0 && byte2 < 0xA0) {
             return 0;
@@ -159,7 +132,7 @@ static int en_utf8_is_valid_character(BufferPos pos, size_t *char_byte_length)
             return 0;
         }
 
-        uchar byte2 = gb_get_at(pos.data, pos.offset + 1);
+        uchar byte2 = gb_get_at(pos->data, pos->offset + 1);
 
         if ((byte == 0xF0 && byte2 < 0x90) ||
             (byte == 0xF4 && byte2 >= 0x90)) {
@@ -174,7 +147,7 @@ static int en_utf8_is_valid_character(BufferPos pos, size_t *char_byte_length)
     }
 
     for (uint k = 1; k < *char_byte_length; k++) {
-        if (((uchar)gb_get_at(pos.data, pos.offset + k) & 0xC0) != 0x80) {
+        if (((uchar)gb_get_at(pos->data, pos->offset + k) & 0xC0) != 0x80) {
             return 0;
         }
     }
@@ -228,17 +201,17 @@ static uint en_utf8_code_point(const uchar *character, uint byte_length)
     return 0;
 }*/
 
-static size_t en_utf8_previous_char_offset(BufferPos pos)
+size_t en_utf8_previous_char_offset(const BufferPos *pos)
 {
-    if (pos.offset == 0) {
+    if (pos->offset == 0) {
         return 0;
     }
 
-    size_t start_offset = pos.offset;
+    size_t offset = pos->offset;
 
     do {
-        pos.offset--;
-    } while (pos.offset > 0 && ((uchar)gb_get_at(pos.data, pos.offset) & 0xC0) == 0x80);
+        offset--;
+    } while (offset > 0 && ((uchar)gb_get_at(pos->data, offset) & 0xC0) == 0x80);
 
-    return start_offset - pos.offset;
+    return pos->offset - offset;
 }

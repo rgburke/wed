@@ -51,7 +51,7 @@ clean:
 .PHONY: install
 install:
 	install -d $(PREFIX)/bin
-	install -m755 $(BINARY) $(PREFIX)/bin
+	install -m755 -s $(BINARY) $(PREFIX)/bin
 	install -m755 -d $(WEDRUNTIME)	
 	cp -fpr --no-preserve=ownership wedruntime/* $(WEDRUNTIME)
 	find $(WEDRUNTIME) -type f -exec chmod 644 {} \;

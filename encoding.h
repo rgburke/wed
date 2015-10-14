@@ -20,14 +20,11 @@
 #define WED_ENCODING_H
 
 #include <stddef.h>
+#include <assert.h>
 #include "shared.h"
 #include "hashmap.h"
 
 struct BufferPos;
-
-typedef enum {
-    ENC_UTF8
-} CharacterEncodingType;
 
 typedef enum {
     FF_UNIX,
@@ -46,13 +43,7 @@ typedef struct {
     int is_printable;
 } CharInfo;
 
-typedef struct {
-    int (*char_info)(CharInfo *, CharInfoProperties, struct BufferPos, const HashMap *config);
-    size_t (*previous_char_offset)(struct BufferPos);
-} CharacterEncodingFunctions;
-
-typedef CharacterEncodingFunctions CEF;
-
-int en_init_char_enc_funcs(CharacterEncodingType, CharacterEncodingFunctions *);
+void en_utf8_char_info(CharInfo *, CharInfoProperties, const struct BufferPos *, const HashMap *);
+size_t en_utf8_previous_char_offset(const struct BufferPos *);
 
 #endif

@@ -25,7 +25,6 @@
 
 struct BufferPos {
     const GapBuffer *data;
-    const CEF *cef;
     const FileFormat *file_format;
     const HashMap *config;
     size_t offset;
@@ -35,7 +34,7 @@ struct BufferPos {
 
 typedef struct BufferPos BufferPos;
 
-int bp_init(BufferPos *, const GapBuffer *, const CEF *, const FileFormat *, const HashMap *config);
+int bp_init(BufferPos *, const GapBuffer *, const FileFormat *, const HashMap *config);
 char bp_get_char(const BufferPos *);
 unsigned char bp_get_uchar(const BufferPos *);
 int bp_compare(const BufferPos *, const BufferPos *);

@@ -35,12 +35,11 @@ static void calc_new_col(BufferPos *, size_t);
 static NearestPos bp_determine_nearest_pos(size_t, size_t, size_t, size_t);
 
 int bp_init(BufferPos *pos, const GapBuffer *data, 
-            const CEF *cef, const FileFormat *file_format,
+            const FileFormat *file_format,
             const HashMap *config)
 {
     assert(pos != NULL);
     assert(data != NULL);
-    assert(cef != NULL);
     assert(file_format != NULL);
     assert(config != NULL);
 
@@ -48,7 +47,6 @@ int bp_init(BufferPos *pos, const GapBuffer *data,
     pos->line_no = 1;
     pos->col_no = 1;
     pos->data = data;
-    pos->cef = cef;
     pos->file_format = file_format;
     pos->config = config;
 
@@ -167,8 +165,8 @@ void bp_next_char(BufferPos *pos)
         pos->col_no = 1;
     } else {
         CharInfo char_info;
-        pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, 
-                            *pos, pos->config);
+        en_utf8_char_info(&char_info, CIP_SCREEN_LENGTH, 
+                          pos, pos->config);
         pos->offset += char_info.byte_length;
         pos->col_no += char_info.screen_length;
     }
@@ -191,15 +189,15 @@ void bp_prev_char(BufferPos *pos)
 
         bp_recalc_col(pos);
     } else {
-        size_t prev_offset = pos->cef->previous_char_offset(*pos);
+        size_t prev_offset = en_utf8_previous_char_offset(pos);
         pos->offset -= prev_offset;
 
         if (bp_get_char(pos) == '\t') {
             bp_recalc_col(pos);
         } else {
             CharInfo char_info;
-            pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, 
-                                *pos, pos->config);
+            en_utf8_char_info(&char_info, CIP_SCREEN_LENGTH, 
+                              pos, pos->config);
 
             if (char_info.byte_length == prev_offset) {
                 pos->col_no -= char_info.screen_length;
@@ -209,8 +207,8 @@ void bp_prev_char(BufferPos *pos)
 
                 while (remaining_bytes > 0) {
                     pos->offset += char_info.byte_length; 
-                    pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, 
-                                        *pos, pos->config);
+                    en_utf8_char_info(&char_info, CIP_SCREEN_LENGTH, 
+                                      pos, pos->config);
                     remaining_bytes -= char_info.byte_length;
                 }
 
@@ -270,8 +268,8 @@ static void calc_new_col(BufferPos *pos, size_t new_offset)
     CharInfo char_info;
 
     while (pos->offset < new_offset) {
-        pos->cef->char_info(&char_info, CIP_SCREEN_LENGTH, 
-                            *pos, pos->config);
+        en_utf8_char_info(&char_info, CIP_SCREEN_LENGTH, 
+                          pos, pos->config);
         pos->col_no += char_info.screen_length;
         pos->offset += char_info.byte_length;
     }
