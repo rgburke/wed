@@ -16,8 +16,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <stdio.h>
 #include <unistd.h>
 #include <locale.h>
+#include <getopt.h>
 #include "display.h"
 #include "util.h"
 #include "session.h"
@@ -26,34 +28,102 @@
 #include "input.h"
 #include "file.h"
 #include "config.h"
+#include "build_config.h"
 
-int parse_args(int argc, char *argv[], Session *sess)
+static void print_usage(void);
+static void print_version(void);
+static int parse_args(int, char *[], int *);
+
+static void print_usage(void)
 {
-    /* TODO Write this function. Probably using getopt */
-    
-    /*To stop compiler warnings */
-    argc++;
-    (void)argv;
-    (void)sess;
+    const char *help_msg = 
+"\n\
+WED - Windows terminal EDitor\n\
+\n\
+Usage:\n\
+wed [OPTIONS] [FILE]...\n\
+\n\
+OPTIONS:\n\
+-h, --help          Print this message.\n\
+-v, --version       Print version information.\n\
+\n\
+";
+
+    printf("%s", help_msg);
+}
+
+static void print_version(void)
+{
+    const char *version = 
+"\
+WED - Windows terminal EDitor %s (Built %s)\n\
+";
+
+    printf(version, WED_VERSION, __DATE__ " " __TIME__);
+}
+
+static int parse_args(int argc, char *argv[], int *file_args_index)
+{
+    struct option wed_options[] = {
+        { "help"   , no_argument, 0, 'h' },
+        { "version", no_argument, 0, 'v' },
+        { 0, 0, 0, 0 }
+    };
+
+    int c;
+    opterr = 0;
+
+    while ((c = getopt_long(argc, argv, "hv", wed_options, NULL)) != -1) {
+        switch (c) {
+            case 'h': 
+                {
+                    print_usage();
+                    exit(0);
+                }
+            case 'v':
+                {
+                    print_version();
+                    exit(0);
+                }
+            case '?': 
+                {
+                    fprintf(stderr, "Invalid option %s\n", argv[optind - 1]);
+                    return 0;  
+                }
+            default: 
+                {
+                    fatal("Error parsing options");
+                }
+        }
+    }
+
+    if (optind > 0) {
+        *file_args_index = optind - 1;
+    } else {
+        *file_args_index = 0;
+    }
 
     return 1;
 }
 
-/* TODO If a fatal error occurs when initializing then
- * print an error message to stderr. */
 int main(int argc, char *argv[])
 {
+    int file_args_index;
+
+    if (!parse_args(argc, argv, &file_args_index)) {
+        return 1;
+    }
+
+    setlocale(LC_ALL, "");
+
     Session *sess = se_new();
 
     if (sess == NULL) {
         fatal("Out of memory - Unable to create Session");
     }
 
-    if (!parse_args(argc, argv, sess)) {
-        return 1;
-    }
-
-    setlocale(LC_ALL, "");
+    argc -= file_args_index;
+    argv += file_args_index;
 
     if (!se_init(sess, argv, argc)) {
         fatal("Unable to initialise session");

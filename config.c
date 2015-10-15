@@ -32,6 +32,7 @@
 #include "config_parse_util.h"
 #include "config_parse.h"
 #include "display.h"
+#include "build_config.h"
 
 #define CFG_LINE_ALLOC 512
 #define CFG_FILE_NAME "wedrc"

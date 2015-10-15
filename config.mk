@@ -1,5 +1,6 @@
 PREFIX?=/usr/local
 WEDRUNTIME?=$(PREFIX)/share/wed
+WED_VERSION=$(shell git describe --long --tags --dirty --always)
 
 CC?=cc
 LEX?=lex
@@ -7,18 +8,21 @@ YACC?=yacc
 AR?=ar
 
 CFLAGS_BASE=-std=c99 -Wall -Wextra -pedantic -MMD -MP \
-	    -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 -DWEDRUNTIME=\"$(WEDRUNTIME)\"
+	    -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
 CFLAGS=$(CFLAGS_BASE) -O2 -DNDEBUG
 CFLAGS_DEBUG=$(CFLAGS_BASE) -Werror -g
 
 LDFLAGS=-lncursesw -lpcre
 
-SOURCES=wed.c display.c buffer.c util.c input.c session.c status.c    \
-	command.c file.c value.c list.c hashmap.c config.c encoding.c \
-	config_parse_util.c config_parse.c config_scan.c gap_buffer.c \
-	buffer_pos.c text_search.c regex_search.c search.c replace.c  \
-	undo.c file_type.c regex_util.c syntax.c theme.c prompt.c     \
+STATIC_SOURCES=wed.c display.c buffer.c util.c input.c session.c    \
+	status.c command.c file.c value.c list.c hashmap.c config.c \
+	encoding.c config_parse_util.c gap_buffer.c buffer_pos.c    \
+	text_search.c regex_search.c search.c replace.c undo.c      \
+	file_type.c regex_util.c syntax.c theme.c prompt.c          \
 	prompt_completer.c
+GENERATED_SOURCES=config_parse.c config_scan.c
+SOURCES=$(STATIC_SOURCES) $(GENERATED_SOURCES)
+
 OBJECTS=$(SOURCES:.c=.o)
 LIBOBJECTS=$(filter-out wed.o, $(OBJECTS))
 DEPENDENCIES=$(OBJECTS:.o=.d)
