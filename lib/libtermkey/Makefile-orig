@@ -1,3 +1,5 @@
+pkgconfig = $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config $(1))
+
 ifeq ($(shell uname),Darwin)
   LIBTOOL ?= glibtool
 else
@@ -8,25 +10,28 @@ ifneq ($(VERBOSE),1)
   LIBTOOL +=--quiet
 endif
 
-CFLAGS +=-Wall -std=c99
+override CFLAGS +=-Wall -std=c99
 
 ifeq ($(DEBUG),1)
-  CFLAGS +=-ggdb -DDEBUG
+  override CFLAGS +=-ggdb -DDEBUG
 endif
 
 ifeq ($(PROFILE),1)
-  CFLAGS +=-pg
-  LDFLAGS+=-pg
+  override CFLAGS +=-pg
+  override LDFLAGS+=-pg
 endif
 
-ifeq ($(shell pkg-config --atleast-version=0.1.0 unibilium && echo 1),1)
-  CFLAGS +=$(shell pkg-config --cflags unibilium) -DHAVE_UNIBILIUM
-  LDFLAGS+=$(shell pkg-config --libs   unibilium)
-else ifeq ($(shell pkg-config ncursesw && echo 1),1)
-  CFLAGS +=$(shell pkg-config --cflags ncursesw)
-  LDFLAGS+=$(shell pkg-config --libs   ncursesw)
+ifeq ($(call pkgconfig, --atleast-version=0.1.0 unibilium && echo 1),1)
+  override CFLAGS +=$(call pkgconfig, --cflags unibilium) -DHAVE_UNIBILIUM
+  override LDFLAGS+=$(call pkgconfig, --libs   unibilium)
+else ifeq ($(call pkgconfig, tinfo && echo 1),1)
+  override CFLAGS +=$(call pkgconfig, --cflags tinfo)
+  override LDFLAGS+=$(call pkgconfig, --libs   tinfo)
+else ifeq ($(call pkgconfig, ncursesw && echo 1),1)
+  override CFLAGS +=$(call pkgconfig, --cflags ncursesw)
+  override LDFLAGS+=$(call pkgconfig, --libs   ncursesw)
 else
-  LDFLAGS+=-lncurses
+  override LDFLAGS+=-lncurses
 endif
 
 OBJECTS=termkey.lo driver-csi.lo driver-ti.lo
@@ -34,7 +39,7 @@ LIBRARY=libtermkey.la
 
 DEMOS=demo demo-async
 
-ifeq ($(shell pkg-config glib-2.0 && echo 1),1)
+ifeq ($(call pkgconfig, glib-2.0 && echo 1),1)
   DEMOS+=demo-glib
 endif
 
@@ -44,11 +49,11 @@ TESTSOURCES=$(wildcard t/[0-9]*.c)
 TESTFILES=$(TESTSOURCES:.c=.t)
 
 VERSION_MAJOR=0
-VERSION_MINOR=17
+VERSION_MINOR=18
 
-VERSION_CURRENT=12
+VERSION_CURRENT=13
 VERSION_REVISION=0
-VERSION_AGE=11
+VERSION_AGE=12
 
 PREFIX=/usr/local
 LIBDIR=$(PREFIX)/lib
@@ -72,10 +77,10 @@ demo-async: $(LIBRARY) demo-async.lo
 	$(LIBTOOL) --mode=link --tag=CC $(CC) -o $@ $^
 
 demo-glib.lo: demo-glib.c termkey.h
-	$(LIBTOOL) --mode=compile --tag=CC $(CC) -o $@ -c $< $(shell pkg-config glib-2.0 --cflags)
+	$(LIBTOOL) --mode=compile --tag=CC $(CC) -o $@ -c $< $(call pkgconfig, glib-2.0 --cflags)
 
 demo-glib: $(LIBRARY) demo-glib.lo
-	$(LIBTOOL) --mode=link --tag=CC $(CC) -o $@ $^ $(shell pkg-config glib-2.0 --libs)
+	$(LIBTOOL) --mode=link --tag=CC $(CC) -o $@ $^ $(call pkgconfig, glib-2.0 --libs)
 
 t/%.t: t/%.c $(LIBRARY) t/taplib.lo
 	$(LIBTOOL) --mode=link --tag=CC $(CC) -o $@ $^

@@ -470,7 +470,11 @@ int termkey_start(TermKey *tk)
       tk->restore_termios_valid = 1;
 
       termios.c_iflag &= ~(IXON|INLCR|ICRNL);
-      termios.c_lflag &= ~(ICANON|ECHO);
+      termios.c_lflag &= ~(ICANON|ECHO
+#ifdef IEXTEN
+          | IEXTEN
+#endif
+      );
       termios.c_cc[VMIN] = 1;
       termios.c_cc[VTIME] = 0;
 
