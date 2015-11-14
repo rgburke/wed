@@ -167,24 +167,29 @@ static Status pc_complete_buffer(const Session *sess, List *suggestions,
                                  const char *str, size_t str_len)
 {
     const Buffer *buffer = sess->buffers;
-    const FileInfo *file_info;
+    const char *buffer_path;
     PromptSuggestion *suggestion;
     SuggestionRank rank;
 
     while (buffer != NULL) {
-        file_info = &buffer->file_info;
         rank = SR_NO_MATCH;
 
-        if (strcmp(file_info->rel_path, str) == 0) {
+        if (fi_has_file_path(&buffer->file_info)) {
+            buffer_path = buffer->file_info.rel_path;
+        } else {
+            buffer_path = buffer->file_info.file_name;
+        }
+
+        if (strcmp(buffer_path, str) == 0) {
             rank = SR_EXACT_MATCH;
-        } else if (strncmp(file_info->rel_path, str, str_len) == 0) {
+        } else if (strncmp(buffer_path, str, str_len) == 0) {
             rank = SR_STARTS_WITH;
-        } else if (strstr(file_info->rel_path, str) != NULL) {
+        } else if (strstr(buffer_path, str) != NULL) {
             rank = SR_CONTAINS;
         }
 
         if (rank != SR_NO_MATCH) {
-            suggestion = pc_new_suggestion(file_info->rel_path, rank, buffer);
+            suggestion = pc_new_suggestion(buffer_path, rank, buffer);
             
             if (suggestion == NULL || !list_add(suggestions, suggestion)) {
                 free(suggestion);
