@@ -134,7 +134,9 @@ void ip_process_input(Session *sess)
             if (ret == TERMKEY_RES_AGAIN) {
                 timeout = &wait_timeout;
                 timeout->tv_nsec = termkey_get_waittime(termkey) * 1000;
-            } 
+            } else if (ret == TERMKEY_RES_EOF) {
+                finished = 1;
+            }
         }
 
         if (redraw_due && timeout == NULL) {
