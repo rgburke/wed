@@ -252,6 +252,7 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
 
     int home_dir_path = (dir_path[0] == '~');
     const char *canon_dir_path;
+    DIR *dir = NULL;
 
     if (home_dir_path) {
         const char *home_path = getenv("HOME"); 
@@ -266,8 +267,7 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
         canon_dir_path = dir_path;
     }
 
-    struct dirent *dir_ent;
-    DIR *dir = opendir(canon_dir_path);
+    dir = opendir(canon_dir_path);
 
     if (home_dir_path) {
         free((char *)canon_dir_path);
@@ -281,6 +281,7 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
         dir_path = "";
     }
 
+    struct dirent *dir_ent;
     PromptSuggestion *suggestion;
     SuggestionRank rank;
     size_t dir_ent_num = 0;
@@ -341,7 +342,10 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
     }
 
 cleanup:
-    closedir(dir);
+    if (dir != NULL) {
+        closedir(dir);
+    }
+
     free(path1);
     free(path2);
 

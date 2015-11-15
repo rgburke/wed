@@ -162,6 +162,7 @@ static short ncurses_color(DrawColor draw_color)
     };
 
     static const size_t color_num = ARRAY_SIZE(ncurses_colors, short);
+    (void)color_num;
 
     assert(draw_color < color_num);
 

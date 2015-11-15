@@ -220,6 +220,7 @@ static const char *cf_get_config_type_string(ConfigType config_type)
     };
 
     static const size_t config_type_num = sizeof(config_types) / sizeof(const char *);
+    (void)config_type_num;
 
     assert(config_type < config_type_num);
 
