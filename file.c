@@ -39,9 +39,9 @@ Status fi_init(FileInfo *file_info, const char *path)
 
     if (file_info->rel_path == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, 
-                         "Out of memory - Unable to determine"
-                         " fileinfo for file %s", 
-                         path);
+                            "Out of memory - Unable to determine"
+                            " fileinfo for file %s", 
+                            path);
     }
 
     file_info->file_name = basename(file_info->rel_path);
@@ -68,18 +68,20 @@ Status fi_init(FileInfo *file_info, const char *path)
     if (file_info->abs_path == NULL) {
         free(file_info->rel_path);
         return st_get_error(ERR_OUT_OF_MEMORY, 
-                         "Out of memory - Unable to determine"
-                         " fileinfo for file %s", 
-                         path);
+                            "Out of memory - Unable to determine"
+                            " fileinfo for file %s", 
+                            path);
     }
 
+    /* Get the canonicalized absolute pathname.
+     * See man 3 realpath */
     if (realpath(file_info->rel_path, file_info->abs_path) == NULL) {
         free(file_info->rel_path);
         free(file_info->abs_path);
         return st_get_error(ERR_UNABLE_TO_GET_ABS_PATH,
-                         "Unable to determine absolute path"
-                         " for file %s - %s", path,
-                         strerror(errno));
+                            "Unable to determine absolute path"
+                            " for file %s - %s", path,
+                            strerror(errno));
     }
      
     fi_check_can_read_file(file_info);
@@ -88,14 +90,19 @@ Status fi_init(FileInfo *file_info, const char *path)
     return STATUS_SUCCESS;
 }
 
-/* For when a buffer represented a file which doesn't exist yet. */
+/* For when a buffer represents a file which doesn't exist yet.
+ * i.e. open wed with no arguments: [new 1] */
 int fi_init_empty(FileInfo *file_info, const char *file_name)
 {
     assert(!is_null_or_empty(file_name));
 
     memset(file_info, 0, sizeof(FileInfo));
 
-    file_info->file_name = strdupe(file_name);
+    /* Leave rel_path NULL and just set the file name part
+     * so we have something to display. wed will detect later
+     * that no path is specified and prompt the user to 
+     * enter one if necessary */
+    file_info->file_name = strdup(file_name);
 
     if (file_info->file_name == NULL) {
         return 0;
@@ -116,6 +123,8 @@ void fi_free(FileInfo *file_info)
     }
 }
 
+/* Replace ~ at the start of a file path with
+ * $HOME in the same way a shell does */
 char *fi_process_path(const char *path)
 {
     if (path == NULL) {
@@ -128,7 +137,7 @@ char *fi_process_path(const char *path)
         return concat(getenv("HOME"), path + 1);
     }
 
-    return strdupe(path);
+    return strdup(path);
 }
 
 int fi_is_directory(const FileInfo *file_info)
@@ -229,7 +238,7 @@ int fi_equal(const FileInfo *f1, const FileInfo *f2)
         if (f1->rel_path == NULL || f2->rel_path == NULL) {
             return 0;
         }
-        /* As the paths are not canonical 
+        /* TODO As the paths are not canonical 
          * this is not a true test of path equality. */
         return strcmp(f1->rel_path, f2->rel_path) == 0;
     } else if (!(f1_exists && f2_exists)) {

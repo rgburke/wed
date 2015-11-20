@@ -31,12 +31,16 @@ typedef enum {
     BST_REGEX
 } BufferSearchType;
 
+/* Search structure which abstracts text
+ * and regex searches */
 struct BufferSearch {
-    SearchOptions opt;
-    BufferPos start_pos;
-    BufferPos last_match_pos;
-    BufferSearchType search_type;
-    BufferSearchType last_search_type;
+    SearchOptions opt; /* Case sensitivity, direction, etc ... */
+    BufferPos start_pos; /* Search starting position. line_no = 0 if not set */
+    BufferPos last_match_pos; /* Last match position. line_no = 0 if no match */
+    BufferSearchType search_type; /* Current search type */
+    BufferSearchType last_search_type; /* Last search type */
+    /* Searches are either text or regex based. The structures in the 
+     * union below contain the search type specific data */
     union {
         TextSearch text;
         RegexSearch regex;
@@ -45,11 +49,14 @@ struct BufferSearch {
 
 typedef struct BufferSearch BufferSearch;
 
-Status bs_init(BufferSearch *, const BufferPos *, const char *, size_t);
-Status bs_reinit(BufferSearch *, const BufferPos *, const char *, size_t);
+Status bs_init(BufferSearch *, const BufferPos *start_pos,
+               const char *pattern, size_t pattern_len);
+Status bs_reinit(BufferSearch *, const BufferPos *start_pos,
+                 const char *pattern, size_t pattern_len);
 Status bs_init_default_opt(BufferSearch *);
 void bs_free(BufferSearch *);
-Status bs_find_next(BufferSearch *, const BufferPos *, int *);
+Status bs_find_next(BufferSearch *, const BufferPos *start_pos,
+                    int *found_match);
 size_t bs_match_length(const BufferSearch *);
 
 #endif

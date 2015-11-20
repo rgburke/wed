@@ -21,18 +21,23 @@
 #include <string.h>
 #include "hashmap.h"
 
+/* Default bucket num */
 #define HM_BUCKET_NUM_BLOCK 100
+/* Seed used for murmurhash2 */
 #define HM_SEED 24842118
+/* Max load factor before expansion */
 #define HM_MAX_LOAD_FACTOR 0.75
 
-static HashMapNode *new_hashmapnode(const char *, uint32_t, void *);
-static uint32_t murmurhash2(const void *, int, uint32_t);
-static HashMapNode *get_bucket(const HashMap *, const char *, uint32_t *, size_t *);
+static HashMapNode *new_hashmapnode(const char *key, uint32_t hash,
+                                    void *value);
+static uint32_t murmurhash2(const void *key, int len, uint32_t seed);
+static HashMapNode *get_bucket(const HashMap *, const char *key,
+                               uint32_t *hash, size_t *index);
 static int resize_required(HashMap *);
-static int resize_hashmap(HashMap *, size_t);
+static int resize_hashmap(HashMap *, size_t size);
 static void free_hashmapnodes(HashMap *);
 static void free_hashmapnode(HashMapNode *);
-static void hashmap_free_value(void *);
+static void hashmap_free_value(void *entry);
 
 HashMap *new_hashmap(void)
 {
@@ -64,7 +69,8 @@ HashMap *new_sized_hashmap(size_t size)
     return hashmap;
 }
 
-static HashMapNode *new_hashmapnode(const char *key, uint32_t hash, void *value)
+static HashMapNode *new_hashmapnode(const char *key, uint32_t hash,
+                                    void *value)
 {
     HashMapNode *node = malloc(sizeof(HashMapNode));
 
@@ -119,7 +125,8 @@ static uint32_t murmurhash2(const void *key, int len, uint32_t seed)
     return h;
 }
 
-static HashMapNode *get_bucket(const HashMap *hashmap, const char *key, uint32_t *hash, size_t *index)
+static HashMapNode *get_bucket(const HashMap *hashmap, const char *key,
+                               uint32_t *hash, size_t *index)
 {
     *hash = murmurhash2(key, strlen(key), HM_SEED);
     *index = *hash % hashmap->bucket_num;
@@ -129,6 +136,8 @@ static HashMapNode *get_bucket(const HashMap *hashmap, const char *key, uint32_t
         return NULL;
     }
 
+    /* Loop through nodes in bucket to find entry that
+     * matches our key */
     while (node != NULL) {
         if (strcmp(node->key, key) == 0) {
             return node;
@@ -159,6 +168,8 @@ int hashmap_set(HashMap *hashmap, const char *key, void *value)
         return 0;
     }
 
+    /* To save traversing through all nodes in the bucket add
+     * the new node at the start of the linked list */
     node->next = list_get(hashmap->buckets, index);
     list_set(hashmap->buckets, node, index);
 
@@ -201,6 +212,8 @@ int hashmap_delete(HashMap *hashmap, const char *key)
     HashMapNode *first = list_get(hashmap->buckets, index);
 
     if (node == first) {
+        /* If node is the first entry in the linked list then
+         * need to update bucket list */
         list_set(hashmap->buckets, node->next, index);
     } else {
         while (first->next != node) {
@@ -271,6 +284,7 @@ static int resize_hashmap(HashMap *hashmap, size_t size)
     size_t index;
     HashMapNode *node, *next;
 
+    /* Loop through existing nodes and determine their new bucket */
     for (size_t k = 0; k < hashmap->bucket_num; k++) {
         node = list_get(hashmap->buckets, k);
 

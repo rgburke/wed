@@ -49,7 +49,7 @@ Status ft_init(FileType **file_type_ptr, const char *name,
         goto cleanup;
     }
     
-    file_type->name = strdupe(name);
+    file_type->name = strdup(name);
 
     if (file_type->name == NULL) {
         status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - " 
@@ -57,7 +57,7 @@ Status ft_init(FileType **file_type_ptr, const char *name,
         goto cleanup;
     }
 
-    file_type->display_name = strdupe(display_name);
+    file_type->display_name = strdup(display_name);
 
     if (file_type->display_name == NULL) {
         status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - " 

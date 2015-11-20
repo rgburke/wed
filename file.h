@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include "status.h"
 
+/* File attributes that are checked for */
 typedef enum {
     FATTR_NONE = 0,
     FATTR_EXISTS = 1 << 0,
@@ -33,18 +34,21 @@ typedef enum {
     FATTR_WRITABLE = 1 << 4
 } FileAttributes; 
 
+/* File data struct. Only certain fields are set depending on whether
+ * an underlying file on disk exists */
 typedef struct {
     char *rel_path; /* The path entered by the user */
-    char *file_name; /* The file name part of rel_path */
+    char *file_name; /* The file name part of rel_path
+                        i.e. points to part of rel_path */
     char *abs_path; /* The absolute path (only if file exists) */
-    struct stat file_stat;
-    FileAttributes file_attrs;
+    struct stat file_stat; /* See man 2 stat */
+    FileAttributes file_attrs; /* Bit mask for file attributes */
 } FileInfo;
 
-Status fi_init(FileInfo *, const char *);
-int fi_init_empty(FileInfo *, const char *);
+Status fi_init(FileInfo *, const char *path);
+int fi_init_empty(FileInfo *, const char *file_name);
 void fi_free(FileInfo *);
-char *fi_process_path(const char *);
+char *fi_process_path(const char *path);
 int fi_is_directory(const FileInfo *);
 int fi_is_special(const FileInfo *);
 int fi_file_exists(const FileInfo *);

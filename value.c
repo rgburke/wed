@@ -18,6 +18,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 #include "value.h"
 #include "util.h"
@@ -40,7 +41,7 @@ const char *va_value_type_string(ValueType value_type)
         [VAL_TYPE_REGEX] = "Regex"
     };
 
-    assert(value_type < (sizeof(value_types) / sizeof(char *)));
+    assert(value_type < ARRAY_SIZE(value_types, const char *));
 
     return value_types[value_type];
 }
@@ -59,10 +60,11 @@ Status va_deep_copy_value(Value value, Value *new_val)
         return STATUS_SUCCESS;
     }
 
-    char *str_val = strdupe(curr_val);
+    char *str_val = strdup(curr_val);
 
     if (str_val == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to copy value");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to copy value");
     }
 
     if (value.type == VAL_TYPE_STR) {
@@ -78,9 +80,9 @@ char *va_to_string(Value value)
 {
     switch (value.type) {
         case VAL_TYPE_STR:
-            return strdupe(SVAL(value));
+            return strdup(SVAL(value));
         case VAL_TYPE_BOOL:
-            return strdupe(IVAL(value) ? "true" : "false");
+            return strdup(IVAL(value) ? "true" : "false");
         case VAL_TYPE_INT:
         case VAL_TYPE_FLOAT:
             {
@@ -97,7 +99,7 @@ char *va_to_string(Value value)
                 return num_str;
             }
         case VAL_TYPE_REGEX:
-            return strdupe(RVAL(value).regex_pattern);
+            return strdup(RVAL(value).regex_pattern);
         default:
             assert(!"Invalid value type");
             break;

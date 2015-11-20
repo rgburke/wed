@@ -20,13 +20,15 @@
 #include <string.h>
 #include "list.h"
 
-static int list_grow_required(List *);
-static int list_shrink_required(List *);
-static int list_resize(List *, int);
-static void list_free_entry(void *);
+typedef enum {
+    RT_EXPAND = 1,
+    RT_SHRINK = -1
+} ResizeType;
 
-/* Code in this file doesn't use alloc and ralloc from
- * util.c in order to make it easier to reuse elsewhere */
+static int list_grow_required(const List *);
+static int list_shrink_required(const List *);
+static int list_resize(List *, ResizeType);
+static void list_free_entry(void *);
 
 List *list_new(void)
 {
@@ -66,24 +68,27 @@ List *list_new_sized(size_t size)
     return list; 
 }
 
-static int list_grow_required(List *list)
+static int list_grow_required(const List *list)
 {
     return list->size == list->allocated;
 }
 
-static int list_shrink_required(List *list)
+static int list_shrink_required(const List *list)
 {
     return list->size < (list->allocated / 2);
 }
 
-static int list_resize(List *list, int resize_type)
+static int list_resize(List *list, ResizeType resize_type)
 {
-    /* In case an empty list is created */
-    if (resize_type == LIST_EXPAND && list->size < 2) {
-        list->allocated++;
+    size_t new_size;
+
+    if (resize_type == RT_EXPAND &&
+        list->size < 2) {
+        new_size = list->allocated + 1;
+    } else {
+        new_size = list->allocated + ((list->allocated / 2) * resize_type);
     }
 
-    size_t new_size = list->allocated + ((list->allocated / 2) * resize_type);
     void *new_values = realloc(list->values, sizeof(void *) * new_size);
 
     if (new_values == NULL) {
@@ -93,20 +98,21 @@ static int list_resize(List *list, int resize_type)
     list->allocated = new_size;
     list->values = new_values;
 
-    if (resize_type == LIST_EXPAND) {
+    if (resize_type == RT_EXPAND) {
         /* Zero out the new part of the lists memory */
-        memset(list->values + list->size, 0, sizeof(void *) * (list->allocated - list->size));
+        memset(list->values + list->size, 0,
+               sizeof(void *) * (list->allocated - list->size));
     }
 
     return 1;
 }
 
-size_t list_size(List *list)
+size_t list_size(const List *list)
 {
     return list->size;
 }
 
-void *list_get(List *list, size_t index)
+void *list_get(const List *list, size_t index)
 {
     void *value = NULL;
 
@@ -117,16 +123,19 @@ void *list_get(List *list, size_t index)
     return value;
 }
 
-void list_set(List *list, void *value, size_t index)
+int list_set(List *list, void *value, size_t index)
 {
     if (index < list->size) {
         list->values[index] = value;
+        return 1;
     }
+
+    return 0;
 }
 
 int list_add(List *list, void *value)
 {
-    if (list_grow_required(list) && !list_resize(list, LIST_EXPAND)) {
+    if (list_grow_required(list) && !list_resize(list, RT_EXPAND)) {
         return 0;
     }
 
@@ -141,7 +150,7 @@ int list_add_at(List *list, void *value, size_t index)
         return 0;
     }
 
-    if (list_grow_required(list) && !list_resize(list, LIST_EXPAND)) {
+    if (list_grow_required(list) && !list_resize(list, RT_EXPAND)) {
         return 0;
     }
 
@@ -161,7 +170,7 @@ void *list_pop(List *list)
     if (list->size > 0) {
         value = list->values[--list->size];
 
-        if (list_shrink_required(list) && !list_resize(list, LIST_SHRINK)) {
+        if (list_shrink_required(list) && !list_resize(list, RT_SHRINK)) {
             return NULL;
         }
     }
@@ -182,7 +191,7 @@ void *list_remove_at(List *list, size_t index)
 
         list->size--;
 
-        if (list_shrink_required(list) && !list_resize(list, LIST_SHRINK)) {
+        if (list_shrink_required(list) && !list_resize(list, RT_SHRINK)) {
             return NULL;
         }
     }

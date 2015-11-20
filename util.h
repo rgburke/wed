@@ -28,17 +28,12 @@
 
 #define ARRAY_SIZE(arr,type) (sizeof(arr) / sizeof(type))
 
-void fatal(const char *);
-
-int roundup_div(size_t, size_t);
-int sign(int);
-
-size_t utf8_char_num(const char *);
-char *strdupe(const char *);
-char *concat(const char *, const char *);
-char *concat_all(size_t, ...);
-int is_null_or_empty(const char *);
-size_t occurrences(const char *, const char *);
-char *replace(const char *, const char *, const char *);
+void fatal(const char *error_msg);
+int roundup_div(size_t dividend, size_t divisor);
+char *concat(const char *str1, const char *str2);
+char *concat_all(size_t str_num, ...);
+int is_null_or_empty(const char *str);
+size_t occurrences(const char *str, const char *sub_str);
+char *replace(const char *str, const char *to_replace, const char *replacement);
 
 #endif

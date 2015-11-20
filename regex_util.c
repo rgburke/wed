@@ -22,7 +22,7 @@
 #include "regex_util.h"
 #include "util.h"
 
-static Status re_custom_error_msg(Status, const char *, va_list);
+static Status re_custom_error_msg(Status, const char *fmt, va_list);
 
 Status re_compile(RegexInstance *reg_inst, const Regex *regex)
 {
@@ -32,7 +32,8 @@ Status re_compile(RegexInstance *reg_inst, const Regex *regex)
     const char *error_str;
     int error_offset;
 
-    reg_inst->regex = pcre_compile(regex->regex_pattern, PCRE_UTF8 | regex->modifiers, 
+    reg_inst->regex = pcre_compile(regex->regex_pattern,
+                                   PCRE_UTF8 | regex->modifiers,
                                    &error_str, &error_offset, NULL);
 
     if (reg_inst == NULL) {
@@ -45,7 +46,8 @@ Status re_compile(RegexInstance *reg_inst, const Regex *regex)
     return STATUS_SUCCESS;
 }
 
-static Status re_custom_error_msg(Status status, const char *fmt, va_list arg_ptr)
+static Status re_custom_error_msg(Status status, const char *fmt,
+                                  va_list arg_ptr)
 {
     if (STATUS_IS_SUCCESS(status)) {
         return status;
@@ -57,7 +59,8 @@ static Status re_custom_error_msg(Status status, const char *fmt, va_list arg_pt
         return status;
     }
 
-    Status new_status = st_get_custom_error(status.error_code, new_fmt, arg_ptr);
+    Status new_status = st_get_custom_error(status.error_code,
+                                            new_fmt, arg_ptr);
 
     free(new_fmt);
     st_free_status(status);
@@ -65,7 +68,8 @@ static Status re_custom_error_msg(Status status, const char *fmt, va_list arg_pt
     return new_status;
 }
 
-Status re_compile_custom_error_msg(RegexInstance *reg_inst, const Regex *regex, 
+/* Add extra info to regex error */
+Status re_compile_custom_error_msg(RegexInstance *reg_inst, const Regex *regex,
                                    const char *fmt, ...)
 {
     Status status = re_compile(reg_inst, regex);
@@ -88,7 +92,7 @@ void re_free_instance(const RegexInstance *reg_inst)
     pcre_free(reg_inst->regex);
 }
 
-Status re_exec(RegexResult *result, const RegexInstance *reg_inst, 
+Status re_exec(RegexResult *result, const RegexInstance *reg_inst,
                const char *str, size_t str_len, size_t start)
 {
     assert(str != NULL);
@@ -96,8 +100,10 @@ Status re_exec(RegexResult *result, const RegexInstance *reg_inst,
 
     memset(result, 0, sizeof(RegexResult));
 
-    result->return_code = pcre_exec(reg_inst->regex, reg_inst->regex_study, str, str_len,
-                                    start, 0, result->output_vector, RE_OUTPUT_VECTOR_SIZE);
+    result->return_code = pcre_exec(reg_inst->regex, reg_inst->regex_study,
+                                    str, str_len, start, 0,
+                                    result->output_vector,
+                                    RE_OUTPUT_VECTOR_SIZE);
 
     if (result->return_code == 0) {
         return st_get_error(ERR_REGEX_EXECUTION_FAILED,
@@ -118,7 +124,8 @@ Status re_exec(RegexResult *result, const RegexInstance *reg_inst,
     return STATUS_SUCCESS;
 }
 
-Status re_exec_custom_error_msg(RegexResult *result, const RegexInstance *reg_inst, 
+Status re_exec_custom_error_msg(RegexResult *result,
+                                const RegexInstance *reg_inst,
                                 const char *str, size_t str_len, size_t start,
                                 const char *fmt, ...)
 {
@@ -132,6 +139,7 @@ Status re_exec_custom_error_msg(RegexResult *result, const RegexInstance *reg_in
     return status;
 }
 
+/* Get captured group by number */
 Status re_get_group(const RegexResult *result, const char *str, 
                     size_t str_len, size_t group, char **group_str_ptr)
 {

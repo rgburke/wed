@@ -36,42 +36,6 @@ int roundup_div(size_t dividend, size_t divisor)
     return (dividend + (divisor - 1)) / divisor;
 }
 
-int sign(int k) {
-    return (k > 0) - (k < 0);
-}
-
-size_t utf8_char_num(const char *str)
-{
-    size_t char_num = 0;
-
-    while (*str) {
-        if ((*str & 0xc0) != 0x80) {
-            char_num++;
-        }
-
-        str++;
-    }
-
-    return char_num;
-}
-
-char *strdupe(const char *str)
-{
-    if (str == NULL) {
-        return NULL;
-    }
-
-    char *copy = malloc(strlen(str) + 1);
-
-    if (copy == NULL) {
-        return NULL;
-    }
-
-    strcpy(copy, str);
-
-    return copy;
-}
-
 char *concat(const char *str1, const char *str2)
 {
     return concat_all(2, str1, str2);
@@ -129,11 +93,7 @@ cleanup:
 
 int is_null_or_empty(const char *str)
 {
-    if (str == NULL) {
-        return 1;
-    }
-
-    return *str == '\0';
+    return str == NULL || *str == '\0';
 }
 
 size_t occurrences(const char *str, const char *sub_str)
@@ -154,6 +114,7 @@ size_t occurrences(const char *str, const char *sub_str)
     return occurrences;
 }
 
+/* TODO Simple but inefficient */
 char *replace(const char *str, const char *to_replace, const char *replacement)
 {
     if (str == NULL || is_null_or_empty(to_replace) || replacement == NULL) {
@@ -163,7 +124,7 @@ char *replace(const char *str, const char *to_replace, const char *replacement)
     size_t occurs = occurrences(str, to_replace);
 
     if (occurs == 0) {
-        return strdupe(str);
+        return strdup(str);
     }
 
     size_t to_rep_len = strlen(to_replace);

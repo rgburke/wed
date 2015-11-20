@@ -25,33 +25,36 @@
 #define GAP_INCREMENT 1024
 #endif
 
+/* GapBuffer is the data structure used to
+ * store text in wed */
 typedef struct {
-    char *text;
-    size_t point;
-    size_t gap_start;
-    size_t gap_end;
-    size_t allocated;
-    size_t lines;
+    char *text; /* Memory allocated to hold text */
+    size_t point; /* Position in buffer */
+    size_t gap_start; /* Position gap starts */
+    size_t gap_end; /* Position gap ends */
+    size_t allocated; /* Bytes allocated */
+    size_t lines; /* Number of new line (\n) characters */
 } GapBuffer;
 
-GapBuffer *gb_new(size_t);
+GapBuffer *gb_new(size_t size);
 void gb_free(GapBuffer *);
 size_t gb_length(const GapBuffer *);
 size_t gb_lines(const GapBuffer *);
 size_t gb_gap_size(const GapBuffer *);
-int gb_preallocate(GapBuffer *, size_t);
+int gb_preallocate(GapBuffer *, size_t size);
 void gb_contiguous_storage(GapBuffer *);
-int gb_insert(GapBuffer *, const char *, size_t);
-int gb_add(GapBuffer *, const char *, size_t);
-int gb_delete(GapBuffer *, size_t);
-int gb_replace(GapBuffer *, size_t, const char *, size_t);
+int gb_insert(GapBuffer *, const char *str, size_t str_len);
+int gb_add(GapBuffer *, const char *str, size_t str_len);
+int gb_delete(GapBuffer *, size_t byte_num);
+int gb_replace(GapBuffer *, size_t byte_num, const char *str, size_t str_len);
 size_t gb_get_point(const GapBuffer *);
-int gb_set_point(GapBuffer *, size_t);
+int gb_set_point(GapBuffer *, size_t point);
 char gb_get(const GapBuffer *);
-char gb_get_at(const GapBuffer *, size_t);
-unsigned char gb_getu_at(const GapBuffer *, size_t);
-size_t gb_get_range(const GapBuffer *, size_t, char *, size_t);
-int gb_find_next(const GapBuffer *, size_t, size_t *, char);
-int gb_find_prev(const GapBuffer *, size_t, size_t *, char);
+char gb_get_at(const GapBuffer *, size_t point);
+unsigned char gb_getu_at(const GapBuffer *, size_t point);
+size_t gb_get_range(const GapBuffer *, size_t point, char *buf,
+                    size_t num_bytes);
+int gb_find_next(const GapBuffer *, size_t point, size_t *next, char c);
+int gb_find_prev(const GapBuffer *, size_t point, size_t *prev, char c);
 
 #endif

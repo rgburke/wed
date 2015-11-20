@@ -24,6 +24,17 @@
 #include "status.h"
 #include "buffer_pos.h"
 
+/* An unlimited linear undo/redo implementation */
+
+/* All operations on the text in a buffer can be thought of
+ * as a sequence of insertions and deletions. That is, there are two
+ * base operations that are performed on a buffer from which
+ * all higher level operations derive. We can therefore
+ * track all changes to buffer text by tracking the insertions and deletions
+ * that take place and grouping them appropriately. */
+
+/* The enum below is used to categorise a text change
+ * as either an insert or a delete */
 typedef enum {
     TCT_INSERT,
     TCT_DELETE
@@ -31,44 +42,77 @@ typedef enum {
 
 typedef struct TextChange TextChange;
 
+/* The properties of a text change
+ * i.e. The properties of an insert or delete */
 struct TextChange {
-    TextChangeType change_type;
-    BufferPos pos;
-    size_t str_len;
-    char *str;
+    TextChangeType change_type; /* Insert or delete */
+    BufferPos pos; /* The position in the buffer where this change took place */
+    size_t str_len; /* The length of the text inserted or deleted */
+    char *str; /* For delete: the text from the buffer that has been deleted
+                  For insert: this variable is NULL
+                  str is NULL for insert because the buffer already stores
+                  the text that has been inserted, so storing it here also
+                  would be unnecessary duplication */
 };
 
+/* Text changes aren't the only possible changes that we could want
+ * to track to provide undo/redo e.g. A user closes a buffer
+ * accidentally and re-opens it with <C-z>
+ * The enum and union below are to allow other types of change to be
+ * tracked whilst adding extra functionality such as the ability to
+ * group changes together into a single action.
+ * Currently only text changes are tracked and have undo/redo */
+
+/* The type of change that took place on the buffer */
 typedef enum {
-    BCT_TEXT_CHANGE,
-    BCT_GROUPED_CHANGE
+    BCT_TEXT_CHANGE, /* A text change */
+    BCT_GROUPED_CHANGE /* A change comprised of multiple child changes
+                          i.e. multiple changes grouped together into one */
 } BufferChangeType;
 
+/* Abstraction of a change to allow other types of changes
+ * to be tracked */
 typedef union {
     TextChange *text_change;
 } Change;
 
 typedef struct BufferChange BufferChange;
 
+/* A change to a buffer */
 struct BufferChange {
-    BufferChangeType change_type;
-    BufferChange *next;
-    List *children;
-    Change change;
+    BufferChangeType change_type; /* The type of change */
+    BufferChange *next; /* Changes are stored in a linked list */
+    List *children; /* If this is not a grouped change then 
+                       children will be NULL, otherwise this is a list
+                       of all the child BufferChange changes this 
+                       grouped change is composed of */
+    Change change; /* The actual change details and data. For a grouped
+                      change this is NULL (i.e. the pointers in the union
+                      are NULL) as this change is simply a container for
+                      its child changes */
 };
 
+/* This is the top level struct containing undo and redo stacks
+ * that track all changes made to a buffer */
 typedef struct {
-    BufferChange *undo;
-    BufferChange *redo;
-    int group_changes;
-    int accept_new_changes;
+    BufferChange *undo; /* Undo stack */
+    BufferChange *redo; /* Redo stack */
+    int group_changes; /* When true all subsequent BufferChange's are
+                          grouped together as children of a single
+                          BufferChange until set to false */
+    int accept_new_changes; /* Set true by default. When false all further
+                               changes are ignored. This is used when
+                               actually applying an undo/redo which
+                               will require inserting/deleting text */
 } BufferChanges;
 
 struct Buffer;
 
 void bc_init(BufferChanges *);
 void bc_free(BufferChanges *);
-Status bc_add_text_insert(BufferChanges *, size_t, const BufferPos *);
-Status bc_add_text_delete(BufferChanges *, const char *, size_t, const BufferPos *);
+Status bc_add_text_insert(BufferChanges *, size_t str_len,const BufferPos *);
+Status bc_add_text_delete(BufferChanges *, const char *str, size_t str_len,
+                          const BufferPos *);
 int bc_can_undo(const BufferChanges *);
 int bc_can_redo(const BufferChanges *);
 int bc_grouped_changes_started(const BufferChanges *);

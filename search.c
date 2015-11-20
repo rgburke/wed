@@ -21,16 +21,18 @@
 #include "search.h"
 #include "util.h"
 
-Status bs_init(BufferSearch *search, const BufferPos *start_pos, const char *pattern, size_t pattern_len)
+Status bs_init(BufferSearch *search, const BufferPos *start_pos,
+               const char *pattern, size_t pattern_len)
 {
     assert(search != NULL);
     assert(pattern_len > 0);
     assert(!is_null_or_empty(pattern));
 
-    search->opt.pattern = strdupe(pattern);
+    search->opt.pattern = strdup(pattern);
 
     if (search->opt.pattern == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - Unable to copy pattern");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to copy pattern");
     }
 
     search->opt.pattern_len = pattern_len;
@@ -59,7 +61,8 @@ Status bs_init(BufferSearch *search, const BufferPos *start_pos, const char *pat
     return status;
 }
 
-Status bs_reinit(BufferSearch *search, const BufferPos *start_pos, const char *pattern, size_t pattern_len)
+Status bs_reinit(BufferSearch *search, const BufferPos *start_pos,
+                 const char *pattern, size_t pattern_len)
 {
     bs_free(search);
     return bs_init(search, start_pos, pattern, pattern_len);
@@ -92,7 +95,8 @@ void bs_free(BufferSearch *search)
     search->opt.pattern_len = 0;
 }
 
-Status bs_find_next(BufferSearch *search, const BufferPos *start_pos, int *found_match)
+Status bs_find_next(BufferSearch *search, const BufferPos *start_pos,
+                    int *found_match)
 {
     assert(search != NULL);
     assert(start_pos != NULL);
@@ -112,19 +116,28 @@ Status bs_find_next(BufferSearch *search, const BufferPos *start_pos, int *found
 
     size_t match_point;
     Status status;
-    BufferPos *search_start_pos = search->start_pos.line_no > 0 ? &search->start_pos : NULL;
+    BufferPos *search_start_pos = search->start_pos.line_no > 0 ?
+                                  &search->start_pos : NULL;
 
     if (search->search_type == BST_TEXT) {
         if (search->opt.forward) {
-            status = ts_find_next(&search->type.text, &search->opt, search_start_pos, &pos, found_match, &match_point);
+            status = ts_find_next(&search->type.text, &search->opt,
+                                  search_start_pos, &pos, found_match,
+                                  &match_point);
         } else {
-            status = ts_find_prev(&search->type.text, &search->opt, search_start_pos, &pos, found_match, &match_point);
+            status = ts_find_prev(&search->type.text, &search->opt,
+                                  search_start_pos, &pos, found_match,
+                                  &match_point);
         }
     } else if (search->search_type == BST_REGEX) {
         if (search->opt.forward) {
-            status = rs_find_next(&search->type.regex, &search->opt, search_start_pos, &pos, found_match, &match_point);
+            status = rs_find_next(&search->type.regex, &search->opt,
+                                  search_start_pos, &pos, found_match,
+                                  &match_point);
         } else {
-            status = rs_find_prev(&search->type.regex, &search->opt, search_start_pos, &pos, found_match, &match_point);
+            status = rs_find_prev(&search->type.regex, &search->opt,
+                                  search_start_pos, &pos, found_match,
+                                  &match_point);
         }
     }
 

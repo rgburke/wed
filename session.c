@@ -28,10 +28,11 @@
 
 #define MAX_EMPTY_BUFFER_NAME_SIZE 20
 
-static Status se_add_to_history(List *, char *);
+static Status se_add_to_history(List *, char *text);
 static void se_determine_filetype(Session *, Buffer *);
 static void se_determine_fileformat(Session *, Buffer *);
-static int se_is_valid_config_def(Session *, HashMap *, ConfigType, const char *);
+static int se_is_valid_config_def(Session *, HashMap *, ConfigType,
+                                  const char *def_name);
 
 Session *se_new(void)
 {
@@ -134,6 +135,7 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
         return 0;
     }
 
+    /* The prompt currently uses a single line, so don't wrap content */
     cf_set_var(CE_VAL(sess, prompt_buffer), CL_BUFFER, CV_LINEWRAP, INT_VAL(0));
     se_enable_msgs(sess);
 
@@ -415,14 +417,17 @@ int se_add_error(Session *sess, Status error)
     Buffer *error_buffer = sess->error_buffer;
     char error_msg[MAX_ERROR_MSG_SIZE];
 
-    snprintf(error_msg, MAX_ERROR_MSG_SIZE, "Error %d: %s", error.error_code, error.msg);    
+    snprintf(error_msg, MAX_ERROR_MSG_SIZE, "Error %d: %s",
+             error.error_code, error.msg);    
     st_free_status(error);
 
+    /* Store each error message on its own line in the error buffer */
     if (!bp_at_buffer_start(&error_buffer->pos)) {
         bf_insert_character(error_buffer, "\n", 1);
     }
 
-    bf_insert_string(error_buffer, error_msg, strnlen(error_msg, MAX_ERROR_MSG_SIZE), 1);
+    bf_insert_string(error_buffer, error_msg,
+                     strnlen(error_msg, MAX_ERROR_MSG_SIZE), 1);
 
     return 1;
 }
@@ -471,7 +476,8 @@ void se_clear_msgs(Session *sess)
 Status se_add_new_buffer(Session *sess, const char *file_path)
 {
     if (file_path == NULL || strnlen(file_path, 1) == 0) {
-        return st_get_error(ERR_INVALID_FILE_PATH, "Invalid file path - \"%s\"", file_path);
+        return st_get_error(ERR_INVALID_FILE_PATH,
+                            "Invalid file path - \"%s\"", file_path);
     }
 
     FileInfo file_info;
@@ -481,10 +487,12 @@ Status se_add_new_buffer(Session *sess, const char *file_path)
     RETURN_IF_FAIL(fi_init(&file_info, file_path));
 
     if (fi_is_directory(&file_info)) {
-        status = st_get_error(ERR_FILE_IS_DIRECTORY, "%s is a directory", file_info.file_name);
+        status = st_get_error(ERR_FILE_IS_DIRECTORY,
+                              "%s is a directory", file_info.file_name);
         goto cleanup;
     } else if (fi_is_special(&file_info)) {
-        status = st_get_error(ERR_FILE_IS_SPECIAL, "%s is not a regular file", file_info.file_name);
+        status = st_get_error(ERR_FILE_IS_SPECIAL,
+                              "%s is not a regular file", file_info.file_name);
         goto cleanup;
     }
 
@@ -492,9 +500,9 @@ Status se_add_new_buffer(Session *sess, const char *file_path)
 
     if (buffer == NULL) {
         status = st_get_error(ERR_OUT_OF_MEMORY, 
-                           "Out of memory - Unable to "
-                           "create buffer for file %s", 
-                           file_info.file_name);
+                              "Out Of Memory - Unable to "
+                              "create buffer for file %s", 
+                              file_info.file_name);
         goto cleanup;
     }
 
@@ -521,14 +529,14 @@ cleanup:
 Status se_add_new_empty_buffer(Session *sess)
 {
     char empty_buf_name[MAX_EMPTY_BUFFER_NAME_SIZE];
-    snprintf(empty_buf_name, MAX_EMPTY_BUFFER_NAME_SIZE, "[new %zu]", ++sess->empty_buffer_num);
+    snprintf(empty_buf_name, MAX_EMPTY_BUFFER_NAME_SIZE,
+             "[new %zu]", ++sess->empty_buffer_num);
 
     Buffer *buffer = bf_new_empty(empty_buf_name, sess->config);
 
     if (buffer == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, 
-                         "Out of memory - Unable to "
-                         "create empty buffer");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to create empty buffer");
     }   
 
     se_add_buffer(sess, buffer);
@@ -536,7 +544,8 @@ Status se_add_new_empty_buffer(Session *sess)
     return STATUS_SUCCESS;
 }
 
-Status se_get_buffer_index_by_path(const Session *sess, const char *file_path, int *buffer_index_ptr)
+Status se_get_buffer_index_by_path(const Session *sess, const char *file_path,
+                                   int *buffer_index_ptr)
 {
     assert(!is_null_or_empty(file_path));
     assert(buffer_index_ptr != NULL);
@@ -569,12 +578,14 @@ static Status se_add_to_history(List *history, char *text)
 
     size_t size = list_size(history);
 
+    /* Avoid duplicate entries in sequence */
     if (size > 0 && strcmp(list_get(history, size - 1), text) == 0) {
         return STATUS_SUCCESS;
     }
 
     if (!list_add(history, text)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable save search history");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable save search history");
     }
 
     return STATUS_SUCCESS;
@@ -612,7 +623,8 @@ Status se_add_filetype_def(Session *sess, FileType *file_type)
     FileType *existing = hashmap_get(sess->filetypes, file_type->name);
 
     if (!hashmap_set(sess->filetypes, file_type->name, file_type)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - Unable to save filetype");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to save filetype");
     }
 
     if (existing != NULL) {
@@ -623,13 +635,18 @@ Status se_add_filetype_def(Session *sess, FileType *file_type)
     int re_enable_msgs = se_disable_msgs(sess);
     int matches;
 
+    /* Check all existing buffer's without a filetype set 
+     * to see if they match the newly added filetype */
+
     while (buffer != NULL) {
         if (is_null_or_empty(cf_string(buffer->config, CV_FILETYPE))) {
-            se_add_error(sess, ft_matches(file_type, &buffer->file_info, &matches));
+            se_add_error(sess, ft_matches(file_type, &buffer->file_info,
+                                          &matches));
 
             if (matches) {
-                se_add_error(sess, cf_set_var(CE_VAL(sess, buffer), CL_BUFFER, 
-                                              CV_FILETYPE, STR_VAL(file_type->name)));
+                se_add_error(sess, cf_set_var(CE_VAL(sess, buffer), CL_BUFFER,
+                                              CV_FILETYPE,
+                                              STR_VAL(file_type->name)));
             }
         }
 
@@ -663,11 +680,13 @@ static void se_determine_filetype(Session *sess, Buffer *buffer)
         file_type = hashmap_get(filetypes, keys[k]);
 
         if (file_type != NULL) {
-            se_add_error(sess, ft_matches(file_type, &buffer->file_info, &matches));
+            se_add_error(sess, ft_matches(file_type, &buffer->file_info,
+                                          &matches));
 
             if (matches) {
-                se_add_error(sess, cf_set_var(CE_VAL(sess, buffer), CL_BUFFER, 
-                                              CV_FILETYPE, STR_VAL(file_type->name)));
+                se_add_error(sess, cf_set_var(CE_VAL(sess, buffer), CL_BUFFER,
+                                              CV_FILETYPE,
+                                              STR_VAL(file_type->name)));
                 break;
             }
         }
@@ -695,7 +714,8 @@ int se_disable_msgs(Session *sess)
     return currently_enabled;
 }
 
-Status se_add_syn_def(Session *sess, SyntaxDefinition *syn_def, const char *syn_name)
+Status se_add_syn_def(Session *sess, SyntaxDefinition *syn_def,
+                      const char *syn_name)
 {
     assert(syn_def != NULL);
     assert(!is_null_or_empty(syn_name));
@@ -714,6 +734,7 @@ Status se_add_syn_def(Session *sess, SyntaxDefinition *syn_def, const char *syn_
     return STATUS_SUCCESS;
 }
 
+/* Attempt to set syntaxtype based on filetype if necessary */
 void se_determine_syntaxtype(Session *sess, Buffer *buffer)
 {
     if (!cf_bool(sess->config, CV_SYNTAX)) {
@@ -772,7 +793,8 @@ static int se_is_valid_config_def(Session *sess, HashMap *defs,
     return def != NULL;
 }
 
-const SyntaxDefinition *se_get_syntax_def(const Session *sess, const Buffer *buffer)
+const SyntaxDefinition *se_get_syntax_def(const Session *sess,
+                                          const Buffer *buffer)
 {
     if (!cf_bool(sess->config, CV_SYNTAX)) {
         return NULL;
@@ -793,6 +815,8 @@ Status se_add_theme(Session *sess, Theme *theme, const char *theme_name)
     assert(theme != NULL);    
     assert(!is_null_or_empty(theme_name));
 
+    /* The default theme is always available in wed
+     * and cannot be overwritten */
     if (strncmp(theme_name, "default", 8) == 0) {
         return st_get_error(ERR_OVERRIDE_DEFAULT_THEME, 
                             "Cannot override default theme");

@@ -20,7 +20,8 @@
 #include "util.h"
 #include <assert.h>
 
-#define CORRECT_LINE_NO(lineno, maxlineno) ((lineno) == 0 ? 1 : MIN((lineno), (maxlineno)))
+#define CORRECT_LINE_NO(lineno, maxlineno) \
+        ((lineno) == 0 ? 1 : MIN((lineno), (maxlineno)))
 #define CORRECT_COL_NO(colno) ((colno) == 0 ? 1 : (colno))
 
 typedef enum {
@@ -30,9 +31,10 @@ typedef enum {
     NP_ENTRY_NUM
 } NearestPos;
 
-static int bp_is_char_before(const BufferPos *, size_t, char);
-static void calc_new_col(BufferPos *, size_t);
-static NearestPos bp_determine_nearest_pos(size_t, size_t, size_t, size_t);
+static int bp_is_char_before(const BufferPos *, size_t offset, char ch);
+static void calc_new_col(BufferPos *, size_t new_offset);
+static NearestPos bp_determine_nearest_pos(size_t pos, size_t start, 
+                                           size_t known, size_t end);
 
 int bp_init(BufferPos *pos, const GapBuffer *data, 
             const FileFormat *file_format,
@@ -202,7 +204,8 @@ void bp_prev_char(BufferPos *pos)
             if (char_info.byte_length == prev_offset) {
                 pos->col_no -= char_info.screen_length;
             } else {
-                /* Invalid byte sequences */
+                /* Invalid UTF-8 byte sequence encountered.
+                 * Ensure we don't skip back too far */
                 size_t remaining_bytes = prev_offset - char_info.byte_length;    
 
                 while (remaining_bytes > 0) {
@@ -312,6 +315,8 @@ void bp_to_buffer_start(BufferPos *pos)
 void bp_to_buffer_end(BufferPos *pos)
 {
     pos->offset = gb_length(pos->data);
+    /* gb_lines returns the number of line endings
+     * i.e. 0 line endings means we're on line 1 */
     pos->line_no = gb_lines(pos->data) + 1;
     bp_recalc_col(pos);
 }
@@ -375,6 +380,8 @@ void bp_reverse_to_line(BufferPos *pos, size_t line_no, int end_of_line)
 {
     size_t lines = gb_lines(pos->data) + 1;
     line_no = CORRECT_LINE_NO(line_no, lines);
+    /* end_of_line reverses to the end of the line we want
+     * instead of the start */
 
     if (end_of_line) {
         line_no++;

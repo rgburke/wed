@@ -24,18 +24,35 @@
 #include "search_options.h"
 #include "status.h"
 
+/* TODO Currently the text search functionality is only guaranteed to work for
+ * ASCII text. A comparison is performed byte by byte
+ * rather than character by character. This means that a UTF-8 text search
+ * will only match if the buffer text and the search text happen to be
+ * normalised using the same form. This also means that the current
+ * case sensitivity functionality only works for ASCII characters */
+
 #define ALPHABET_SIZE 256
 
+/* Text search struct.
+ * The Boyer–Moore–Horspool algorithm is used to perform the search. */
 typedef struct {
-    char *pattern;
-    size_t pattern_len;
-    size_t bad_char_table[ALPHABET_SIZE];
+    char *pattern; /* Text searched for */
+    size_t pattern_len; /* Search text length */
+    size_t bad_char_table[ALPHABET_SIZE]; /* Array populated with pattern
+                                             shift lengths for each character
+                                             in the alphabet */
 } TextSearch;
 
 Status ts_init(TextSearch *, const SearchOptions *);
 Status ts_reinit(TextSearch *, const SearchOptions *);
 void ts_free(TextSearch *);
-Status ts_find_next(TextSearch *, const SearchOptions *, const BufferPos *, const BufferPos *, int *, size_t *);
-Status ts_find_prev(TextSearch *, const SearchOptions *, const BufferPos *, const BufferPos *, int *, size_t *);
+Status ts_find_next(TextSearch *, const SearchOptions *,
+                    const BufferPos *search_start_pos,
+                    const BufferPos *current_start_pos,
+                    int *found_match, size_t *match_point);
+Status ts_find_prev(TextSearch *, const SearchOptions *, 
+                    const BufferPos *search_start_pos,
+                    const BufferPos *current_start_pos,
+                    int *found_match, size_t *match_point);
 
 #endif

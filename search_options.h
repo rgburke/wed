@@ -19,11 +19,13 @@
 #ifndef WED_SEARCH_OPTIONS_H
 #define WED_SEARCH_OPTIONS_H
 
+/* Base search options common to text and regex search. These
+ * values can be set and toggled by the user */
 typedef struct {
-    char *pattern;
-    size_t pattern_len;
-    int case_insensitive;
-    int forward;
+    char *pattern; /* Text or regex pattern */
+    size_t pattern_len; /* Pattern length */
+    int case_insensitive; /* True if search should be case insensitive */
+    int forward; /* True: forwards, False: backwards */
 } SearchOptions;
 
 #endif

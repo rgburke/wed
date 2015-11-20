@@ -26,10 +26,10 @@
 #include "gap_buffer.h"
 
 static void gb_move_gap_to_point(GapBuffer *);
-static int gb_increase_gap_if_required(GapBuffer *, size_t);
+static int gb_increase_gap_if_required(GapBuffer *, size_t new_size);
 static int gb_decrease_gap_if_required(GapBuffer *);
-static size_t gb_internal_point(const GapBuffer *, size_t);
-static size_t gb_external_point(const GapBuffer *, size_t);
+static size_t gb_internal_point(const GapBuffer *, size_t external_point);
+static size_t gb_external_point(const GapBuffer *, size_t internal_point);
 
 GapBuffer *gb_new(size_t size)
 {
@@ -76,6 +76,8 @@ size_t gb_lines(const GapBuffer *buffer)
     return buffer->lines;
 }
 
+/* Move gap to point. This is necessary to 
+ * insert and delete text */
 static void gb_move_gap_to_point(GapBuffer *buffer)
 {
     if (buffer->point == buffer->gap_start) {
@@ -92,9 +94,12 @@ static void gb_move_gap_to_point(GapBuffer *buffer)
         /*    PGS      GE            */
         
         size_t byte_num = buffer->gap_start - buffer->point;
+        char *point_text = buffer->text + buffer->point;
 
-        memmove(buffer->text + buffer->point + buffer->gap_end - buffer->gap_start,
-                buffer->text + buffer->point, byte_num);
+        /* Move all text between point and gap_start to
+         * the end of the buffer */
+        memmove(point_text + buffer->gap_end - buffer->gap_start,
+                point_text, byte_num);
 
         buffer->gap_end -= byte_num;
         buffer->gap_start = buffer->point;
@@ -109,7 +114,11 @@ static void gb_move_gap_to_point(GapBuffer *buffer)
 
         size_t byte_num = buffer->point - buffer->gap_end;
 
-        memmove(buffer->text + buffer->gap_start, buffer->text + buffer->gap_end,
+        /* Move all text between gap_end and point
+         * to gap_start to allow the gap to then be
+         * advanced */
+        memmove(buffer->text + buffer->gap_start,
+                buffer->text + buffer->gap_end,
                 byte_num);
 
         buffer->gap_start += byte_num;
@@ -128,6 +137,10 @@ int gb_preallocate(GapBuffer *buffer, size_t size)
     return gb_increase_gap_if_required(buffer, size);
 }
 
+/* This function moves the gap to the end of the buffer
+ * which means buffer->text points to a continuous string
+ * in memory. This allows buffer->text to be used with
+ * libraries like PCRE */
 void gb_contiguous_storage(GapBuffer *buffer)
 {
     gb_set_point(buffer, gb_length(buffer));
@@ -155,7 +168,9 @@ static int gb_increase_gap_if_required(GapBuffer *buffer, size_t new_size)
     size_t byte_num = buffer->allocated - buffer->gap_end;
 
     if (byte_num > 0) {
-        memmove(buffer->text + new_alloc - byte_num, buffer->text + buffer->gap_end,
+        /* Move text to allow gap to use newly allocated space */
+        memmove(buffer->text + new_alloc - byte_num,
+                buffer->text + buffer->gap_end,
                 byte_num);
     }
 
@@ -197,6 +212,8 @@ static int gb_decrease_gap_if_required(GapBuffer *buffer)
     size_t buffer_len = gb_length(buffer);
     size_t new_alloc = buffer_len + GAP_INCREMENT;
 
+    /* Move the gap to the end of the buffer so that
+     * it is shrunk by the realloc */
     size_t point = gb_get_point(buffer);
     gb_set_point(buffer, buffer_len);
 
@@ -250,6 +267,7 @@ int gb_insert(GapBuffer *buffer, const char *str, size_t str_len)
     return 1;
 }
 
+/* Same as gb_insert but also advance point */
 int gb_add(GapBuffer *buffer, const char *str, size_t str_len)
 {
     if (!gb_insert(buffer, str, str_len)) {
@@ -268,6 +286,7 @@ int gb_delete(GapBuffer *buffer, size_t byte_num)
 
     gb_move_gap_to_point(buffer);
 
+    /* Ensure deletion size is valid */
     if (buffer->gap_end + byte_num > buffer->allocated) {
         byte_num = buffer->allocated - buffer->gap_end;
     }
@@ -287,7 +306,11 @@ int gb_delete(GapBuffer *buffer, size_t byte_num)
     return 1;
 }
 
-int gb_replace(GapBuffer *buffer, size_t num_bytes, const char *str, size_t str_len)
+/* The idea with this function is to overwrite text directly when possible
+ * to avoid reallocating memory when deleting and inserting
+ * i.e. in specific cases (like str_len == byte_num) it's quite efficient */
+int gb_replace(GapBuffer *buffer, size_t byte_num, const char *str,
+               size_t str_len)
 {
     /* | T | e | s | t |   |   |   |   |   | */
     /* 0   1   2   3   4   5   6   7   8   9 */
@@ -307,12 +330,12 @@ int gb_replace(GapBuffer *buffer, size_t num_bytes, const char *str, size_t str_
 
     size_t buffer_len = gb_length(buffer);
 
-    if (buffer->point + num_bytes > buffer_len) {
-        num_bytes = buffer_len - buffer->point;
+    if (buffer->point + byte_num > buffer_len) {
+        byte_num = buffer_len - buffer->point;
     }
 
     size_t after_gap_bytes = buffer->allocated - buffer->gap_end;
-    size_t replace_bytes = MIN(after_gap_bytes, MIN(num_bytes, str_len));
+    size_t replace_bytes = MIN(after_gap_bytes, MIN(byte_num, str_len));
     char *text = buffer->text + buffer->gap_end;
 
     for (size_t k = 0; k < replace_bytes; k++) {
@@ -336,8 +359,8 @@ int gb_replace(GapBuffer *buffer, size_t num_bytes, const char *str, size_t str_
         return 0;
     }
 
-    if (num_bytes > str_len) {
-        return gb_delete(buffer, num_bytes - str_len);
+    if (byte_num > str_len) {
+        return gb_delete(buffer, byte_num - str_len);
     }
 
     return 1;
@@ -393,7 +416,8 @@ unsigned char gb_getu_at(const GapBuffer *buffer, size_t point)
     return *(unsigned char *)&c;
 }
 
-size_t gb_get_range(const GapBuffer *buffer, size_t point, char *buf, size_t num_bytes)
+size_t gb_get_range(const GapBuffer *buffer, size_t point, char *buf,
+                    size_t num_bytes)
 {
     size_t buffer_len = gb_length(buffer);
     assert(buf != NULL);
@@ -413,15 +437,21 @@ size_t gb_get_range(const GapBuffer *buffer, size_t point, char *buf, size_t num
     end = gb_internal_point(buffer, end);
 
     if (end <= buffer->gap_start || point >= buffer->gap_end) {
+        /* If the range is unbroken by the gap then we can
+         * simply copy it with a single memcpy */
         memcpy(buf, buffer->text + point, num_bytes); 
     } else {
+        /* Range is broken by the gap so we need to copy text
+         * before and after the gap separately */
         size_t pre_gap_bytes = buffer->gap_start - point;
 
         if (pre_gap_bytes > 0) {
             memcpy(buf, buffer->text + point, pre_gap_bytes); 
         }
 
-        memcpy(buf + pre_gap_bytes, buffer->text + buffer->gap_end, end - buffer->gap_end); 
+        memcpy(buf + pre_gap_bytes,
+               buffer->text + buffer->gap_end,
+               end - buffer->gap_end); 
     }
 
     return num_bytes;
@@ -472,6 +502,8 @@ int gb_find_next(const GapBuffer *buffer, size_t point, size_t *next, char c)
     } 
     
     if (point <= buffer->gap_start) {
+        /* We didn't find anything before the gap so
+         * prepare to search after the gap */
         point = buffer->gap_end;
     }
 

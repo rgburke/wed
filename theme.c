@@ -19,7 +19,14 @@
 #include <string.h>
 #include <assert.h>
 #include "theme.h"
+#include "util.h"
 
+/* Create the default theme. This theme is set during session
+ * initialisation and ensures that wed always has a theme available
+ * as it is not overwritable (see session.c) */
+/* All custom themes specified by the user in config extend this theme
+ * i.e. Any screen components not set by the user have the same
+ * theme group values as the default theme */
 Theme *th_get_default_theme(void)
 {
     Theme *theme = malloc(sizeof(Theme));
@@ -61,7 +68,7 @@ int th_str_to_draw_color(DrawColor *draw_color_ptr, const char *draw_color_str)
         [DC_WHITE]   = "white"
     };
 
-    static const size_t draw_color_num = sizeof(draw_colors) / sizeof(const char *);
+    static const size_t draw_color_num = ARRAY_SIZE(draw_colors, const char *);
 
     for (size_t k = 0; k < draw_color_num; k++) {
         if (strcmp(draw_colors[k], draw_color_str) == 0) {

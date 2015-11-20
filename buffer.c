@@ -39,15 +39,21 @@
 static Status reset_buffer(Buffer *);
 static Status bf_add_new_line_at_buffer_end(Buffer *);
 static int is_selection(Direction *);
-static void bf_default_movement_selection_handler(Buffer *, int, Direction *);
-static Status bf_change_real_line(Buffer *, BufferPos *, Direction, int);
-static Status bf_change_screen_line(Buffer *, BufferPos *, Direction, int);
-static Status bf_advance_bp_to_line_offset(Buffer *, BufferPos *, int);
+static void bf_default_movement_selection_handler(Buffer *, int is_select,
+                                                  Direction *);
+static Status bf_change_real_line(Buffer *, BufferPos *, 
+                                  Direction, int is_cursor);
+static Status bf_change_screen_line(Buffer *, BufferPos *,
+                                    Direction, int is_cursor);
+static Status bf_advance_bp_to_line_offset(Buffer *, BufferPos *,
+                                           int is_select);
 static void bf_update_line_col_offset(Buffer *, const BufferPos *);
-static Status bf_insert_expanded_tab(Buffer *, int);
-static Status bf_auto_indent(Buffer *, int);
-static Status bf_convert_fileformat(TextSelection *, TextSelection *, int *);
-static Status bf_mask_allows_input(const Buffer *, const char *, size_t, int *);
+static Status bf_insert_expanded_tab(Buffer *, int advance_cursor);
+static Status bf_auto_indent(Buffer *, int advance_cursor);
+static Status bf_convert_fileformat(TextSelection *in_ts, TextSelection *out_ts, 
+                                    int *conversion_perfomed);
+static Status bf_mask_allows_input(const Buffer *, const char *str,
+                                   size_t str_len, int *input_allowed);
 
 Buffer *bf_new(const FileInfo *file_info, const HashMap *config)
 {
@@ -76,8 +82,10 @@ Buffer *bf_new(const FileInfo *file_info, const HashMap *config)
     buffer->file_info = *file_info;
     buffer->file_format = FF_UNIX;
     bp_init(&buffer->pos, buffer->data, &buffer->file_format, buffer->config);
-    bp_init(&buffer->screen_start, buffer->data, &buffer->file_format, buffer->config);
-    bp_init(&buffer->select_start, buffer->data, &buffer->file_format, buffer->config);
+    bp_init(&buffer->screen_start, buffer->data,
+            &buffer->file_format, buffer->config);
+    bp_init(&buffer->select_start, buffer->data,
+            &buffer->file_format, buffer->config);
     bf_select_reset(buffer);
     init_window_info(&buffer->win_info);
     bs_init_default_opt(&buffer->search);
@@ -131,12 +139,15 @@ static Status reset_buffer(Buffer *buffer)
     buffer->data = gb_new(GAP_INCREMENT);
 
     if (buffer->data == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to reset buffer");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to reset buffer");
     }
 
     bp_init(&buffer->pos, buffer->data, &buffer->file_format, buffer->config);
-    bp_init(&buffer->screen_start, buffer->data, &buffer->file_format, buffer->config);
-    bp_init(&buffer->select_start, buffer->data, &buffer->file_format, buffer->config);
+    bp_init(&buffer->screen_start, buffer->data,
+            &buffer->file_format, buffer->config);
+    bp_init(&buffer->select_start, buffer->data,
+            &buffer->file_format, buffer->config);
     bf_select_reset(buffer);
     bf_update_line_col_offset(buffer, &buffer->pos);
     bc_free(&buffer->changes);
@@ -145,6 +156,8 @@ static Status reset_buffer(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
+/* Look at the first couple of lines to determine 
+ * if buffer has Unix or windows line endings */
 FileFormat bf_detect_fileformat(const Buffer *buffer)
 {
     FileFormat file_format = FF_UNIX;
@@ -175,7 +188,7 @@ FileFormat bf_detect_fileformat(const Buffer *buffer)
     return file_format;
 }
 
-/* Loads file into buffer structure */
+/* Loads file into buffer */
 Status bf_load_file(Buffer *buffer)
 {
     Status status = STATUS_SUCCESS;
@@ -189,12 +202,18 @@ Status bf_load_file(Buffer *buffer)
     FILE *input_file = fopen(buffer->file_info.abs_path, "rb");
 
     if (input_file == NULL) {
-        return st_get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open file %s for reading - %s", 
-                         buffer->file_info.file_name, strerror(errno));
+        return st_get_error(ERR_UNABLE_TO_OPEN_FILE,
+                            "Unable to open file %s for reading - %s", 
+                            buffer->file_info.file_name, strerror(errno));
     } 
 
     gb_set_point(buffer->data, 0);
-    gb_preallocate(buffer->data, buffer->file_info.file_stat.st_size);
+    
+    /* Attempt to allocate necessary memory before loading into gap buffer */
+    if (!gb_preallocate(buffer->data, buffer->file_info.file_stat.st_size)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - ",
+                            "File is too large to load into memory");
+    }
 
     char buf[FILE_BUF_SIZE];
     size_t read;
@@ -203,13 +222,16 @@ Status bf_load_file(Buffer *buffer)
         read = fread(buf, sizeof(char), FILE_BUF_SIZE, input_file);
 
         if (ferror(input_file)) {
-            status = st_get_error(ERR_UNABLE_TO_READ_FILE, "Unable to read from file %s - %s", 
-                               buffer->file_info.file_name, strerror(errno));
+            status = st_get_error(ERR_UNABLE_TO_READ_FILE,
+                                  "Unable to read from file %s - %s", 
+                                  buffer->file_info.file_name, strerror(errno));
             break;
         } 
 
+        /* Add text to gap buffer and advance internal point */
         if (!gb_add(buffer->data, buf, read)) {
-            status = st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to populate buffer");
+            status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                  "Unable to populate buffer");
             break;
         }
     } while (read == FILE_BUF_SIZE);
@@ -221,6 +243,7 @@ Status bf_load_file(Buffer *buffer)
     return status;
 }
 
+/* Add new line to buffer end if one doesn't exist */
 static Status bf_add_new_line_at_buffer_end(Buffer *buffer)
 {
     size_t buffer_len = gb_length(buffer->data);
@@ -242,7 +265,8 @@ static Status bf_add_new_line_at_buffer_end(Buffer *buffer)
     return status;
 }
 
-/* Used when loading a file into a buffer */
+/* Write buffer to temporary file in same directory as file_path
+ * then rename temporary file to file_path */
 Status bf_write_file(Buffer *buffer, const char *file_path)
 {
     assert(!is_null_or_empty(file_path));
@@ -255,7 +279,8 @@ Status bf_write_file(Buffer *buffer, const char *file_path)
     char *tmp_file_path = malloc(tmp_file_path_len);
 
     if (tmp_file_path == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to create temporary file path");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to create temporary file path");
     }
 
     snprintf(tmp_file_path, tmp_file_path_len, "%sXXXXXX", file_path);
@@ -264,8 +289,9 @@ Status bf_write_file(Buffer *buffer, const char *file_path)
 
     if (output_file == -1) {
         free(tmp_file_path);
-        return st_get_error(ERR_UNABLE_TO_OPEN_FILE, "Unable to open temporary file for writing - %s",
-                         strerror(errno));
+        return st_get_error(ERR_UNABLE_TO_OPEN_FILE,
+                            "Unable to open temporary file for writing - %s",
+                            strerror(errno));
     }
 
     Status status = STATUS_SUCCESS;
@@ -274,12 +300,17 @@ Status bf_write_file(Buffer *buffer, const char *file_path)
     size_t bytes_retrieved;
     char buf[FILE_BUF_SIZE];
 
+    /* Read text from gap buffer and write to temporary file */
+
     while (bytes_remaining > 0) {
-        bytes_retrieved = gb_get_range(buffer->data, buffer_len - bytes_remaining, buf, FILE_BUF_SIZE);
+        bytes_retrieved = gb_get_range(buffer->data,
+                                       buffer_len - bytes_remaining,
+                                       buf, FILE_BUF_SIZE);
 
         if (write(output_file, buf, bytes_retrieved) <= 0) {
-            status = st_get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to write to temporary file - %s", 
-                    strerror(errno));
+            status = st_get_error(ERR_UNABLE_TO_WRITE_TO_FILE,
+                                  "Unable to write to temporary file - %s",
+                                  strerror(errno));
             break;
         }
 
@@ -295,21 +326,28 @@ Status bf_write_file(Buffer *buffer, const char *file_path)
     struct stat file_stat;
 
     if (stat(file_path, &file_stat) == 0) {
+        /* Set permissions and ownership of temporary file
+         * to match existing file */
+
         if (chmod(tmp_file_path, file_stat.st_mode) == -1) {
-            status = st_get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to set file permissions - %s", 
-                               strerror(errno));
+            status = st_get_error(ERR_UNABLE_TO_WRITE_TO_FILE,
+                                  "Unable to set file permissions - %s", 
+                                  strerror(errno));
             goto cleanup;
         }
 
         if (chown(tmp_file_path, file_stat.st_uid, file_stat.st_gid) == -1) {
-            status = st_get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to set owner - %s",
-                               strerror(errno));
+            status = st_get_error(ERR_UNABLE_TO_WRITE_TO_FILE,
+                                  "Unable to set owner - %s",
+                                  strerror(errno));
             goto cleanup;
         }
     }
 
+    /* Overwrite existing file atomically */
     if (rename(tmp_file_path, file_path) == -1) {
-        status = st_get_error(ERR_UNABLE_TO_WRITE_TO_FILE, "Unable to overwrite file %s - %s",
+        status = st_get_error(ERR_UNABLE_TO_WRITE_TO_FILE,
+                              "Unable to overwrite file %s - %s",
                               file_info->rel_path, strerror(errno)); 
     }
 
@@ -341,6 +379,7 @@ char *bf_to_string(const Buffer *buffer)
     return str;
 }
 
+/* TODO This is a simple but somewhat inefficient implementation */
 char *bf_join_lines(const Buffer *buffer, const char *seperator)
 {
     assert(seperator != NULL);
@@ -379,6 +418,7 @@ int bf_get_range(Buffer *buffer, Range *range)
     if (!bf_selection_started(buffer)) {
         return 0;
     } else if (bp_compare(&buffer->pos, &buffer->select_start) == 0) {
+        /* Cannot have empty selection */
         bf_select_reset(buffer);
         return 0;
     }
@@ -391,7 +431,8 @@ int bf_get_range(Buffer *buffer, Range *range)
 
 int bf_bp_in_range(const Range *range, const BufferPos *pos)
 {
-    if (bp_compare(pos, &range->start) < 0 || bp_compare(pos, &range->end) >= 0) {
+    if (bp_compare(pos, &range->start) < 0 ||
+        bp_compare(pos, &range->end) >= 0) {
         return 0;
     }
 
@@ -477,12 +518,16 @@ int bf_bp_at_screen_line_start(const Buffer *buffer, const BufferPos *pos)
         BufferPos prev_char = *pos;
         bp_prev_char(&prev_char);
 
-        size_t prev_screen_col_no = (prev_char.col_no - 1) % buffer->win_info.width;
+        size_t prev_screen_col_no = 
+            (prev_char.col_no - 1) % buffer->win_info.width;
 
         if (prev_screen_col_no == 0) {
             return 0;
         }
 
+        /* Handle screen lines that end with characters that
+         * take up multiple columns and wrap onto the next
+         * screen line */
         return screen_col_no < prev_screen_col_no;
     }
 
@@ -519,6 +564,7 @@ int bf_bp_move_past_buffer_extremes(const BufferPos *pos, Direction direction)
             (direction == DIRECTION_RIGHT && bp_at_buffer_end(pos)));
 }
 
+/* Zero out DIRECTION_WITH_SELECT bit and return true if it was set */
 static int is_selection(Direction *direction)
 {
     if (direction == NULL) {
@@ -533,10 +579,13 @@ static int is_selection(Direction *direction)
 
 int bf_selection_started(const Buffer *buffer)
 {
+    /* select_start.line_no is set to 0 to
+     * indicate no selection exists */
     return buffer->select_start.line_no > 0;
 }
 
-static void bf_default_movement_selection_handler(Buffer *buffer, int is_select, Direction *direction)
+static void bf_default_movement_selection_handler(Buffer *buffer, int is_select,
+                                                  Direction *direction)
 {
     if (is_select) {
         if (direction != NULL) {
@@ -572,7 +621,8 @@ Status bf_set_bp(Buffer *buffer, const BufferPos *pos)
 
 /* Move cursor up or down a line keeping the offset into the line the same 
  * or as close to the original if possible */
-Status bf_change_line(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
+Status bf_change_line(Buffer *buffer, BufferPos *pos, Direction direction,
+                      int is_cursor)
 {
     if (cf_bool(buffer->config, CV_LINEWRAP)) {
         return bf_change_screen_line(buffer, pos, direction, is_cursor);
@@ -581,7 +631,8 @@ Status bf_change_line(Buffer *buffer, BufferPos *pos, Direction direction, int i
     return bf_change_real_line(buffer, pos, direction, is_cursor);
 }
 
-static Status bf_change_real_line(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
+static Status bf_change_real_line(Buffer *buffer, BufferPos *pos, 
+                                  Direction direction, int is_cursor)
 {
     int is_select = is_selection(&direction);
 
@@ -613,13 +664,14 @@ static Status bf_change_real_line(Buffer *buffer, BufferPos *pos, Direction dire
     return STATUS_SUCCESS;
 }
 
-/* Move cursor up or down a screen line keeping the cursor column as close to the
- * starting value as possible. For lines which don't wrap this function behaves the
- * same as bf_change_line. For lines which wrap this allows a user to scroll up or
- * down to a different part of the line displayed as a different line on the screen.
- * Therefore this function is dependent on the width of the screen. */
-
-static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
+/* Move cursor up or down a screen line keeping the cursor column as close to 
+ * the starting value as possible. For lines which don't wrap this function 
+ * behaves the same as by bf_change_real_line. For lines which wrap this 
+ * allows a user to scroll up or down to a different part of the line displayed 
+ * as a different line on the screen. Therefore this function is dependent 
+ * on the width of the screen. */
+static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos, 
+                                    Direction direction, int is_cursor)
 {
     int is_select = is_selection(&direction);
 
@@ -629,17 +681,20 @@ static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos, Direction di
         return STATUS_SUCCESS;
     }
 
-    Direction pos_direction = (direction == DIRECTION_DOWN ? DIRECTION_RIGHT : DIRECTION_LEFT);
+    Direction pos_direction = (direction == DIRECTION_DOWN ? 
+                               DIRECTION_RIGHT : DIRECTION_LEFT);
 
     if (is_cursor) {
-        bf_default_movement_selection_handler(buffer, is_select, &pos_direction);
+        bf_default_movement_selection_handler(buffer, is_select,
+                                              &pos_direction);
     }
 
     size_t start_col = screen_col_no(buffer, pos);
 
     if (direction == DIRECTION_UP) {
         if (!bf_bp_at_screen_line_start(buffer, pos)) {
-            RETURN_IF_FAIL(bf_bp_to_screen_line_start(buffer, pos, is_select, 0));
+            RETURN_IF_FAIL(bf_bp_to_screen_line_start(buffer, pos, 
+                                                      is_select, 0));
         }
 
         RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
@@ -669,7 +724,8 @@ static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos, Direction di
     return STATUS_SUCCESS;
 }
 
-static Status bf_advance_bp_to_line_offset(Buffer *buffer, BufferPos *pos, int is_select)
+static Status bf_advance_bp_to_line_offset(Buffer *buffer, BufferPos *pos,
+                                           int is_select)
 {
     size_t global_col_offset = buffer->line_col_offset;
     size_t current_col_offset = screen_col_no(buffer, pos) - 1;
@@ -690,7 +746,8 @@ static Status bf_advance_bp_to_line_offset(Buffer *buffer, BufferPos *pos, int i
     return STATUS_SUCCESS;
 }
 
-Status bf_change_multi_line(Buffer *buffer, BufferPos *pos, Direction direction, size_t offset, int is_cursor)
+Status bf_change_multi_line(Buffer *buffer, BufferPos *pos, Direction direction,
+                            size_t offset, int is_cursor)
 {
     if (offset == 0) {
         return STATUS_SUCCESS;
@@ -707,7 +764,8 @@ Status bf_change_multi_line(Buffer *buffer, BufferPos *pos, Direction direction,
 }
 
 /* Move cursor a character to the left or right */
-Status bf_change_char(Buffer *buffer, BufferPos *pos, Direction direction, int is_cursor)
+Status bf_change_char(Buffer *buffer, BufferPos *pos, Direction direction,
+                      int is_cursor)
 {
     int is_select = is_selection(&direction);
 
@@ -723,6 +781,8 @@ Status bf_change_char(Buffer *buffer, BufferPos *pos, Direction direction, int i
                 bf_select_continue(buffer);
             }
         } else if (bf_selection_started(buffer)) {
+            /* Clear selection and move to whichever selection
+             * end point is in the correct direction */
             Range select_range;
             BufferPos new_pos;
 
@@ -758,7 +818,8 @@ Status bf_change_char(Buffer *buffer, BufferPos *pos, Direction direction, int i
     return STATUS_SUCCESS;
 }
 
-Status bf_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction, size_t offset, int is_cursor)
+Status bf_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction,
+                            size_t offset, int is_cursor)
 {
     if (offset == 0) {
         return STATUS_SUCCESS;
@@ -774,20 +835,25 @@ Status bf_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction,
     return STATUS_SUCCESS;
 }
 
+/* Keep track of offset into line so that it 
+ * can be persisted when changing line */
 static void bf_update_line_col_offset(Buffer *buffer, const BufferPos *pos)
 {
     if (cf_bool(buffer->config, CV_LINEWRAP)) {
         /* Windowinfo may not be initialised when the error buffer is populated,
-         * but line_col_offset isn't needed in this case anyway. */
+         * but line_col_offset isn't needed in this case anyway, as it's only
+         * one line */
         if (buffer->win_info.width > 0) {
-            buffer->line_col_offset = (pos->col_no - 1) % buffer->win_info.width;
+            buffer->line_col_offset = 
+                (pos->col_no - 1) % buffer->win_info.width;
         }
     } else {
         buffer->line_col_offset = pos->col_no - 1;
     }
 }
 
-Status bf_to_line_start(Buffer *buffer, BufferPos *pos, int is_select, int is_cursor)
+Status bf_to_line_start(Buffer *buffer, BufferPos *pos, int is_select,
+                        int is_cursor)
 {
     if (cf_bool(buffer->config, CV_LINEWRAP)) {
         return bf_bp_to_screen_line_start(buffer, pos, is_select, is_cursor);
@@ -796,7 +862,8 @@ Status bf_to_line_start(Buffer *buffer, BufferPos *pos, int is_select, int is_cu
     return bf_bp_to_line_start(buffer, pos, is_select, is_cursor);
 }
 
-Status bf_bp_to_line_start(Buffer *buffer, BufferPos *pos, int is_select, int is_cursor)
+Status bf_bp_to_line_start(Buffer *buffer, BufferPos *pos, int is_select,
+                           int is_cursor)
 {
     if (is_cursor) {
         Direction direction = DIRECTION_LEFT;
@@ -812,7 +879,8 @@ Status bf_bp_to_line_start(Buffer *buffer, BufferPos *pos, int is_select, int is
     return STATUS_SUCCESS;
 }
 
-Status bf_bp_to_screen_line_start(Buffer *buffer, BufferPos *pos, int is_select, int is_cursor)
+Status bf_bp_to_screen_line_start(Buffer *buffer, BufferPos *pos,
+                                  int is_select, int is_cursor)
 {
     Direction direction = DIRECTION_LEFT;
 
@@ -840,7 +908,8 @@ Status bf_to_line_end(Buffer *buffer, int is_select)
     return bf_bp_to_line_end(buffer, &buffer->pos, is_select, 1);
 }
 
-Status bf_bp_to_line_end(Buffer *buffer, BufferPos *pos, int is_select, int is_cursor)
+Status bf_bp_to_line_end(Buffer *buffer, BufferPos *pos, int is_select,
+                         int is_cursor)
 {
     Direction direction = DIRECTION_RIGHT;
 
@@ -857,7 +926,8 @@ Status bf_bp_to_line_end(Buffer *buffer, BufferPos *pos, int is_select, int is_c
     return STATUS_SUCCESS;
 }
 
-Status bf_bp_to_screen_line_end(Buffer *buffer, BufferPos *pos, int is_select, int is_cursor)
+Status bf_bp_to_screen_line_end(Buffer *buffer, BufferPos *pos, int is_select,
+                                int is_cursor)
 {
     Direction direction = DIRECTION_RIGHT;
 
@@ -877,6 +947,7 @@ Status bf_bp_to_screen_line_end(Buffer *buffer, BufferPos *pos, int is_select, i
     return STATUS_SUCCESS;
 }
 
+/* Our definition of word includes the underscore character intentionally */
 Status bf_to_next_word(Buffer *buffer, int is_select)
 {
     Direction direction = DIRECTION_RIGHT;
@@ -885,6 +956,7 @@ Status bf_to_next_word(Buffer *buffer, int is_select)
     BufferPos *pos = &buffer->pos;
     Status status;
 
+    /* Behaviour is different when selecting text */
     if (is_select) {
         while (bf_character_class(buffer, pos) == CCLASS_WHITESPACE) {
             RETURN_IF_FAIL(bf_change_char(buffer, pos, direction, 1));
@@ -989,13 +1061,15 @@ Status bf_change_page(Buffer *buffer, Direction direction)
 
     bf_default_movement_selection_handler(buffer, is_select, &direction);
 
-    Status status = bf_change_multi_line(buffer, pos, direction, buffer->win_info.height - 1, 1);
+    Status status = bf_change_multi_line(buffer, pos, direction,
+                                         buffer->win_info.height - 1, 1);
 
     RETURN_IF_FAIL(status);
 
     if (buffer->screen_start.line_no != buffer->pos.line_no) {
         buffer->screen_start = buffer->pos;
-        RETURN_IF_FAIL(bf_bp_to_screen_line_start(buffer, &buffer->screen_start, 0, 0));
+        RETURN_IF_FAIL(bf_bp_to_screen_line_start(buffer, &buffer->screen_start,
+                                                  0, 0));
     }
 
     return STATUS_SUCCESS;
@@ -1026,6 +1100,8 @@ static Status bf_auto_indent(Buffer *buffer, int advance_cursor)
     const char *new_line = bf_new_line_str(buffer->file_format);
     size_t new_line_len = strlen(new_line);
 
+    /* If there's no whitespace at the start of the line then
+     * just insert a new line character */
     if (!(tmp.offset > line_start_offset)) {
         return bf_insert_string(buffer, new_line, new_line_len, advance_cursor);
     }
@@ -1038,16 +1114,22 @@ static Status bf_auto_indent(Buffer *buffer, int advance_cursor)
                             "Unable to insert character");
     }
 
-    gb_get_range(buffer->data, line_start_offset, indent + new_line_len, indent_length);
+    gb_get_range(buffer->data, line_start_offset,
+                 indent + new_line_len, indent_length);
     memcpy(indent, new_line, new_line_len);
+    size_t insert_length = indent_length + new_line_len;
 
-    Status status = bf_insert_string(buffer, indent, indent_length + new_line_len, advance_cursor);
+    Status status = bf_insert_string(buffer, indent, insert_length,
+                                     advance_cursor);
     free(indent);
 
     return status;
 }
 
-Status bf_insert_character(Buffer *buffer, const char *character, int advance_cursor)
+/* This function performs expand tab and auto indent functionality that
+ * bf_insert_string doesn't */
+Status bf_insert_character(Buffer *buffer, const char *character,
+                           int advance_cursor)
 {
     size_t char_len = 0;
     
@@ -1055,8 +1137,10 @@ Status bf_insert_character(Buffer *buffer, const char *character, int advance_cu
         char_len = strnlen(character, 5);
     }
 
+    /* UTF-8 characters should be no longer than 4 bytes */
     if (char_len == 0 || char_len > 4) {
-        return st_get_error(ERR_INVALID_CHARACTER, "Invalid character %s", character);
+        return st_get_error(ERR_INVALID_CHARACTER,
+                            "Invalid character %s", character);
     }
 
     if (*character == '\t' && cf_bool(buffer->config, CV_EXPANDTAB)) {
@@ -1068,7 +1152,8 @@ Status bf_insert_character(Buffer *buffer, const char *character, int advance_cu
     return bf_insert_string(buffer, character, char_len, advance_cursor);
 }
 
-Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length, int advance_cursor)
+Status bf_insert_string(Buffer *buffer, const char *string,
+                        size_t string_length, int advance_cursor)
 {
     if (string == NULL) {
         return st_get_error(ERR_INVALID_CHARACTER, "Cannot insert NULL string");
@@ -1076,7 +1161,8 @@ Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length
         return STATUS_SUCCESS;
     } else if (bf_has_mask(buffer)) {
         int input_allowed;
-        RETURN_IF_FAIL(bf_mask_allows_input(buffer, string, string_length, &input_allowed));
+        RETURN_IF_FAIL(bf_mask_allows_input(buffer, string, string_length,
+                                            &input_allowed));
 
         if (!input_allowed) {
             return STATUS_SUCCESS;
@@ -1088,12 +1174,17 @@ Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length
     Range range;
     int grouped_changes_started = 0;
 
+    /* Check if text is selected */
     if (bf_get_range(buffer, &range)) {
+        /* If insert/delete changes are not already being grouped
+         * then start grouping them. This allows the undo operation to
+         * remove the inserted string and insert the selected text again */
         if (!bc_grouped_changes_started(&buffer->changes)) {
             RETURN_IF_FAIL(bc_start_grouped_changes(&buffer->changes));
             grouped_changes_started = 1;
         }
 
+        /* Delete selection */
         status = bf_delete_range(buffer, &range);
         
         if (!STATUS_IS_SUCCESS(status)) {
@@ -1111,7 +1202,8 @@ Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length
     }
 
     if (!gb_insert(buffer->data, string, string_length)) {
-        status = st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to insert text");
+        status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                              "Unable to insert text");
         goto cleanup;
     }
 
@@ -1124,7 +1216,7 @@ Status bf_insert_string(Buffer *buffer, const char *string, size_t string_length
     }
 
     if (advance_cursor) {
-        /* TODO Somewhat arbitrary */
+        /* TODO Somewhat arbitrary length chosen here */
         if (string_length > 100) {
             size_t lines_after = gb_lines(buffer->data);
             pos->line_no += lines_after - lines_before;
@@ -1148,8 +1240,10 @@ cleanup:
     return status;
 } 
 
-Status bf_replace_string(Buffer *buffer, size_t replace_length, const char *string, 
-                         size_t string_length, int advance_cursor)
+/* This operation is just a delete and insert grouped together */
+Status bf_replace_string(Buffer *buffer, size_t replace_length,
+                         const char *string, size_t string_length,
+                         int advance_cursor)
 {
     if (string == NULL) {
         return st_get_error(ERR_INVALID_CHARACTER, "Cannot insert NULL string");
@@ -1247,6 +1341,7 @@ Status bf_delete_character(Buffer *buffer)
 
 Status bf_select_continue(Buffer *buffer)
 {
+    /* If selection not started then start it from this position */
     if (buffer->select_start.line_no == 0) {
         buffer->select_start = buffer->pos;
     }
@@ -1306,10 +1401,12 @@ Status bf_copy_selected_text(Buffer *buffer, TextSelection *text_selection)
     text_selection->str = malloc(range_size + 1);
 
     if (text_selection->str == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to copy selected text");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to copy selected text");
     }
 
-    size_t copied = gb_get_range(buffer->data, range.start.offset, text_selection->str, range_size);
+    size_t copied = gb_get_range(buffer->data, range.start.offset,
+                                 text_selection->str, range_size);
 
     (void)copied;
     assert(copied == range_size);
@@ -1348,17 +1445,23 @@ Status bf_insert_textselection(Buffer *buffer, TextSelection *text_selection,
         return STATUS_SUCCESS;
     }
 
+    /* Convert from Windows to Unix line endings and vice versa
+     * if necessary. Usually occurs when copying between buffers */
     if (text_selection->file_format != buffer->file_format) {
-        TextSelection converted_selection = { .file_format = buffer->file_format };
+        TextSelection converted_selection = {
+            .file_format = buffer->file_format
+        };
         int conversion_perfomed;
 
-        Status status = bf_convert_fileformat(text_selection, &converted_selection,
+        Status status = bf_convert_fileformat(text_selection,
+                                              &converted_selection,
                                               &conversion_perfomed);
         RETURN_IF_FAIL(status);
 
         if (conversion_perfomed) {
             status = bf_insert_string(buffer, converted_selection.str, 
-                                      converted_selection.str_len, advance_cursor);
+                                      converted_selection.str_len,
+                                      advance_cursor);
 
             bf_free_textselection(&converted_selection);
             return status;
@@ -1374,6 +1477,8 @@ static Status bf_convert_fileformat(TextSelection *in_ts, TextSelection *out_ts,
 {
     *conversion_perfomed = 0;
 
+    /* If the formats are the same or the text selection contains 
+     * no new line characters then do nothing */
     if (in_ts->file_format == out_ts->file_format ||
         memchr(in_ts->str, '\n', in_ts->str_len) == NULL) {
         *out_ts = *in_ts;
@@ -1457,6 +1562,7 @@ Status bf_delete_prev_word(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
+/* TODO Not Undoable */
 Status bf_set_text(Buffer *buffer, const char *text)
 {
     RETURN_IF_FAIL(bf_clear(buffer));
@@ -1513,6 +1619,7 @@ Status bf_goto_line(Buffer *buffer, size_t line_no)
     return STATUS_SUCCESS;
 }
 
+/* Move line or lines covered by selection up or down buffer */
 Status bf_vert_move_lines(Buffer *buffer, Direction direction)
 {
     assert(direction == DIRECTION_UP || direction == DIRECTION_DOWN);
@@ -1529,6 +1636,7 @@ Status bf_vert_move_lines(Buffer *buffer, Direction direction)
         is_selection = 0;
     }
 
+    /* Extend range to include all parts of selected lines */
     bp_to_line_start(&range.start);
     bp_to_line_end(&range.end);
 
@@ -1586,8 +1694,10 @@ Status bf_vert_move_lines(Buffer *buffer, Direction direction)
     if (STATUS_IS_SUCCESS(status)) {
         if (is_selection) {
             size_t select_start_offset = buffer->pos.offset + 
-                                         (range.end.offset - 1 - range.start.offset);
-            buffer->select_start = bp_init_from_offset(select_start_offset, &buffer->pos);
+                                         (range.end.offset - 1
+                                          - range.start.offset);
+            buffer->select_start = bp_init_from_offset(select_start_offset,
+                                                       &buffer->pos);
         } else {
             bf_select_reset(buffer);
         }
@@ -1599,6 +1709,7 @@ cleanup:
     return status;
 }
 
+/* Indent or unindent range of lines */
 Status bf_indent(Buffer *buffer, Direction direction)
 {
     assert(direction == DIRECTION_RIGHT || direction == DIRECTION_LEFT);
@@ -1631,6 +1742,8 @@ Status bf_indent(Buffer *buffer, Direction direction)
 
     assert(lines > 0);
 
+    /* Loop through each line in selection and either
+     * indent or unindent as required */
     for (size_t k = 0; k <= lines; k++) {
         assert(buffer->pos.col_no == 1);
 
@@ -1643,7 +1756,8 @@ Status bf_indent(Buffer *buffer, Direction direction)
             case DIRECTION_LEFT:
                 {
                     CharInfo char_info;
-                    size_t space_remaining = cf_int(buffer->config, CV_TABWIDTH);
+                    size_t space_remaining = cf_int(buffer->config,
+                                                    CV_TABWIDTH);
 
                     while (bf_character_class(buffer, &buffer->pos) 
                            == CCLASS_WHITESPACE &&
@@ -1712,6 +1826,9 @@ Status bf_indent(Buffer *buffer, Direction direction)
     return status;
 }
 
+/* Simple function for jumping to matching brackets.
+ * TODO Doesn't take strings that could contain brackets into
+ * account e.g. "}", which we generally want to avoid */
 Status bf_jump_to_matching_bracket(Buffer *buffer)
 {
     size_t offset = buffer->pos.offset;
@@ -1820,6 +1937,7 @@ Status bf_jump_to_matching_bracket(Buffer *buffer)
     return bf_set_bp(buffer, &pos);
 }
 
+/* Duplicate line or selected lines underneath */
 Status bf_duplicate_selection(Buffer *buffer)
 {
     Range range;
@@ -1832,6 +1950,7 @@ Status bf_duplicate_selection(Buffer *buffer)
     bp_to_line_end(&range.end);
     const char *new_line = bf_new_line_str(buffer->file_format);
 
+    /* Empty line */
     if (bp_compare(&range.start, &range.end) == 0) {
         return bf_insert_string(buffer, new_line, strlen(new_line), 0);
     }

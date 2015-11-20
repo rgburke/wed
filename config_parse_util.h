@@ -24,6 +24,7 @@
 #include "session.h"
 #include "config.h"
 
+/* Define custom YYLTYPE for locations which includes filename */
 typedef struct {
     int first_line;
     int first_column;
@@ -32,8 +33,10 @@ typedef struct {
     const char *file_name;
 } YYLTYPE, ParseLocation;
 
+/* Inform Bison that we have a custom YYLTYPE */
 #define YYLTYPE_IS_DECLARED 1
 
+/* Update location data every type Bison reduces a rule */
 #define YYLLOC_DEFAULT(Current, Rhs, N)                              \
     do {                                                             \
         if (N) {                                                     \
@@ -51,6 +54,8 @@ typedef struct {
         }                                                            \
     } while (0)
 
+/* When parsing a config file we build an AST.
+ * Below are the nodes types */
 typedef enum {
     NT_VALUE,
     NT_VARIABLE,
@@ -60,6 +65,11 @@ typedef enum {
     NT_STATEMENT_BLOCK
 } ASTNodeType;
 
+/* This struct acts as a base class. The *Node 
+ * structures below have an ASTNode as their first member
+ * variable, which allows them all to be cast to ASTNode's.
+ * This struct contains properties common to all nodes namely
+ * type and location */
 typedef struct {
     ASTNodeType node_type; 
     ParseLocation location;
@@ -72,9 +82,12 @@ typedef struct {
 
 typedef struct {
     ASTNode type;
-    char *name;
+    char *name; /* Variable name */
 } VariableNode;
 
+/* Used for variable assignment where
+ * left is a VariableNode and right is
+ * a ValueNode */
 typedef struct {
     ASTNode type;
     ASTNode *left;
@@ -83,38 +96,50 @@ typedef struct {
 
 typedef struct StatementNode StatementNode;
 
+/* A linked list is used to store multiple statements. */
 struct StatementNode {
     ASTNode type;
     ASTNode *node;
     StatementNode *next;
 };
 
+/* Used to represent wed block definitions
+ * e.g. syntax { ... }
+ * i.e. Used to store statements grouped in a named block */
 typedef struct {
     ASTNode type;
     char *block_name;
     ASTNode *node;
 } StatementBlockNode;
 
+/* A statement can be a named block which can in turn
+ * contain statements */
+
 ValueNode *cp_new_valuenode(const ParseLocation *, Value);
-VariableNode *cp_new_variablenode(const ParseLocation *, const char *);
-ExpressionNode *cp_new_expressionnode(const ParseLocation *, ASTNodeType, ASTNode *, ASTNode *);
+VariableNode *cp_new_variablenode(const ParseLocation *, const char *var_name);
+ExpressionNode *cp_new_expressionnode(const ParseLocation *, ASTNodeType,
+                                      ASTNode *left, ASTNode *right);
 StatementNode *cp_new_statementnode(const ParseLocation *, ASTNode *);
-StatementBlockNode *cp_new_statementblocknode(const ParseLocation *, const char *, ASTNode *);
-int cp_convert_to_bool_value(const char *, Value *);
-int cp_convert_to_int_value(const char *, Value *);
-int cp_convert_to_string_value(const char *, Value *);
-int cp_convert_to_regex_value(const char *, Value *);
-int cp_add_statement_to_list(ASTNode *, ASTNode *);
+StatementBlockNode *cp_new_statementblocknode(const ParseLocation *,
+                                              const char *block_name,
+                                              ASTNode *);
+int cp_convert_to_bool_value(const char *svalue, Value *);
+int cp_convert_to_int_value(const char *svalue, Value *);
+int cp_convert_to_string_value(const char *svalue, Value *);
+int cp_convert_to_regex_value(const char *rvalue, Value *);
+int cp_add_statement_to_list(ASTNode *statememt_list, ASTNode *statememt);
 int cp_eval_ast(Session *, ConfigLevel, ASTNode *);
 void cp_free_ast(ASTNode *);
-void cp_update_parser_location(const char *, const char *);
+void cp_update_parser_location(const char *yytext, const char *file_name);
 Status cp_convert_to_config_error(Status, const ParseLocation *);
-Status cp_get_config_error(ErrorCode, const ParseLocation *, const char *, ...);
-void yyerror(Session *, ConfigLevel, const char *, char const *);
-Status cp_parse_config_file(Session *, ConfigLevel, const char *);
-Status cp_parse_config_string(Session *, ConfigLevel, const char *);
+Status cp_get_config_error(ErrorCode, const ParseLocation *,
+                           const char *format, ...);
+void yyerror(Session *, ConfigLevel, const char *file_name, char const *error);
+Status cp_parse_config_file(Session *, ConfigLevel,
+                            const char *config_file_path);
+Status cp_parse_config_string(Session *, ConfigLevel, const char *str);
 void cp_start_scan_file(List *, FILE *);
-void cp_start_scan_string(List *, const char *);
-void cp_finish_scan(List *);
+void cp_start_scan_string(List *buffer_stack, const char *str);
+void cp_finish_scan(List *buffer_stack);
 
 #endif

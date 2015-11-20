@@ -24,8 +24,14 @@
 #include "session.h"
 #include "value.h"
 
+
 #define MAX_CMD_ARG_NUM 5
 
+/* Commands are in effect just functions with the same signature
+ * that perform various actions in wed. This allows them to be mapped to
+ * key presses and called in a generic way. Commands interact with lower level
+ * entities like buffers and allow their functionality to be exposed.
+ * Below is a list of all the Commands that are currently available in wed */
 typedef enum {
     CMD_BP_CHANGE_LINE,
     CMD_BP_CHANGE_CHAR,
@@ -76,37 +82,46 @@ typedef enum {
     CMD_SESSION_END,
 } Command;
 
+/* Container structure for Command arguments */
 typedef struct {
-    Session *sess;
-    Value args[MAX_CMD_ARG_NUM];
-    size_t arg_num;
-    const char *key;
-    int *finished;
+    Session *sess; /* Commands can change global state */
+    Value args[MAX_CMD_ARG_NUM]; /* Array of int|string|bool values */
+    size_t arg_num; /* Number of values in args actually set */
+    const char *key; /* The key press that invoked this Command */
+    int *finished; /* Set equal to true will stop processing input */
 } CommandArgs;
 
 typedef Status (*CommandHandler)(const CommandArgs *);
 
+/* Command descriptor */
 typedef struct {
-    CommandHandler command_handler;
-    CommandType cmd_type;
+    CommandHandler command_handler; /* function reference */
+    CommandType cmd_type; /* High level categorisation of 
+                             what this command does */
 } CommandDefinition;
 
+/* Input is either to a buffer or a prompt.
+ * The OperationMode is used to make this distinction */
 typedef enum {
-    OM_STANDARD = 1,
-    OM_PROMPT = 1 << 1,
-    OM_PROMPT_COMPLETER = 1 << 2
+    OM_STANDARD = 1, /* Normal buffer is open */
+    OM_PROMPT = 1 << 1, /* Prompt is open */
+    OM_PROMPT_COMPLETER = 1 << 2 /* Prompt with auto complete functionality
+                                    is open */
 } OperationMode;
 
+/* An operation maps a keypress in an operation mode to a set of 
+ * arguments and a Command. This is how weds default keybindings 
+ * and operations are specified */
 typedef struct {
-    const char *key;
-    OperationMode op_mode;
-    Value args[MAX_CMD_ARG_NUM];
-    size_t arg_num;
-    Command command;
+    const char *key; /* The key press that is mapped */
+    OperationMode op_mode; /* Which mode this mapping is active in */
+    Value args[MAX_CMD_ARG_NUM]; /* Arguments to Command */
+    size_t arg_num; /* Argument number */
+    Command command; /* The Command to be called */
 } Operation;
 
-int cm_populate_keymap(HashMap *, OperationMode);
-void cm_clear_keymap_entries(HashMap *);
-Status cm_do_operation(Session *, const char *, int *);
+int cm_populate_keymap(HashMap *keymap, OperationMode);
+void cm_clear_keymap_entries(HashMap *keymap);
+Status cm_do_operation(Session *, const char *key, int *finished);
 
 #endif

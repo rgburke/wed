@@ -46,10 +46,10 @@
                                    } \
                                } while (0)
 
-#define STATUS_QUEUE_MAX_SIZE 10
 #define MAX_ERROR_MSG_SIZE 1024
 #define MAX_MSG_SIZE 1024
 
+/* Different error types that can be reported by wed */
 typedef enum {
     ERR_NONE,
     ERR_FILE_DOESNT_EXIST,
@@ -97,16 +97,15 @@ typedef enum {
     ERR_UNABLE_TO_READ_DIRECTORY
 } ErrorCode;
 
-/* Used to determine the success of an action.
- * error is NULL when successful. */
+/* Structure used to represent success or failure */
 typedef struct {
-    ErrorCode error_code;
-    char *msg;
-    int msg_literal;
+    ErrorCode error_code; /* On success error_code = ERR_NONE */
+    char *msg; /* Error message */
+    int msg_literal; /* True if error message is a string literal */
 } Status;
 
-Status st_get_error(ErrorCode, const char *, ...);
-Status st_get_custom_error(ErrorCode, const char *, va_list);
+Status st_get_error(ErrorCode, const char *format, ...);
+Status st_get_custom_error(ErrorCode, const char *format, va_list);
 void st_free_status(Status);
 
 #endif

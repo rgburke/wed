@@ -31,7 +31,8 @@ void init_window_info(WindowInfo *);
 void update_display(Session *);
 void draw_errors(Session *);
 size_t screen_col_no(const Buffer *, const BufferPos *);
-size_t screen_height_from_screen_length(const Buffer *, size_t);
+size_t screen_height_from_screen_length(const Buffer *buffer,
+                                        size_t screen_length);
 void init_color_pairs(const Theme *);
 
 #endif

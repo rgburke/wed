@@ -16,8 +16,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_EDIT_H
-#define WED_EDIT_H
+#ifndef WED_INPUT_H
+#define WED_INPUT_H
 
 #include "session.h"
 

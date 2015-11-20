@@ -33,44 +33,49 @@
 /* Top level structure containing all state.
  * A new session is created when wed is invoked. */
 typedef struct {
-    Buffer *buffers; /* Linked list buffers */
+    Buffer *buffers; /* Linked list of buffers */
     Buffer *active_buffer; /* The buffer currently being edited */
-    Buffer *error_buffer;
-    Buffer *msg_buffer;
+    Buffer *error_buffer; /* Buffer which stores error messages */
+    Buffer *msg_buffer; /* Buffer which stores messages */
     HashMap *keymap; /* Maps keyboard inputs to commands */
-    HashMap *keymap_overrides;
+    HashMap *keymap_overrides; /* Keymap overrides active when in prompt */
     TextSelection clipboard; /* Stores copied and cut text */
     HashMap *config; /* Stores config variables */
-    Prompt *prompt;
+    Prompt *prompt; /* Used to control prompt */
     CommandType exclude_cmd_types; /* Types of commands that shouldn't run */
-    size_t buffer_num;
-    size_t active_buffer_index;
-    size_t menu_first_buffer_index;
-    size_t empty_buffer_num;
-    int msgs_enabled;
-    List *search_history;
-    List *replace_history;
-    List *command_history;
-    List *lineno_history;
-    List *buffer_history;
-    HashMap *filetypes;
-    HashMap *syn_defs;
-    HashMap *themes;
-    int initialised;
-    List *cfg_buffer_stack;
-    char prev_key[MAX_KEY_STR_SIZE]; /* TODO create Input structure and put this in there */
+    size_t buffer_num; /* Number of buffers being edited */
+    size_t active_buffer_index; /* Index of active buffer */
+    size_t menu_first_buffer_index; /* Keep track of first buffer displayed
+                                       in the menu */
+    size_t empty_buffer_num; /* Number of anonymous buffers created
+                                i.e. [new 1], [new 2] */
+    int msgs_enabled; /* Toggle whether messages sent to session are stored */
+    List *search_history; /* Previous searches */
+    List *replace_history; /* Previous replace text entries */
+    List *command_history; /* Previous commands run */
+    List *lineno_history; /* Previous line numbers entered */
+    List *buffer_history; /* Previous buffer names entered */
+    HashMap *filetypes; /* Store filetypes by name */
+    HashMap *syn_defs; /* Store syntax definitions by name */
+    HashMap *themes; /* Store themes by name */
+    int initialised; /* True if session finished initialising */
+    List *cfg_buffer_stack; /* Stack of YY_BUFFER_STATE buffers (used for
+                               parsing config files) */
+    char prev_key[MAX_KEY_STR_SIZE]; /* Previous keypress */
 } Session;
 
 Session *se_new(void);
-int se_init(Session *, char **, int);
+int se_init(Session *, char *buffer_paths[], int buffer_num);
 void se_free(Session *);
 int se_add_buffer(Session *, Buffer *);
-int se_is_valid_buffer_index(const Session *, size_t);
-int se_get_buffer_index(const Session *, const Buffer *, size_t *);
-int se_set_active_buffer(Session *, size_t);
-Buffer *se_get_buffer(const Session *, size_t);
+int se_is_valid_buffer_index(const Session *, size_t buffer_index);
+int se_get_buffer_index(const Session *, const Buffer *,
+                        size_t *buffer_index_ptr);
+int se_set_active_buffer(Session *, size_t buffer_index);
+Buffer *se_get_buffer(const Session *, size_t buffer_index);
 int se_remove_buffer(Session *, Buffer *);
-Status se_make_prompt_active(Session *, PromptType, const char *, List *, int);
+Status se_make_prompt_active(Session *, PromptType, const char *prompt_text,
+                             List *history, int show_last_cmd);
 int se_end_prompt(Session *);
 int se_prompt_active(const Session *);
 void se_set_clipboard(Session *, TextSelection);
@@ -80,30 +85,31 @@ int se_command_type_excluded(const Session *, CommandType);
 int se_add_error(Session *, Status);
 int se_has_errors(const Session *);
 void se_clear_errors(Session *);
-int se_add_msg(Session *, const char *);
+int se_add_msg(Session *, const char *msg);
 int se_has_msgs(const Session *);
 void se_clear_msgs(Session *);
 int se_msgs_enabled(const Session *);
 int se_enable_msgs(Session *);
 int se_disable_msgs(Session *);
-Status se_add_new_buffer(Session *, const char *);
+Status se_add_new_buffer(Session *, const char *file_path);
 Status se_add_new_empty_buffer(Session *);
-Status se_get_buffer_index_by_path(const Session *, const char *, int *);
-Status se_add_search_to_history(Session *, char *);
-Status se_add_replace_to_history(Session *, char *);
-Status se_add_cmd_to_history(Session *, char *);
-Status se_add_lineno_to_history(Session *, char *);
-Status se_add_buffer_to_history(Session *, char *);
+Status se_get_buffer_index_by_path(const Session *, const char *file_path,
+                                   int *buffer_index_ptr);
+Status se_add_search_to_history(Session *, char *search_text);
+Status se_add_replace_to_history(Session *, char *replace_text);
+Status se_add_cmd_to_history(Session *, char *cmd_text);
+Status se_add_lineno_to_history(Session *, char *lineno_text);
+Status se_add_buffer_to_history(Session *, char *buffer_text);
 Status se_add_filetype_def(Session *, FileType *);
-Status se_add_syn_def(Session *, SyntaxDefinition *, const char *);
+Status se_add_syn_def(Session *, SyntaxDefinition *, const char *syn_name);
 void se_determine_syntaxtype(Session *, Buffer *);
-int se_is_valid_syntaxtype(Session *, const char *);
+int se_is_valid_syntaxtype(Session *, const char *syn_type);
 const SyntaxDefinition *se_get_syntax_def(const Session *, const Buffer *);
-int se_is_valid_theme(Session *, const char *);
-Status se_add_theme(Session *, Theme *, const char *);
+int se_is_valid_theme(Session *, const char *theme);
+Status se_add_theme(Session *, Theme *, const char *theme_name);
 const Theme *se_get_active_theme(const Session *);
 int se_initialised(const Session *);
-void se_save_key(Session *, const char *);
+void se_save_key(Session *, const char *key);
 const char *se_get_prev_key(const Session *);
 
 #endif

@@ -20,7 +20,7 @@
 #define _BSD_SOURCE
 
 /* In case user invokes completion on a directory 
- * containing many files */
+ * containing a large number of files */
 #define MAX_DIR_ENT_NUM 1000
 
 #include <stdio.h> 
@@ -32,17 +32,26 @@
 #include "prompt_completer.h"
 #include "util.h"
 
-typedef Status (*PromptCompleter)(const Session *, List *, const char *, size_t);
+/* Function that recives input from the prompt and generates
+ * a list of suggestions based on the input */
+typedef Status (*PromptCompleter)(const Session *, List *,
+                                  const char *, size_t);
 
+/* Describe prompt completer */
 typedef struct {
     PromptCompleter prompt_completer;
-    int show_suggestion_prompt;
+    int show_suggestion_prompt; /* True if we want to display info about
+                                   suggestions in prompt text
+                                   e.g. Buffer: (1 of 10) */
 } PromptCompleterConfig;
 
 static int pc_suggestion_comparator(const void *, const void *);
-static Status pc_complete_buffer(const Session *, List *, const char *, size_t);
-static Status pc_complete_path(const Session *, List *, const char *, size_t);
+static Status pc_complete_buffer(const Session *, List *suggestions,
+                                 const char *str, size_t str_len);
+static Status pc_complete_path(const Session *, List *suggestions,
+                               const char *str, size_t str_len);
 
+/* Specify which prompt types have prompt completers available */
 static const PromptCompleterConfig pc_prompt_completers[PT_ENTRY_NUM] = {
     [PT_SAVE_FILE] = { pc_complete_path  , 0 },
     [PT_OPEN_FILE] = { pc_complete_path  , 0 },
@@ -53,14 +62,15 @@ static const PromptCompleterConfig pc_prompt_completers[PT_ENTRY_NUM] = {
     [PT_BUFFER]    = { pc_complete_buffer, 1 }
 };
 
-PromptSuggestion *pc_new_suggestion(const char *text, SuggestionRank rank, const void *data)
+PromptSuggestion *pc_new_suggestion(const char *text, SuggestionRank rank,
+                                    const void *data)
 {
     assert(!is_null_or_empty(text));
 
     PromptSuggestion *suggestion = malloc(sizeof(PromptSuggestion));
     RETURN_IF_NULL(suggestion);
 
-    if ((suggestion->text = strdupe(text)) == NULL) {
+    if ((suggestion->text = strdup(text)) == NULL) {
         free(suggestion);
         return NULL;
     }
@@ -95,6 +105,7 @@ int pc_show_suggestion_prompt(PromptType prompt_type)
            pc_prompt_completers[prompt_type].show_suggestion_prompt; 
 }
 
+/* Interface to run prompt completion */
 Status pc_run_prompt_completer(const Session *sess, Prompt *prompt, int reverse)
 {
     PromptType prompt_type = prompt->prompt_type;
@@ -115,7 +126,8 @@ Status pc_run_prompt_completer(const Session *sess, Prompt *prompt, int reverse)
 
     const PromptCompleterConfig *pcc = &pc_prompt_completers[prompt_type];
     PromptCompleter completer = pcc->prompt_completer;
-    Status status = completer(sess, prompt->suggestions, prompt_content, prompt_content_len);
+    Status status = completer(sess, prompt->suggestions, prompt_content,
+                              prompt_content_len);
 
     if (!STATUS_IS_SUCCESS(status)) {
         free(prompt_content);
@@ -129,23 +141,33 @@ Status pc_run_prompt_completer(const Session *sess, Prompt *prompt, int reverse)
 
     list_sort(prompt->suggestions, pc_suggestion_comparator);
     
+    /* Add the inital input from the user to the list of suggestions
+     * so that it can be cycled back to when all the suggestions have
+     * been displayed */
     PromptSuggestion *inital_input = pc_new_suggestion(prompt_content,
                                                        SR_NO_MATCH, NULL);
 
-    if (inital_input == NULL || !list_add(prompt->suggestions, inital_input)) {
+    if (inital_input == NULL ||
+        !list_add(prompt->suggestions, inital_input)) {
         free(inital_input);
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to allocated suggestions");
     }
 
+    /* At this point there should be at least one suggestion plus
+     * the inital input */
     assert(pr_suggestion_num(prompt) > 1);
 
     size_t start_index = 0;
 
+    /* <S-Tab> can be used to reverse through the suggestions and
+     * invoke prompt completion in reverse, so start from end of suggestion
+     * list if necessary */
     if (reverse) {
         start_index = pr_suggestion_num(prompt) - 2;
     }
 
+    /* Update prompt content with first suggestion */
     status = pr_show_suggestion(prompt, start_index);
 
     return status;
@@ -209,29 +231,36 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
 {
     (void)sess;
 
+    /* When only ~ is provided expand it to users home directory */
     if (strcmp("~", str) == 0) {
         str = getenv("HOME"); 
         str_len = strlen(str); 
     }
 
-    char *path1 = strdupe(str); 
-    char *path2 = strdupe(str);
+    /* Create copies that we can modify */
+    char *path1 = strdup(str); 
+    char *path2 = strdup(str);
 
     if (path1 == NULL || path2 == NULL) {
+        free(path1);
+        free(path2);
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to allocate memory for path");
     }
 
     Status status = STATUS_SUCCESS;
 
+    /* Split into containing directory and file name */
     const char *dir_path;
     const char *file_name;
     size_t file_name_len;
+    /* Need to take special care with root directory */
     int is_root_only = (strcmp("/", path1) == 0);
 
     if (!is_root_only &&
         path1[str_len - 1] == '/') {
-
+        /* Path is a directory only so set file name
+         * part to NULL to match all files in directory */
         path1[str_len - 1] = '\0';
         dir_path = path1;
         free(path2);
@@ -255,6 +284,9 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
     DIR *dir = NULL;
 
     if (home_dir_path) {
+        /* Expand ~ to users home directory so we can read the 
+         * directory entries. Any suggestions provided to user 
+         * will still start with ~ */
         const char *home_path = getenv("HOME"); 
         canon_dir_path = concat(home_path, dir_path + 1);
 
@@ -317,9 +349,11 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
             char *suggestion_path;
 
             if (dir_ent->d_type == DT_DIR) {
-                suggestion_path = concat_all(4, dir_path, "/", dir_ent->d_name, "/");
+                suggestion_path = concat_all(4, dir_path, "/",
+                                             dir_ent->d_name,"/");
             } else {
-                suggestion_path = concat_all(3, dir_path, "/", dir_ent->d_name);
+                suggestion_path = concat_all(3, dir_path, "/",
+                                             dir_ent->d_name);
             }
 
             if (suggestion_path == NULL) {

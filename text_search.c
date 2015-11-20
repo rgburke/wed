@@ -25,17 +25,22 @@
 
 #define SEARCH_BUFFER_SIZE 8192
 
-static size_t ts_gb_internal_point(const GapBuffer *, size_t);
-static size_t ts_gb_external_point(const GapBuffer *, size_t);
-static int ts_find_prev_str(const GapBuffer *, size_t, size_t *, size_t, const TextSearch *);
-static int ts_find_next_str(const GapBuffer *, size_t, size_t *, size_t, const TextSearch *);
-static int ts_find_next_str_in_range(const char *, size_t *, size_t, size_t *, const TextSearch *);
-static void ts_populate_bad_char_table(size_t bad_char_table[ALPHABET_SIZE], const char *, size_t);
-static void ts_update_search_chars(int);
+static size_t ts_gb_internal_point(const GapBuffer *, size_t external_point);
+static size_t ts_gb_external_point(const GapBuffer *, size_t internal_point);
+static int ts_find_prev_str(const GapBuffer *, size_t point, size_t *prev,
+                            size_t limit, const TextSearch *);
+static int ts_find_next_str(const GapBuffer *, size_t point, size_t *next,
+                            size_t limit, const TextSearch *);
+static int ts_find_next_str_in_range(const char *text, size_t *start_point,
+                                     size_t limit, size_t *next,
+                                     const TextSearch *);
+static void ts_populate_bad_char_table(size_t bad_char_table[ALPHABET_SIZE],
+                                       const char *pattern, size_t pattern_len);
+static void ts_update_search_chars(int case_insensitive);
 
-static int search_chars_lc = 0;
+static int ts_search_chars_lc = 0;
 
-static uchar search_chars[] = {
+static uchar ts_search_chars[ALPHABET_SIZE] = {
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
     0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
@@ -77,10 +82,11 @@ Status ts_init(TextSearch *search, const SearchOptions *opt)
     assert(opt->pattern_len > 0);
     assert(!is_null_or_empty(opt->pattern));
 
-    search->pattern = strdupe(opt->pattern);
+    search->pattern = strdup(opt->pattern);
 
     if (search->pattern == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - Unable to copy pattern");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to copy pattern");
     }
 
     search->pattern_len = opt->pattern_len;
@@ -89,12 +95,14 @@ Status ts_init(TextSearch *search, const SearchOptions *opt)
         ts_update_search_chars(opt->case_insensitive);
         uchar *pat = (uchar *)search->pattern;
 
+        /* Convert ASCII characters in pattern to lower case */
         for (size_t k = 0; k < opt->pattern_len; k++) {
-            pat[k] = search_chars[pat[k]];
+            pat[k] = ts_search_chars[pat[k]];
         }
     }
 
-    ts_populate_bad_char_table(search->bad_char_table, search->pattern, search->pattern_len);
+    ts_populate_bad_char_table(search->bad_char_table, search->pattern,
+                               search->pattern_len);
 
     return STATUS_SUCCESS;
 }
@@ -110,17 +118,21 @@ void ts_free(TextSearch *search)
     free(search->pattern);
 }
 
-Status ts_find_next(TextSearch *search, const SearchOptions *opt, 
-                    const BufferPos *search_start_pos, const BufferPos *current_start_pos,
+Status ts_find_next(TextSearch *search, const SearchOptions *opt,
+                    const BufferPos *search_start_pos,
+                    const BufferPos *current_start_pos,
                     int *found_match, size_t *match_point)
 {
     ts_update_search_chars(opt->case_insensitive);
 
     BufferPos pos = *current_start_pos;
-    int wrapped = search_start_pos != NULL && bp_compare(search_start_pos, current_start_pos) == 1;
+    int wrapped = search_start_pos != NULL &&
+                  bp_compare(search_start_pos, current_start_pos) == 1;
     size_t limit;
 
     if (wrapped) {
+        /* Add opt->pattern_len - 1 to the search limit here in 
+         * case the search start position was in the middle of a match */
         limit = search_start_pos->offset + opt->pattern_len - 1;
     } else {
         limit = gb_length(pos.data);
@@ -132,6 +144,7 @@ Status ts_find_next(TextSearch *search, const SearchOptions *opt,
     }
 
     if (wrapped) {
+        /* Entire buffer has been searched by this point so return */
         return STATUS_SUCCESS;
     }
 
@@ -143,21 +156,24 @@ Status ts_find_next(TextSearch *search, const SearchOptions *opt,
         limit = search_start_pos->offset;
     }
 
-    if (ts_find_next_str(pos.data, pos.offset, match_point, limit + opt->pattern_len, search)) {
+    if (ts_find_next_str(pos.data, pos.offset, match_point,
+                         limit + opt->pattern_len, search)) {
         *found_match = 1;
     }
 
     return STATUS_SUCCESS;
 }
 
-Status ts_find_prev(TextSearch *search, const SearchOptions *opt, 
-                    const BufferPos *search_start_pos, const BufferPos *current_start_pos,
+Status ts_find_prev(TextSearch *search, const SearchOptions *opt,
+                    const BufferPos *search_start_pos,
+                    const BufferPos *current_start_pos,
                     int *found_match, size_t *match_point)
 {
     ts_update_search_chars(opt->case_insensitive);
 
     BufferPos pos = *current_start_pos;
-    int wrapped = search_start_pos != NULL && bp_compare(search_start_pos, current_start_pos) == -1;
+    int wrapped = search_start_pos != NULL &&
+                  bp_compare(search_start_pos, current_start_pos) == -1;
     size_t limit;
 
     if (wrapped) {
@@ -190,7 +206,12 @@ Status ts_find_prev(TextSearch *search, const SearchOptions *opt,
     return STATUS_SUCCESS;
 }
 
-static int ts_find_prev_str(const GapBuffer *buffer, size_t point, size_t *prev, size_t limit, const TextSearch *search)
+/* Perform a reverse search by splitting the buffer into chunks
+ * of size SEARCH_BUFFER_SIZE (or remaining space) and searching
+ * forwards in each chunk */
+static int ts_find_prev_str(const GapBuffer *buffer, size_t point,
+                            size_t *prev, size_t limit,
+                            const TextSearch *search)
 {
     size_t search_length, search_point;
     size_t buffer_len = gb_length(buffer);
@@ -199,10 +220,12 @@ static int ts_find_prev_str(const GapBuffer *buffer, size_t point, size_t *prev,
     while (point > limit) {
         search_length = MIN(point - limit, SEARCH_BUFFER_SIZE);
         point -= search_length;
-        search_length = MIN(search_length + search->pattern_len - 2, buffer_len - point);
+        search_length = MIN(search_length + search->pattern_len - 2,
+                            buffer_len - point);
         search_point = point;
 
-        while (ts_find_next_str(buffer, search_point, prev, point + search_length, search)) {
+        while (ts_find_next_str(buffer, search_point, prev,
+                                point + search_length, search)) {
             found = 1;
             search_point = *prev + 1;
         }
@@ -215,7 +238,8 @@ static int ts_find_prev_str(const GapBuffer *buffer, size_t point, size_t *prev,
     return 0;
 }
 
-static size_t ts_gb_internal_point(const GapBuffer *buffer, size_t external_point)
+static size_t ts_gb_internal_point(const GapBuffer *buffer,
+                                   size_t external_point)
 {
     if (external_point > buffer->gap_start) {
         external_point += gb_gap_size(buffer);
@@ -224,7 +248,8 @@ static size_t ts_gb_internal_point(const GapBuffer *buffer, size_t external_poin
     return external_point;
 }
 
-static size_t ts_gb_external_point(const GapBuffer *buffer, size_t internal_point)
+static size_t ts_gb_external_point(const GapBuffer *buffer,
+                                   size_t internal_point)
 {
     if (internal_point == buffer->gap_end) {
         return buffer->gap_start; 
@@ -235,12 +260,19 @@ static size_t ts_gb_external_point(const GapBuffer *buffer, size_t internal_poin
     return internal_point;
 }
 
-static int ts_find_next_str(const GapBuffer *buffer, size_t point, size_t *next, size_t limit, const TextSearch *search)
+/* This function works around the gap to determine the searches that
+ * need to be performed. Although this adds complexity it allows a 
+ * search to be performed without moving the gap */
+static int ts_find_next_str(const GapBuffer *buffer, size_t point,
+                            size_t *next, size_t limit,
+                            const TextSearch *search)
 {
     size_t buffer_len = gb_length(buffer);
 
-    if (next == NULL || point >= buffer_len || limit < point + search->pattern_len ||
-        search->pattern_len == 0 || point + search->pattern_len > buffer_len) {
+    if (next == NULL || point >= buffer_len ||
+        limit < point + search->pattern_len ||
+        search->pattern_len == 0 ||
+        point + search->pattern_len > buffer_len) {
         return 0;
     }
 
@@ -253,7 +285,9 @@ static int ts_find_next_str(const GapBuffer *buffer, size_t point, size_t *next,
     limit = ts_gb_internal_point(buffer, limit);
 
     if (point + search->pattern_len <= buffer->gap_start) {
-        if (ts_find_next_str_in_range(buffer->text, &point, MIN(limit, buffer->gap_start), next, search)) {
+        if (ts_find_next_str_in_range(buffer->text, &point,
+                                      MIN(limit, buffer->gap_start),
+                                      next, search)) {
             return 1;
         }
     }
@@ -263,9 +297,19 @@ static int ts_find_next_str(const GapBuffer *buffer, size_t point, size_t *next,
     }
 
     if (point < buffer->gap_start) {
-        size_t gap_bridge_size = MIN(buffer->gap_start - point + search->pattern_len, buffer_len);
+        /* We need to search text that is separated by the gap. To do this
+         * we create a temporary buffer that joins the separated text
+         * together. The amount of text we need to join together is limited
+         * by our distance from the gap as well as the length of the 
+         * pattern searched for i.e. This will be a relatively small
+         * amount of text */
+        size_t gap_bridge_size = MIN(buffer->gap_start -
+                                     point + search->pattern_len, buffer_len);
+        /* TODO Still need to limit the search text length
+         * to avoid stack overflow */
         char gap_bridge[gap_bridge_size];
-        size_t copied = gb_get_range(buffer, point, gap_bridge, gap_bridge_size);
+        size_t copied = gb_get_range(buffer, point, gap_bridge,
+                                     gap_bridge_size);
 
         if (copied != gap_bridge_size) {
             return 0;
@@ -274,7 +318,8 @@ static int ts_find_next_str(const GapBuffer *buffer, size_t point, size_t *next,
         size_t bridge_point = 0;
         size_t bridge_limit = MIN(limit_ext - point, gap_bridge_size);
         
-        if (ts_find_next_str_in_range(gap_bridge, &bridge_point, bridge_limit, next, search)) {
+        if (ts_find_next_str_in_range(gap_bridge, &bridge_point, bridge_limit,
+                                      next, search)) {
             *next += point;
             return 1;            
         }
@@ -289,7 +334,9 @@ static int ts_find_next_str(const GapBuffer *buffer, size_t point, size_t *next,
     }
 
     if (point + search->pattern_len <= buffer->allocated) {
-        if (ts_find_next_str_in_range(buffer->text, &point, MIN(limit, buffer->allocated), next, search)) {
+        if (ts_find_next_str_in_range(buffer->text, &point,
+                                      MIN(limit, buffer->allocated),
+                                      next, search)) {
             *next = ts_gb_external_point(buffer, *next);
             return 1;
         }
@@ -298,7 +345,10 @@ static int ts_find_next_str(const GapBuffer *buffer, size_t point, size_t *next,
     return 0;
 }
 
-static int ts_find_next_str_in_range(const char *text, size_t *start_point, size_t limit, size_t *next, const TextSearch *search)
+/* Search string using Boyer–Moore–Horspool algorithm */
+static int ts_find_next_str_in_range(const char *text, size_t *start_point,
+                                     size_t limit, size_t *next,
+                                     const TextSearch *search)
 {
     const uchar *txt = (const uchar *)text;
     const uchar *pattern = (const uchar *)search->pattern;
@@ -311,7 +361,7 @@ static int ts_find_next_str_in_range(const char *text, size_t *start_point, size
         sub_start_point = point;
 
         while (pattern_idx != 0 && 
-               search_chars[*(txt + point)] == pattern[pattern_idx - 1]) {
+               ts_search_chars[*(txt + point)] == pattern[pattern_idx - 1]) {
             pattern_idx--;
             point--;
         }
@@ -320,16 +370,22 @@ static int ts_find_next_str_in_range(const char *text, size_t *start_point, size
             *next = sub_start_point - (search->pattern_len - 1);
             return 1;
         } else {
-            point = sub_start_point + search->bad_char_table[search_chars[*(txt + sub_start_point)]];
+            /* Shift pattern */
+            point = sub_start_point +
+                    search->bad_char_table[
+                        ts_search_chars[*(txt + sub_start_point)]
+                    ];
         }
     }
 
+    /* Keep track of where we've searched up to */
     *start_point = sub_start_point;
 
     return 0;
 }
 
-static void ts_populate_bad_char_table(size_t bad_char_table[ALPHABET_SIZE], const char *pattern, size_t pattern_len)
+static void ts_populate_bad_char_table(size_t bad_char_table[ALPHABET_SIZE],
+                                       const char *pattern, size_t pattern_len)
 {
     for (size_t k = 0; k < ALPHABET_SIZE; k++) {
         bad_char_table[k] = pattern_len; 
@@ -337,24 +393,29 @@ static void ts_populate_bad_char_table(size_t bad_char_table[ALPHABET_SIZE], con
 
     const uchar *pat = (const uchar *)pattern;
 
+    /* For those characters in the alphabet which appear
+     * in the pattern calculate the correct shift length */
     for (size_t k = 0; k < pattern_len - 1; k++) {
         bad_char_table[pat[k]] = pattern_len - 1 - k;
     }
 }
 
+/* If case insensitive set the relevant ASCII chars to their
+ * lower case equivalents otherwise set them back to their
+ * original values */
 static void ts_update_search_chars(int case_insensitive)
 {
-    if (case_insensitive && !search_chars_lc) {
+    if (case_insensitive && !ts_search_chars_lc) {
         for (int k = 'A'; k <= 'Z'; k++) {
-            search_chars[k] += 32;
+            ts_search_chars[k] += 32;
         }
 
-        search_chars_lc = 1;
-    } else if (!case_insensitive && search_chars_lc) {
+        ts_search_chars_lc = 1;
+    } else if (!case_insensitive && ts_search_chars_lc) {
         for (int k = 'A'; k <= 'Z'; k++) {
-            search_chars[k] -= 32;
+            ts_search_chars[k] -= 32;
         }
 
-        search_chars_lc = 0;
+        ts_search_chars_lc = 0;
     }
 }

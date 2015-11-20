@@ -15,6 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,7 +51,8 @@ int sy_str_to_token(SyntaxToken *token, const char *token_str)
     return 0;
 }
 
-Status sy_new_pattern(SyntaxPattern **syn_pattern_ptr, const Regex *regex, SyntaxToken token)
+Status sy_new_pattern(SyntaxPattern **syn_pattern_ptr, const Regex *regex,
+                      SyntaxToken token)
 {
     assert(syn_pattern_ptr != NULL);
     assert(regex != NULL);
@@ -121,8 +123,11 @@ void sy_free_def(SyntaxDefinition *syn_def)
     free(syn_def);
 }
 
-SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def, 
+/* Run SyntaxDefintion against buffer substring to determine
+ * tokens present and return these matches */
+SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def,
                                      const char *str, size_t str_len,
+                                     /* Offset into buffer str was taken from */
                                      size_t offset)
 {
     if (str_len == 0) {
@@ -144,14 +149,19 @@ SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def,
     RegexResult result;
     Status status;
 
+    /* Run each SyntaxPattern against str */
     while (pattern != NULL) {
         size_t offset = 0;
 
+        /* Find all matches in str ensuring we don't 
+         * exceed MAX_SYNTAX_MATCH_NUM */
         while (syn_matches->match_num < MAX_SYNTAX_MATCH_NUM &&
                offset < str_len) {
             status = re_exec(&result, &pattern->regex, str, str_len, offset);
 
             if (!(STATUS_IS_SUCCESS(status) && result.match)) {
+                /* Failure or no matches in the remainder of str
+                 * so we're finished with this SyntaxPatten */
                 break;
             }
 
@@ -167,18 +177,32 @@ SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def,
         pattern = pattern->next;
     }
 
-    qsort(syn_matches->matches, syn_matches->match_num, sizeof(SyntaxMatch), sy_match_cmp);
+    /* Order matches by offset then length */
+    qsort(syn_matches->matches, syn_matches->match_num,
+          sizeof(SyntaxMatch), sy_match_cmp);
 
     return syn_matches;
 }
 
-static void sy_add_match(SyntaxMatches *syn_matches, const SyntaxMatch *syn_match)
+static void sy_add_match(SyntaxMatches *syn_matches,
+                         const SyntaxMatch *syn_match)
 {
     if (syn_matches->match_num == 0) {
         syn_matches->matches[syn_matches->match_num++] = *syn_match;
         return;
     }
 
+    /* Large matches take precedence over smaller matches. Below we
+     * check if the range of this match is already covered by an
+     * existing larger match e.g. if a string contains a keyword
+     * like int this ensures the whole range matched by the string
+     * is considered as a string and the int part is not highlighted
+     * differently */
+    /* TODO Of course in future for more advanced syntax highlighting
+     * it is useful to allow tokens to contain certain child tokens
+     * and the method we use below will have to be updated.
+     * e.g. C string format specifiers highlighted differently to
+     * the rest of the string */
     for (size_t k = 0; k < syn_matches->match_num; k++) {
         if (syn_match->offset >= syn_matches->matches[k].offset &&
             syn_match->offset < syn_matches->matches[k].offset + 
@@ -202,24 +226,36 @@ static int sy_match_cmp(const void *v1, const void *v2)
     return (int)m1->offset - (int)m2->offset;
 }
 
-const SyntaxMatch *sy_get_syntax_match(SyntaxMatches *syn_matches, size_t offset)
+/* Get the SyntaxMatch whose range contains the buffer offset.
+ * If no such SyntaxMatch exists then return NULL.
+ * This function is used to determine if this position in the
+ * buffer requires custom colouring based on the SyntaxMatch token */
+const SyntaxMatch *sy_get_syntax_match(SyntaxMatches *syn_matches,
+                                       size_t offset)
 {
     if (syn_matches == NULL || syn_matches->match_num == 0 ||
         syn_matches->offset > offset) {
         return NULL;
     }
 
+    /* Convert buffer offset into buffer substring offset */
     offset -= syn_matches->offset;
+    const SyntaxMatch *syn_match;
 
+    /* syn_matches->current_match is the index of the last
+     * SyntaxMatch we returned, so start checking from there */
     while (syn_matches->current_match < syn_matches->match_num) {
-        const SyntaxMatch *syn_match = &syn_matches->matches[syn_matches->current_match];
+        syn_match = &syn_matches->matches[syn_matches->current_match];
 
         if (offset < syn_match->offset) {
+            /* This offset isn't in a match yet */
             break;
         } else if (offset < syn_match->offset + syn_match->length) {
             return syn_match;
         }
 
+        /* This offset exceeds the current SyntaxMatch's range so move
+         * onto the next one */
         syn_matches->current_match++;
     }
 

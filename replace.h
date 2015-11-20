@@ -21,7 +21,9 @@
 
 #include "buffer.h"
 
-Status rp_replace_init(BufferSearch *, const char *, size_t);
-Status rp_replace_current_match(Buffer *, const char *, size_t);
+Status rp_replace_init(BufferSearch *, const char *rep_text,
+                       size_t rep_length);
+Status rp_replace_current_match(Buffer *, const char *rep_text,
+                                size_t rep_length);
 
 #endif

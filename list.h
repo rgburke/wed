@@ -21,31 +21,33 @@
 
 #include <stddef.h>
  
+/* Default list allocation size */
+#ifndef LIST_ALLOC
 #define LIST_ALLOC 10
-#define LIST_EXPAND 1
-#define LIST_SHRINK -1
+#endif
 
-/* Simple list implementation */
-
+/* Can provide custom function to free list entries */
 typedef void (*ListEntryFree)(void *);
+/* Used for sorting */
 typedef int (*ListComparator)(const void *, const void *);
 
+/* Simple list implementation */
 typedef struct {
-    void **values;
-    size_t size;
-    size_t allocated;
+    void **values; /* Array of (void *). Values have to be pointers */
+    size_t size; /* Number of items in list */
+    size_t allocated; /* Currently allocated memory */
 } List;
 
 List *list_new(void);
-List *list_new_prealloc(size_t);
-List *list_new_sized(size_t);
-size_t list_size(List *);
-void *list_get(List *, size_t);
-void list_set(List *, void *, size_t);
-int list_add(List *, void *);
-int list_add_at(List *, void *, size_t);
+List *list_new_prealloc(size_t size);
+List *list_new_sized(size_t size);
+size_t list_size(const List *);
+void *list_get(const List *, size_t index);
+int list_set(List *, void *value, size_t index);
+int list_add(List *, void *value);
+int list_add_at(List *, void *value, size_t index);
 void *list_pop(List *);
-void *list_remove_at(List *, size_t);
+void *list_remove_at(List *, size_t index);
 void list_sort(List *, ListComparator);
 void list_nullify(List *);
 void list_clear(List *);

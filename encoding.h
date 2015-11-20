@@ -26,24 +26,32 @@
 
 struct BufferPos;
 
+/* Line endings supported by wed */
+/* There are currently no plans to support the old mac line endings. Use
+ * mac2unix if you want to use wed */
 typedef enum {
     FF_UNIX,
     FF_WINDOWS
 } FileFormat;
 
+/* Passed to en_utf8_char_info to specify the character properties we want */
 typedef enum {
-    CIP_DEFAULT,
-    CIP_SCREEN_LENGTH   
+    CIP_DEFAULT, /* Sets is_valid,byte_length and is_printable */
+    CIP_SCREEN_LENGTH /* Sets all of CIP_DEFAULT + screen_length */ 
 } CharInfoProperties;
 
+/* Structure containing properties for a single UTF-8 character at a specific
+ * position */
 typedef struct {
-    int is_valid;
-    size_t byte_length;
-    size_t screen_length;
-    int is_printable;
+    int is_valid; /* Is character valid UTF-8 byte sequence */
+    size_t byte_length; /* Number of bytes character has */
+    size_t screen_length; /* The number of columns at the position specified
+                             this character will take up */
+    int is_printable; /* Is character printable */
 } CharInfo;
 
-void en_utf8_char_info(CharInfo *, CharInfoProperties, const struct BufferPos *, const HashMap *);
+void en_utf8_char_info(CharInfo *, CharInfoProperties,
+                       const struct BufferPos *, const HashMap *config);
 size_t en_utf8_previous_char_offset(const struct BufferPos *);
 
 #endif

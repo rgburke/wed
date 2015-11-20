@@ -32,7 +32,7 @@
 
 static void print_usage(void);
 static void print_version(void);
-static int parse_args(int, char *[], int *);
+static int parse_args(int argc, char *argv[], int *file_args_index);
 
 static void print_usage(void)
 {
@@ -71,6 +71,9 @@ static int parse_args(int argc, char *argv[], int *file_args_index)
     };
 
     int c;
+    /* Disable getopt printing an error message when encountering
+     * an unrecognised option character, as we print our own
+     * error message */
     opterr = 0;
 
     while ((c = getopt_long(argc, argv, "hv", wed_options, NULL)) != -1) {
@@ -97,6 +100,7 @@ static int parse_args(int argc, char *argv[], int *file_args_index)
         }
     }
 
+    /* Set the index in argv where file path arguments start */
     if (optind > 0) {
         *file_args_index = optind - 1;
     } else {
@@ -114,6 +118,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    /* Use the locale specified by the environment */
     setlocale(LC_ALL, "");
 
     Session *sess = se_new();
@@ -122,6 +127,7 @@ int main(int argc, char *argv[])
         fatal("Out of memory - Unable to create Session");
     }
 
+    /* Removed processed options */
     argc -= file_args_index;
     argv += file_args_index;
 

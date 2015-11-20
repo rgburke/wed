@@ -34,17 +34,19 @@
 #include "display.h"
 #include "build_config.h"
 
-#define CFG_LINE_ALLOC 512
 #define CFG_FILE_NAME "wedrc"
 #define CFG_SYSTEM_DIR "/etc"
 #define CFG_FILETYPES_FILE_NAME "filetypes.wed"
 #define CFG_USER_DIR "wed"
 
-static Status cf_path_append(const char *, const char *, char **);
+static Status cf_path_append(const char *path, const char *append,
+                             char **result);
 static void cf_free_cvd(ConfigVariableDescriptor *);
 static const char *cf_get_config_type_string(ConfigType);
-static Status cf_is_valid_var(ConfigEntity, ConfigLevel, ConfigVariable, ConfigVariableDescriptor **);
-static const ConfigVariableDescriptor *cf_get_variable(const HashMap *, ConfigVariable);
+static Status cf_is_valid_var(ConfigEntity, ConfigLevel, ConfigVariable,
+                              ConfigVariableDescriptor **var_ptr);
+static const ConfigVariableDescriptor *cf_get_variable(const HashMap *config,
+                                                       ConfigVariable);
 static Status cf_tabwidth_validator(ConfigEntity, Value);
 static Status cf_filetype_validator(ConfigEntity, Value);
 static Status cf_filetype_on_change_event(ConfigEntity, Value, Value);
@@ -55,31 +57,21 @@ static Status cf_fileformat_validator(ConfigEntity, Value);
 static Status cf_fileformat_on_change_event(ConfigEntity, Value, Value);
 
 static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
-    [CV_LINEWRAP]   = { "linewrap", "lw", CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1), 
-                        NULL, NULL },
-    [CV_LINENO]     = { "lineno", "ln", CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1), 
-                        NULL, NULL },
-    [CV_TABWIDTH]   = { "tabwidth", "tw", CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8), 
-                        cf_tabwidth_validator, NULL },
-    [CV_WEDRUNTIME] = { "wedruntime", "wrt", CL_SESSION, STR_VAL_STRUCT(WEDRUNTIME), 
-                        NULL, NULL },
-    [CV_FILETYPE]   = { "filetype", "ft", CL_BUFFER, STR_VAL_STRUCT(""), 
-                        cf_filetype_validator, cf_filetype_on_change_event },
-    [CV_SYNTAX]     = { "syntax", "sy", CL_SESSION, BOOL_VAL_STRUCT(1), 
-                        NULL, NULL },
-    [CV_SYNTAXTYPE] = { "syntaxtype", "st", CL_BUFFER, STR_VAL_STRUCT(""), 
-                        cf_syntaxtype_validator, NULL },
-    [CV_THEME]      = { "theme", "th", CL_SESSION, STR_VAL_STRUCT("default"), 
-                        cf_theme_validator, cf_theme_on_change_event },
-    [CV_EXPANDTAB]  = { "expandtab", "et", CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0), 
-                        NULL, NULL },
-    [CV_AUTOINDENT] = { "autoindent", "ai", CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1), 
-                        NULL, NULL },
-    [CV_FILEFORMAT] = { "fileformat", "ff", CL_BUFFER, STR_VAL_STRUCT("unix"), 
-                        cf_fileformat_validator, cf_fileformat_on_change_event }
+    [CV_LINEWRAP]   = { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
+    [CV_LINENO]     = { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
+    [CV_TABWIDTH]   = { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator  , NULL },
+    [CV_WEDRUNTIME] = { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL },
+    [CV_FILETYPE]   = { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , cf_filetype_on_change_event },
+    [CV_SYNTAX]     = { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
+    [CV_SYNTAXTYPE] = { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL },
+    [CV_THEME]      = { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event },
+    [CV_EXPANDTAB]  = { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0)        , NULL                   , NULL },
+    [CV_AUTOINDENT] = { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
+    [CV_FILEFORMAT] = { "fileformat", "ff" , CL_BUFFER             , STR_VAL_STRUCT("unix")    , cf_fileformat_validator, cf_fileformat_on_change_event }
 };
 
-static const size_t cf_var_num = sizeof(cf_default_config) / sizeof(ConfigVariableDescriptor);
+static const size_t cf_var_num = ARRAY_SIZE(cf_default_config,
+                                            ConfigVariableDescriptor);
 
 int cf_str_to_var(const char *str, ConfigVariable *config_variable)
 {
@@ -106,27 +98,35 @@ ConfigLevel cf_get_config_levels(ConfigVariable config_variable)
     return cf_default_config[config_variable].config_levels;
 }
 
+/* This function runs on session creation */
 Status cf_init_session_config(Session *sess)
 {
     HashMap *config = sess->config;
 
     if (config == NULL) {
-        config = sess->config = new_sized_hashmap(cf_var_num * 4);
+        /* We know the hashmap size so ensure we have a low load
+         * factor and don't have to resize the hashmap */
+        config = sess->config = new_sized_hashmap(cf_var_num * 2);
     }
 
     if (!cf_populate_config(NULL, config, CL_SESSION)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to load config");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to load config");
     }
     
-    se_add_error(sess, cf_load_config_if_exists(sess, CFG_SYSTEM_DIR, "/" CFG_FILE_NAME));
+    se_add_error(sess, cf_load_config_if_exists(sess, CFG_SYSTEM_DIR,
+                                                "/" CFG_FILE_NAME));
 
     const char *home_path = getenv("HOME"); 
 
-    se_add_error(sess, cf_load_config_if_exists(sess, home_path, "/." CFG_FILE_NAME));
+    se_add_error(sess, cf_load_config_if_exists(sess, home_path,
+                                                "/." CFG_FILE_NAME));
 
     const char *wed_run_time = cf_string(sess->config, CV_WEDRUNTIME);
 
-    se_add_error(sess, cf_load_config_if_exists(sess, wed_run_time, "/" CFG_FILETYPES_FILE_NAME));
+    /* Load filetypes as they are used to drive syntax selection */
+    se_add_error(sess, cf_load_config_if_exists(sess, wed_run_time,
+                                                "/" CFG_FILETYPES_FILE_NAME));
 
     char *wed_user_dir = NULL;
 
@@ -134,8 +134,10 @@ Status cf_init_session_config(Session *sess)
 
     if (STATUS_IS_SUCCESS(status)) {
         if (access(wed_user_dir, F_OK) != -1) {
-            se_add_error(sess, cf_load_config_if_exists(sess, wed_user_dir, 
-                                                        "/" CFG_FILETYPES_FILE_NAME));
+            /* Load user filetype overrides */
+            se_add_error(sess,
+                         cf_load_config_if_exists(sess, wed_user_dir, 
+                                                  "/" CFG_FILETYPES_FILE_NAME));
         }
 
         free(wed_user_dir);
@@ -153,7 +155,8 @@ void cf_free_config(HashMap *config)
     }
 
     for (size_t k = 0; k < cf_var_num; k++) {
-        ConfigVariableDescriptor *cvd = hashmap_get(config, cf_default_config[k].name);
+        ConfigVariableDescriptor *cvd = hashmap_get(config,
+                                                    cf_default_config[k].name);
         cf_free_cvd(cvd);
     }
 
@@ -170,6 +173,8 @@ static void cf_free_cvd(ConfigVariableDescriptor *cvd)
     free(cvd);
 }
 
+/* Initialise config from existing config
+ * i.e. populate buffer config from session config */
 int cf_populate_config(const HashMap *src_config, HashMap *dst_config, 
                        ConfigLevel config_level)
 {
@@ -199,7 +204,8 @@ int cf_populate_config(const HashMap *src_config, HashMap *dst_config,
 
         memcpy(clone, orig, sizeof(ConfigVariableDescriptor));
 
-        if (!STATUS_IS_SUCCESS(va_deep_copy_value(clone->default_value, &clone->default_value))) {
+        if (!STATUS_IS_SUCCESS(va_deep_copy_value(clone->default_value,
+                                                  &clone->default_value))) {
             return 0;
         }
 
@@ -219,14 +225,15 @@ static const char *cf_get_config_type_string(ConfigType config_type)
         [CT_THEME]  = "theme"
     };
 
-    static const size_t config_type_num = sizeof(config_types) / sizeof(const char *);
-    (void)config_type_num;
-
-    assert(config_type < config_type_num);
+    assert(config_type < ARRAY_SIZE(config_types, const char *));
 
     return config_types[config_type];
 }
 
+/* Config block definitions can be loaded by name.
+ * The convention is best explained with an example:
+ * Enter <C-\>st=c; then wed will load WEDRUNTIME/syntax/c.wed
+ * if it exists followed by ~/.wed/syntax/c.wed if it exists */
 void cf_load_config_def(Session *sess, ConfigType cf_type,
                         const char *config_name)
 {
@@ -263,7 +270,8 @@ void cf_load_config_def(Session *sess, ConfigType cf_type,
     Status status = cf_path_append(home_path, "/." CFG_USER_DIR, &wed_user_dir);
 
     if (STATUS_IS_SUCCESS(status)) {
-        se_add_error(sess, cf_load_config_if_exists(sess, wed_user_dir, file_name));
+        se_add_error(sess, cf_load_config_if_exists(sess, wed_user_dir,
+                                                    file_name));
         free(wed_user_dir);
     } else {
         se_add_error(sess, status);
@@ -272,7 +280,8 @@ void cf_load_config_def(Session *sess, ConfigType cf_type,
     free(file_name);
 }
 
-Status cf_load_config_if_exists(Session *sess, const char *dir, const char *file)
+Status cf_load_config_if_exists(Session *sess, const char *dir,
+                                const char *file)
 {
     if (is_null_or_empty(dir) || is_null_or_empty(file)) {
         return STATUS_SUCCESS;
@@ -293,7 +302,8 @@ Status cf_load_config_if_exists(Session *sess, const char *dir, const char *file
     return status;
 }
 
-static Status cf_path_append(const char *path, const char *append, char **result)
+static Status cf_path_append(const char *path, const char *append,
+                             char **result)
 {
     assert(path != NULL);
     assert(append != NULL);
@@ -335,14 +345,19 @@ Status cf_set_var(ConfigEntity entity, ConfigLevel config_level,
 {
     ConfigVariableDescriptor *var;
 
-    RETURN_IF_FAIL(cf_is_valid_var(entity, config_level, config_variable, &var));
+    RETURN_IF_FAIL(cf_is_valid_var(entity, config_level,
+                                   config_variable, &var));
 
     if (var->default_value.type != value.type) {
-        if (var->default_value.type == VAL_TYPE_BOOL && value.type == VAL_TYPE_INT) {
+        /* Allow Boolean variables to be set with integer values */
+        if (var->default_value.type == VAL_TYPE_BOOL &&
+            value.type == VAL_TYPE_INT) {
             value = BOOL_VAL(IVAL(value) ? 1 : 0);
         } else {
-            return st_get_error(ERR_INVALID_VAL, "%s must have value of type %s", 
-                                var->name, va_get_value_type(var->default_value));
+            return st_get_error(ERR_INVALID_VAL,
+                                "%s must have value of type %s",
+                                var->name,
+                                va_get_value_type(var->default_value));
         }
     }
 
@@ -391,14 +406,18 @@ static Status cf_is_valid_var(ConfigEntity entity, ConfigLevel config_level,
     ConfigVariableDescriptor *var = hashmap_get(config, var_name);
 
     if (var == NULL) {
-        if (!(cf_default_config[config_variable].config_levels & config_level)) {
+        if (!(cf_default_config[config_variable].config_levels &
+              config_level)) {
             return st_get_error(ERR_INCORRECT_CONFIG_LEVEL, 
-                    "Variable %s can only be referenced at the %s level",
-                    var_name,
-                    (config_level & CL_BUFFER) ? "session" : "buffer");
+                                "Variable %s can only be referenced "
+                                "at the %s level",
+                                var_name,
+                                (config_level & CL_BUFFER) ?
+                                "session" : "buffer");
         }
 
-        return st_get_error(ERR_INVALID_VAR, "Invalid config variable %s", var_name);
+        return st_get_error(ERR_INVALID_VAR,
+                            "Invalid config variable %s", var_name);
     }
 
     *var_ptr = var;
@@ -407,7 +426,8 @@ static Status cf_is_valid_var(ConfigEntity entity, ConfigLevel config_level,
 }
 
 static const ConfigVariableDescriptor *cf_get_variable(const HashMap *config,
-                                                       ConfigVariable config_var)
+                                                       ConfigVariable config_var
+                                                      )
 {
     assert(config_var >= 0 && config_var < CV_ENTRY_NUM);
 
@@ -432,7 +452,8 @@ Status cf_print_var(ConfigEntity entity, ConfigLevel config_level,
 
     ConfigVariableDescriptor *var;
 
-    RETURN_IF_FAIL(cf_is_valid_var(entity, config_level, config_variable, &var));
+    RETURN_IF_FAIL(cf_is_valid_var(entity, config_level,
+                                   config_variable, &var));
 
     char var_msg[MAX_MSG_SIZE];
     char *value_str = va_to_string(var->default_value);
@@ -477,8 +498,9 @@ static Status cf_tabwidth_validator(ConfigEntity entity, Value value)
     (void)entity;
 
     if (IVAL(value) < CFG_TABWIDTH_MIN || IVAL(value) > CFG_TABWIDTH_MAX) {
-        return st_get_error(ERR_INVALID_TABWIDTH, "tabwidth value must be in range %d - %d inclusive",
-                         CFG_TABWIDTH_MIN, CFG_TABWIDTH_MAX);
+        return st_get_error(ERR_INVALID_TABWIDTH,
+                            "tabwidth value must be in range %d - %d inclusive",
+                            CFG_TABWIDTH_MIN, CFG_TABWIDTH_MAX);
     }
 
     return STATUS_SUCCESS;
@@ -487,6 +509,7 @@ static Status cf_tabwidth_validator(ConfigEntity entity, Value value)
 static Status cf_filetype_validator(ConfigEntity entity, Value value)
 {
     if (SVAL(value) != NULL && *SVAL(value) == '\0') {
+        /* Allow filetype to be set to none */
         return STATUS_SUCCESS;
     }
 
@@ -501,7 +524,8 @@ static Status cf_filetype_validator(ConfigEntity entity, Value value)
     return STATUS_SUCCESS;
 }
 
-static Status cf_filetype_on_change_event(ConfigEntity entity, Value old_val, Value new_val)
+static Status cf_filetype_on_change_event(ConfigEntity entity, Value old_val,
+                                          Value new_val)
 {
     (void)old_val;
     (void)new_val;
@@ -510,6 +534,7 @@ static Status cf_filetype_on_change_event(ConfigEntity entity, Value old_val, Va
         return STATUS_SUCCESS;
     }
 
+    /* filetype drives syntaxtype */
     se_determine_syntaxtype(entity.sess, entity.buffer);
 
     return STATUS_SUCCESS;
@@ -518,6 +543,7 @@ static Status cf_filetype_on_change_event(ConfigEntity entity, Value old_val, Va
 static Status cf_syntaxtype_validator(ConfigEntity entity, Value value)
 {
     if (SVAL(value) != NULL && *SVAL(value) == '\0') {
+        /* Allow syntaxtype to be set to none */
         return STATUS_SUCCESS;
     }
 
@@ -541,7 +567,8 @@ static Status cf_theme_validator(ConfigEntity entity, Value value)
     return STATUS_SUCCESS;
 }
 
-static Status cf_theme_on_change_event(ConfigEntity entity, Value old_val, Value new_val)
+static Status cf_theme_on_change_event(ConfigEntity entity, Value old_val,
+                                       Value new_val)
 {
     (void)old_val;
     (void)new_val;
@@ -566,7 +593,8 @@ static Status cf_fileformat_validator(ConfigEntity entity, Value value)
     return STATUS_SUCCESS;
 }
 
-static Status cf_fileformat_on_change_event(ConfigEntity entity, Value old_val, Value new_val)
+static Status cf_fileformat_on_change_event(ConfigEntity entity, Value old_val,
+                                            Value new_val)
 {
     (void)old_val;
 

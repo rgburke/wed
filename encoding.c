@@ -25,9 +25,12 @@
 #include "config.h"
 #include "gap_buffer.h"
 
-static void en_ascii_char_info(CharInfo *, CharInfoProperties, const BufferPos *, const HashMap *, uchar);
-static int en_utf8_is_valid_character(const BufferPos *, size_t *);
-static uint en_utf8_code_point(const uchar *, uint);
+static void en_ascii_char_info(CharInfo *, CharInfoProperties,
+                               const BufferPos *, const HashMap *config,
+                               uchar c);
+static int en_utf8_is_valid_character(const BufferPos *,
+                                      size_t *char_byte_length);
+static uint en_utf8_code_point(const uchar *character, uint byte_length);
 
 void en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip, 
                       const BufferPos *pos, const HashMap *config)
@@ -36,6 +39,9 @@ void en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip,
     uchar c = gb_getu_at(pos->data, pos->offset);
 
     if (c < 128) {
+        /* More efficient processing of ASCII characters. Somewhat 
+         * Anglocentric but it speeds up traversing very
+         * long lines i.e. single 10MB+ lines */
         en_ascii_char_info(char_info, cip, pos, config, c);
         return;
     }
@@ -45,8 +51,12 @@ void en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip,
     } else {
         char_info->byte_length = 1;
 
-        while (((pos->offset + char_info->byte_length) < gb_length(pos->data)) && 
-                ((uchar)gb_get_at(pos->data, pos->offset + char_info->byte_length) & 0xC0) == 0x80) {
+        /* Determine length of invalid character */
+        while (((pos->offset + char_info->byte_length) < gb_length(pos->data))
+                && 
+                ((uchar)gb_get_at(pos->data,
+                                  pos->offset + char_info->byte_length)
+                        & 0xC0) == 0x80) {
             char_info->byte_length++;
         }
     }
@@ -54,9 +64,12 @@ void en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip,
     if (cip & CIP_SCREEN_LENGTH) {
         char_info->is_printable = 1;
         uchar ch[5] = { '\0' };
-        gb_get_range(pos->data, pos->offset, (char *)ch, char_info->byte_length);
+        gb_get_range(pos->data, pos->offset, (char *)ch,
+                     char_info->byte_length);
 
         if (!char_info->is_valid) {
+            /* wed displays the unicode replacement character in place of
+             * an invalid character */
             char_info->screen_length = 1;
         } else {
             uint code_point = en_utf8_code_point(ch, char_info->byte_length);    
@@ -71,7 +84,7 @@ void en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip,
     }
 }
 
-static void en_ascii_char_info(CharInfo *char_info, CharInfoProperties cip, 
+static void en_ascii_char_info(CharInfo *char_info, CharInfoProperties cip,
                                const BufferPos *pos, const HashMap *config,
                                uchar c)
 {
@@ -91,7 +104,8 @@ static void en_ascii_char_info(CharInfo *char_info, CharInfoProperties cip,
             char_info->screen_length = 0;
         } else if (c == '\t') {
             size_t tabwidth = cf_int(config, CV_TABWIDTH);
-            char_info->screen_length = tabwidth - ((pos->col_no - 1) % tabwidth);
+            char_info->screen_length =
+                tabwidth - ((pos->col_no - 1) % tabwidth);
         } else if (c < 32 || c == 127) {
             char_info->screen_length = 2;
             char_info->is_printable = 0;
@@ -101,7 +115,8 @@ static void en_ascii_char_info(CharInfo *char_info, CharInfoProperties cip,
     }
 }
 
-static int en_utf8_is_valid_character(const BufferPos *pos, size_t *char_byte_length)
+static int en_utf8_is_valid_character(const BufferPos *pos,
+                                      size_t *char_byte_length)
 {
     uchar byte = gb_get_at(pos->data, pos->offset);
     size_t byte_space_left = gb_length(pos->data) - pos->offset;
@@ -155,7 +170,6 @@ static int en_utf8_is_valid_character(const BufferPos *pos, size_t *char_byte_le
     return 1;
 }
 
-/* Must pass valid character */
 static uint en_utf8_code_point(const uchar *character, uint byte_length)
 {
    switch (byte_length) {
@@ -164,11 +178,14 @@ static uint en_utf8_code_point(const uchar *character, uint byte_length)
         case 2:
             return ((character[0] & 0x1F) << 6) + (character[1] & 0x3F);
         case 3:
-            return ((character[0] & 0x0F) << 12) + ((character[1] & 0x3F) << 6) +
+            return ((character[0] & 0x0F) << 12) +
+                   ((character[1] & 0x3F) << 6) +
                    (character[2] & 0x3F);
         case 4:
-            return ((character[0] & 0x07) << 18) + ((character[1] & 0x3F) << 12) + 
-                   ((character[2] & 0x3F) << 6) + (character[3] & 0x3F);
+            return ((character[0] & 0x07) << 18) +
+                   ((character[1] & 0x3F) << 12) + 
+                   ((character[2] & 0x3F) << 6) +
+                   (character[3] & 0x3F);
         default:
             break;
    } 
@@ -176,6 +193,7 @@ static uint en_utf8_code_point(const uchar *character, uint byte_length)
    return 0;
 }
 
+/* TODO need to handle combining characters */
 /*static int utf8_is_combining_char(uint code_point)
 {
     if (code_point < combining[0]) {
@@ -201,6 +219,9 @@ static uint en_utf8_code_point(const uchar *character, uint byte_length)
     return 0;
 }*/
 
+/* Determines how many bytes back we must go to get to the previous character.
+ * This function does not attempt to detect invalid byte sequences,
+ * see bp_prev_char in buffer_pos.c for usage of this function */
 size_t en_utf8_previous_char_offset(const BufferPos *pos)
 {
     if (pos->offset == 0) {
@@ -211,7 +232,9 @@ size_t en_utf8_previous_char_offset(const BufferPos *pos)
 
     do {
         offset--;
-    } while (offset > 0 && ((uchar)gb_get_at(pos->data, offset) & 0xC0) == 0x80);
+    } while (offset > 0 &&
+             ((uchar)gb_get_at(pos->data, offset) & 0xC0) == 0x80);
 
     return pos->offset - offset;
 }
+

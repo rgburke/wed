@@ -22,6 +22,7 @@
 #include "buffer.h"
 #include "list.h"
 
+/* Max length of prompt text */
 #define MAX_CMD_PROMPT_LENGTH 50
 
 typedef enum {
@@ -35,28 +36,33 @@ typedef enum {
     PT_ENTRY_NUM
 } PromptType;
 
+/* Structure for controlling prompt */
 typedef struct {
-    Buffer *prompt_buffer; /* Used for command input e.g. Find & Replace, file name input, etc... */
-    char *prompt_text; /* Command instruction/description */
+    Buffer *prompt_buffer; /* Used for prompt input e.g. Find & Replace,
+                              file name input, etc... */
+    char *prompt_text; /* Prompt message presented to user
+                          e.g. Find, Replace, Save As, ... */
     int cancelled; /* Did the user quit the last prompt */
     List *history; /* Stores previous user entries */
     size_t history_index; /* Index of previous entry shown */
-    PromptType prompt_type;
-    List *suggestions;
-    size_t suggestion_index;
-    int show_suggestion_prompt;
+    PromptType prompt_type; /* This is used to drive prompt completion */
+    List *suggestions; /* Stores suggested prompt completions
+                          e.g. completed file path, buffer name */
+    size_t suggestion_index; /* Currently displayed suggestion */
+    int show_suggestion_prompt; /* True if suggestions should be shown */
 } Prompt; 
 
-Prompt *pr_new(Buffer *);
-void pr_free(Prompt *, int);
-Status pr_reset_prompt(Prompt *, PromptType, const char *, List *, int);
-Status pr_set_prompt_text(Prompt *, const char *);
+Prompt *pr_new(Buffer *prompt_buffer);
+void pr_free(Prompt *, int free_prompt_buffer);
+Status pr_reset_prompt(Prompt *, PromptType, const char *prompt_text,
+                       List *history, int show_last_cmd);
+Status pr_set_prompt_text(Prompt *, const char *prompt_text);
 Buffer *pr_get_prompt_buffer(const Prompt *);
 PromptType pr_get_prompt_type(const Prompt *);
 const char *pr_get_prompt_text(const Prompt *);
 char *pr_get_prompt_content(const Prompt *);
 int pr_prompt_cancelled(const Prompt *);
-void pr_prompt_set_cancelled(Prompt *, int);
+void pr_prompt_set_cancelled(Prompt *, int cancelled);
 void pr_show_suggestion_prompt(Prompt *);
 void pr_hide_suggestion_prompt(Prompt *);
 Status pr_previous_entry(Prompt *);
@@ -65,6 +71,6 @@ size_t pr_suggestion_num(const Prompt *);
 void pr_clear_suggestions(Prompt *);
 Status pr_show_next_suggestion(Prompt *);
 Status pr_show_previous_suggestion(Prompt *);
-Status pr_show_suggestion(Prompt *, size_t);
+Status pr_show_suggestion(Prompt *, size_t suggestion_index);
 
 #endif

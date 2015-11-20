@@ -24,27 +24,37 @@
 #include "status.h"
 #include "value.h"
 
+/* Utility interface for regular expressions, in effect a wrapper
+ * around a couple of the core pcre_* functions. For more information:
+ * man pcreapi */
+
+/* pcre_exec output vector size */
 #define RE_OUTPUT_VECTOR_SIZE 90
 
+/* Compiled PCRE regex */
 typedef struct {
-    pcre *regex;
-    pcre_extra *regex_study;
+    pcre *regex; /* Compiled regex */
+    pcre_extra *regex_study; /* Optimization info */
 } RegexInstance;
 
+/* Result of regex run */
 typedef struct {
-    int match;
-    int return_code;
-    int output_vector[RE_OUTPUT_VECTOR_SIZE];
-    /* output_vector[1] - output_vector[0] for convenience */
-    int match_length;
+    int match; /* True if match found, equivalent to checking return_code > 0 */
+    int return_code; /* pcre_exec return code */
+    int output_vector[RE_OUTPUT_VECTOR_SIZE]; /* Stores captured group data */
+    int match_length; /* output_vector[1] - output_vector[0] for convenience */
 } RegexResult;
 
 Status re_compile(RegexInstance *, const Regex *);
-Status re_compile_custom_error_msg(RegexInstance *, const Regex *, const char *, ...);
+Status re_compile_custom_error_msg(RegexInstance *, const Regex *,
+                                   const char *fmt, ...);
 void re_free_instance(const RegexInstance *);
-Status re_exec(RegexResult *, const RegexInstance *, const char *, size_t, size_t);
-Status re_exec_custom_error_msg(RegexResult *, const RegexInstance *, const char *, 
-                                size_t, size_t, const char *, ...);
-Status re_get_group(const RegexResult *, const char *, size_t, size_t, char **);
+Status re_exec(RegexResult *, const RegexInstance *, const char *str,
+               size_t str_len, size_t start);
+Status re_exec_custom_error_msg(RegexResult *, const RegexInstance *,
+                                const char *str, size_t str_len, size_t start,
+                                const char *fmt, ...);
+Status re_get_group(const RegexResult *, const char *str, size_t str_len,
+                    size_t group, char **group_str_ptr);
 
 #endif

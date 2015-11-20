@@ -25,6 +25,10 @@
 
 #define MAX_SYNTAX_MATCH_NUM 500
 
+/* The list of tokens available in wed. Syntax patterns can specify one 
+ * of these tokens for matched buffer content, allowing wed to tokenise
+ * buffer content. This data can be used by theme's to provide custom
+ * colouring for each matched token */
 typedef enum {
     ST_NORMAL,
     ST_COMMENT,
@@ -40,35 +44,47 @@ typedef enum {
 
 typedef struct SyntaxPattern SyntaxPattern;
 
+/* Used to tokenise buffer content */
 struct SyntaxPattern {
-    RegexInstance regex;
-    SyntaxToken token;
-    SyntaxPattern *next;
+    RegexInstance regex; /* Pattern run against buffer content */
+    SyntaxToken token; /* Token that matched buffer content corresponds with */
+    SyntaxPattern *next; /* SynaxtPattern's are stored in a linked list */
 };
 
+/* Syntax definition for a language. Each language is represented by its
+ * own SyntaxDefinition instance */
 typedef struct {
-    SyntaxPattern *patterns;
+    SyntaxPattern *patterns; /* Linked list of syntax patterns */
 } SyntaxDefinition;
 
+/* Match data for SyntaxPattern's that have matched buffer content */
 typedef struct {
-    size_t offset;
-    size_t length;
-    SyntaxToken token;
+    size_t offset; /* Offset into buffer substring (see SyntaxMatches) */
+    size_t length; /* Length of match */
+    SyntaxToken token; /* Token of the SyntaxPattern that matched */
 } SyntaxMatch;
 
+/* All token data for a SyntaxDefinition run on a buffer range */
 typedef struct {
-    size_t match_num;
-    size_t current_match;
-    size_t offset;
-    SyntaxMatch matches[MAX_SYNTAX_MATCH_NUM];
+    size_t match_num; /* Number of SyntaxMatch's found */
+    size_t current_match; /* Used to keep track of the last SyntaxMatch
+                             requested */
+    size_t offset; /* SyntaxMatch's are generated from a buffer substring.
+                      This is the offset into the buffer where the 
+                      substring starts. This allows retrieving 
+                      SyntaxMatch's by using the buffer's offset
+                      rather than the substring offset */
+    SyntaxMatch matches[MAX_SYNTAX_MATCH_NUM]; /* Array that stores matches */
 } SyntaxMatches;
 
-int sy_str_to_token(SyntaxToken *, const char *);
+int sy_str_to_token(SyntaxToken *, const char *token_str);
 Status sy_new_pattern(SyntaxPattern **, const Regex *, SyntaxToken);
 void syn_free_pattern(SyntaxPattern *);
 SyntaxDefinition *sy_new_def(SyntaxPattern *);
 void sy_free_def(SyntaxDefinition *);
-SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *, const char *, size_t, size_t);
-const SyntaxMatch *sy_get_syntax_match(SyntaxMatches *, size_t);
+SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *,
+                                     const char *str, size_t str_len,
+                                     size_t offset);
+const SyntaxMatch *sy_get_syntax_match(SyntaxMatches *, size_t offset);
 
 #endif

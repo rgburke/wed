@@ -23,18 +23,21 @@
 #include "encoding.h"
 #include "hashmap.h"
 
+/* Represents position in buffer.
+ * Each instance is specific to a buffer */
 struct BufferPos {
-    const GapBuffer *data;
-    const FileFormat *file_format;
-    const HashMap *config;
-    size_t offset;
-    size_t line_no;
-    size_t col_no;
+    const GapBuffer *data; /* Underlying gap buffer that stores text */
+    const FileFormat *file_format; /* Reference to file format buffer uses */
+    const HashMap *config; /* Reference to buffers config */
+    size_t offset; /* Offset into text */
+    size_t line_no; /* Corresponding line number for this offset */
+    size_t col_no; /* Corresponding column number for this offset */
 };
 
 typedef struct BufferPos BufferPos;
 
-int bp_init(BufferPos *, const GapBuffer *, const FileFormat *, const HashMap *config);
+int bp_init(BufferPos *, const GapBuffer *, const FileFormat *,
+            const HashMap *config);
 char bp_get_char(const BufferPos *);
 unsigned char bp_get_uchar(const BufferPos *);
 int bp_compare(const BufferPos *, const BufferPos *);
@@ -56,15 +59,16 @@ int bp_next_line(BufferPos *);
 int bp_prev_line(BufferPos *);
 void bp_to_buffer_start(BufferPos *);
 void bp_to_buffer_end(BufferPos *);
-void bp_advance_to_offset(BufferPos *, size_t);
-void bp_reverse_to_offset(BufferPos *, size_t);
-void bp_advance_to_line(BufferPos *, size_t);
-void bp_reverse_to_line(BufferPos *, size_t, int);
-void bp_advance_to_col(BufferPos *, size_t);
-void bp_reverse_to_col(BufferPos *, size_t);
-void bp_advance_to_line_col(BufferPos *, size_t, size_t);
-void bp_reverse_to_line_col(BufferPos *, size_t, size_t);
-BufferPos bp_init_from_offset(size_t, const BufferPos *);
-BufferPos bp_init_from_line_col(size_t, size_t, const BufferPos *);
+void bp_advance_to_offset(BufferPos *, size_t offset);
+void bp_reverse_to_offset(BufferPos *, size_t offset);
+void bp_advance_to_line(BufferPos *, size_t line_no);
+void bp_reverse_to_line(BufferPos *, size_t line_no, int end_of_line);
+void bp_advance_to_col(BufferPos *, size_t col_no);
+void bp_reverse_to_col(BufferPos *, size_t col_no);
+void bp_advance_to_line_col(BufferPos *, size_t line_no, size_t col_no);
+void bp_reverse_to_line_col(BufferPos *, size_t line_no, size_t col_no);
+BufferPos bp_init_from_offset(size_t offset, const BufferPos *known_pos);
+BufferPos bp_init_from_line_col(size_t line_no, size_t col_no,
+                                const BufferPos *known_pos);
 
 #endif

@@ -60,6 +60,7 @@ void pr_free(Prompt *prompt, int free_prompt_buffer)
     free(prompt);
 }
 
+/* This function sets up the prompt so it's ready to be shown */
 Status pr_reset_prompt(Prompt *prompt, PromptType prompt_type, 
                        const char *prompt_text, List *history,
                        int show_last_cmd)
@@ -74,6 +75,9 @@ Status pr_reset_prompt(Prompt *prompt, PromptType prompt_type,
     const char *prompt_content = "";
 
     if (history != NULL) {
+        /* If user presses <Up> prompt->history_index
+         * will be decremented by 1 to show the last
+         * entry in history */
         prompt->history_index = list_size(history);
 
         if (show_last_cmd && prompt->history_index > 0) {
@@ -94,10 +98,10 @@ Status pr_set_prompt_text(Prompt *prompt, const char *prompt_text)
         free(prompt->prompt_text);
     }
 
-    prompt->prompt_text = strdupe(prompt_text);
+    prompt->prompt_text = strdup(prompt_text);
     
     if (prompt_text != NULL && prompt->prompt_text == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - " 
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
                             "Unable to set prompt text");
     }
 
@@ -120,6 +124,8 @@ const char *pr_get_prompt_text(const Prompt *prompt)
 
     if (prompt->show_suggestion_prompt &&
         suggestion_num > 1 &&
+        /* The last entry is the initial input from the user
+         * so don't display it as a suggestion */
         prompt->suggestion_index != suggestion_num - 1) {
         return pr_get_suggestion_prompt_text(prompt);
     }
@@ -133,11 +139,13 @@ const char *pr_get_prompt_text(const Prompt *prompt)
 
 static const char *pr_get_suggestion_prompt_text(const Prompt *prompt)
 {
+    /* Ignore initial input entry */
     size_t suggestion_num = pr_suggestion_num(prompt) - 1;
 
     static char suggestion_prompt_text[MAX_CMD_PROMPT_LENGTH + 1];
-    snprintf(suggestion_prompt_text, MAX_CMD_PROMPT_LENGTH + 1, "%s (%zu of %zu)",
-             prompt->prompt_text, prompt->suggestion_index + 1, suggestion_num);
+    snprintf(suggestion_prompt_text, MAX_CMD_PROMPT_LENGTH + 1,
+             "%s (%zu of %zu)", prompt->prompt_text,
+             prompt->suggestion_index + 1, suggestion_num);
 
     return suggestion_prompt_text;
 }
@@ -213,7 +221,8 @@ size_t pr_suggestion_num(const Prompt *prompt)
 void pr_clear_suggestions(Prompt *prompt)
 {
     prompt->suggestion_index = 0;
-    list_free_values_custom(prompt->suggestions, (ListEntryFree)pc_free_suggestion);
+    list_free_values_custom(prompt->suggestions,
+                            (ListEntryFree)pc_free_suggestion);
     list_clear(prompt->suggestions);
 }
 
@@ -259,7 +268,8 @@ Status pr_show_suggestion(Prompt *prompt, size_t suggestion_index)
         return STATUS_SUCCESS;
     }
     
-    const PromptSuggestion *suggestion = list_get(prompt->suggestions, suggestion_index);
+    const PromptSuggestion *suggestion = list_get(prompt->suggestions,
+                                                  suggestion_index);
     RETURN_IF_FAIL(bf_set_text(prompt->prompt_buffer, suggestion->text));
     prompt->suggestion_index = suggestion_index;
 

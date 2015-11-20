@@ -24,14 +24,23 @@
 #include "file.h"
 #include "regex_util.h"
 
+/* This is a high level classification which can in turn
+ * be used to drive other features such as syntax highlighting 
+ * e.g. If a buffer is of the c FileType then the c syntax definition
+ * can be loaded and applied for that buffer. */
 typedef struct {
-    char *name;
-    char *display_name;
-    RegexInstance file_pattern;
+    char *name; /* The id of the FileType. Other constructs such as syntax
+                   definitions use the same name as a relevant file type,
+                   so that they can be loaded by a file type name */
+    char *display_name; /* A more human readable name that can be used for
+                           display */
+    RegexInstance file_pattern; /* A regex applied to a file path in order
+                                   to determine membership of a file type */
 } FileType;
 
-Status ft_init(FileType **, const char *, const char *, const Regex *);
+Status ft_init(FileType **file_type_ptr, const char *name, 
+               const char *display_name, const Regex *regex);
 void ft_free(FileType *);
-Status ft_matches(FileType *, FileInfo *, int *);
+Status ft_matches(FileType *, FileInfo *, int *matches);
 
 #endif

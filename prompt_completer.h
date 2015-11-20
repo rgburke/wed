@@ -23,25 +23,32 @@
 #include "session.h"
 #include "list.h"
 
+/* Rank suggestions so they can be ordered by rank when
+ * presented to the user */
 typedef enum {
     SR_EXACT_MATCH,
     SR_STARTS_WITH,
     SR_CONTAINS,
-    SR_DEFAULT_MATCH,
+    SR_DEFAULT_MATCH, /* Used when any entry can match
+                         e.g. completing a file path when only a directory
+                         is specified displays all files in that directory */
     SR_NO_MATCH
 } SuggestionRank;
 
+/* File paths, buffer names, etc ... can be completed.
+ * This structure holds each generated suggestion for completion */
 typedef struct {
-    char *text;
-    size_t text_len;
-    SuggestionRank rank;
-    const void *data;
+    char *text; /* Suggestion text */
+    size_t text_len; /* Suggestion text length */
+    SuggestionRank rank; /* Rank */
+    const void *data; /* Data relevant to the suggestion */
 } PromptSuggestion;
 
-PromptSuggestion *pc_new_suggestion(const char *, SuggestionRank, const void *);
+PromptSuggestion *pc_new_suggestion(const char *text, SuggestionRank,
+                                    const void *data);
 void pc_free_suggestion(PromptSuggestion *);
 int pc_has_prompt_completer(PromptType);
 int pc_show_suggestion_prompt(PromptType);
-Status pc_run_prompt_completer(const Session *, Prompt *, int);
+Status pc_run_prompt_completer(const Session *, Prompt *, int reverse);
 
 #endif

@@ -39,6 +39,8 @@
 #include "replace.h"
 #include "prompt_completer.h"
 
+/* Used for Yes/No type prompt questions
+ * e.g. Do you want to save file? */
 typedef enum {
     QR_NONE = 0,
     QR_YES = 1,
@@ -74,8 +76,9 @@ static Status cm_buffer_vert_move_lines(const CommandArgs *);
 static Status cm_buffer_duplicate_selection(const CommandArgs *);
 static Status cm_buffer_indent(const CommandArgs *);
 static Status cm_buffer_save_file(const CommandArgs *);
-static void cm_generate_find_prompt(const BufferSearch *, char prompt_text[MAX_CMD_PROMPT_LENGTH]);
-static Status cm_prerpare_search(Session *, const BufferPos *);
+static void cm_generate_find_prompt(const BufferSearch *,
+                                    char prompt_text[MAX_CMD_PROMPT_LENGTH]);
+static Status cm_prerpare_search(Session *, const BufferPos *start_pos);
 static Status cm_buffer_find(const CommandArgs *);
 static Status cm_buffer_find_next(const CommandArgs *);
 static Status cm_buffer_toggle_search_direction(const CommandArgs *);
@@ -83,7 +86,8 @@ static Status cm_buffer_toggle_search_type(const CommandArgs *);
 static Status cm_buffer_toggle_search_case(const CommandArgs *);
 static Status cm_buffer_replace(const CommandArgs *);
 static Status cm_buffer_goto_line(const CommandArgs *);
-static Status cm_prepare_replace(Session *, char **, size_t *);
+static Status cm_prepare_replace(Session *, char **rep_text_ptr,
+                                 size_t *rep_length);
 static Status cm_session_open_file(const CommandArgs *);
 static Status cm_session_add_empty_buffer(const CommandArgs *);
 static Status cm_session_change_tab(const CommandArgs *);
@@ -94,15 +98,24 @@ static Status cm_previous_prompt_entry(const CommandArgs *);
 static Status cm_next_prompt_entry(const CommandArgs *);
 static Status cm_prompt_input_finished(const CommandArgs *);
 static Status cm_session_change_buffer(const CommandArgs *);
-static Status cm_determine_buffer(Session *, const char *, const Buffer **);
+static Status cm_determine_buffer(Session *, const char *input, 
+                                  const Buffer **buffer_ptr);
 static Status cm_suspend(const CommandArgs *);
 static Status cm_session_end(const CommandArgs *);
 
-static Status cm_cmd_input_prompt(Session *, PromptType, const char *, List *, int);
-static QuestionRespose cm_question_prompt(Session *, PromptType, const char *, QuestionRespose, QuestionRespose);
+static Status cm_cmd_input_prompt(Session *, PromptType,
+                                  const char *prompt_text, List *history,
+                                  int show_last_cmd);
+static QuestionRespose cm_question_prompt(Session *, PromptType,
+                                          const char *question,
+                                          QuestionRespose allowed_answers,
+                                          QuestionRespose default_answer);
 static Status cm_cancel_prompt(const CommandArgs *);
 static Status cm_run_prompt_completion(const CommandArgs *);
 
+/* Allow the following definitions to exceed 80 columns.
+ * This format makes them easier to read and
+ * maipulate in visual block mode in vim */
 static const CommandDefinition cm_commands[] = {
     [CMD_BP_CHANGE_LINE]                 = { cm_bp_change_line                , CMDT_BUFFER_MOVE },
     [CMD_BP_CHANGE_CHAR]                 = { cm_bp_change_char                , CMDT_BUFFER_MOVE },
@@ -153,6 +166,7 @@ static const CommandDefinition cm_commands[] = {
     [CMD_SESSION_END]                    = { cm_session_end                   , CMDT_EXIT        }
 };
 
+/* Default wed keybindings */
 static const Operation cm_operations[] = {
     { "<Up>"         , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_UP)                            }, 1, CMD_BP_CHANGE_LINE                 },
     { "<Down>"       , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_DOWN)                          }, 1, CMD_BP_CHANGE_LINE                 },
@@ -230,6 +244,8 @@ static const Operation cm_operations[] = {
     { "<S-Tab>"      , OM_PROMPT_COMPLETER, { INT_VAL_STRUCT(0)                                       }, 1, CMD_RUN_PROMPT_COMPLETION          }
 };
 
+/* Map keypresses to operations. User input can be used to look
+ * up an operation in a keymap so that it can be invoked */
 int cm_populate_keymap(HashMap *keymap, OperationMode op_mode)
 {
     static const size_t operation_num = ARRAY_SIZE(cm_operations, Operation);
@@ -271,6 +287,9 @@ Status cm_do_operation(Session *sess, const char *key, int *finished)
     assert(!is_null_or_empty(key));
     assert(finished != NULL);
 
+    /* When in prompt modes certain keybindings are overriden
+     * e.g. <Enter> is submit, <Escape> is cancel prompt,
+     * see cm_operations above */
     const Operation *operation = hashmap_get(sess->keymap_overrides, key);
 
     if (operation == NULL) {
@@ -294,6 +313,7 @@ Status cm_do_operation(Session *sess, const char *key, int *finished)
 
     if (!(key[0] == '<' && key[1] != '\0') &&
         !se_command_type_excluded(sess, CMDT_BUFFER_MOD)) {
+        /* Just a normal letter character so insert it into buffer */
         return bf_insert_character(sess->active_buffer, key, 1);
     }
 
@@ -305,7 +325,8 @@ static Status cm_bp_change_line(const CommandArgs *cmd_args)
     assert(cmd_args->arg_num == 1);
     Session *sess = cmd_args->sess;
     Value param = cmd_args->args[0];
-    return bf_change_line(sess->active_buffer, &sess->active_buffer->pos, IVAL(param), 1);
+    return bf_change_line(sess->active_buffer, &sess->active_buffer->pos,
+                          IVAL(param), 1);
 }
 
 static Status cm_bp_change_char(const CommandArgs *cmd_args)
@@ -313,7 +334,8 @@ static Status cm_bp_change_char(const CommandArgs *cmd_args)
     assert(cmd_args->arg_num == 1);
     Session *sess = cmd_args->sess;
     Value param = cmd_args->args[0];
-    return bf_change_char(sess->active_buffer, &sess->active_buffer->pos, IVAL(param), 1);
+    return bf_change_char(sess->active_buffer, &sess->active_buffer->pos,
+                          IVAL(param), 1);
 }
 
 static Status cm_bp_to_line_start(const CommandArgs *cmd_args)
@@ -321,7 +343,8 @@ static Status cm_bp_to_line_start(const CommandArgs *cmd_args)
     assert(cmd_args->arg_num == 1);
     Session *sess = cmd_args->sess;
     Value param = cmd_args->args[0];
-    return bf_to_line_start(sess->active_buffer, &sess->active_buffer->pos, IVAL(param) & DIRECTION_WITH_SELECT, 1);
+    return bf_to_line_start(sess->active_buffer, &sess->active_buffer->pos,
+                            IVAL(param) & DIRECTION_WITH_SELECT, 1);
 }
 
 static Status cm_bp_to_line_end(const CommandArgs *cmd_args)
@@ -329,7 +352,8 @@ static Status cm_bp_to_line_end(const CommandArgs *cmd_args)
     assert(cmd_args->arg_num == 1);
     Session *sess = cmd_args->sess;
     Value param = cmd_args->args[0];
-    return bf_to_line_end(sess->active_buffer, IVAL(param) & DIRECTION_WITH_SELECT);
+    return bf_to_line_end(sess->active_buffer,
+                          IVAL(param) & DIRECTION_WITH_SELECT);
 }
 
 static Status cm_bp_to_next_word(const CommandArgs *cmd_args)
@@ -337,7 +361,8 @@ static Status cm_bp_to_next_word(const CommandArgs *cmd_args)
     assert(cmd_args->arg_num == 1);
     Session *sess = cmd_args->sess;
     Value param = cmd_args->args[0];
-    return bf_to_next_word(sess->active_buffer, IVAL(param) & DIRECTION_WITH_SELECT);
+    return bf_to_next_word(sess->active_buffer,
+                           IVAL(param) & DIRECTION_WITH_SELECT);
 }
 
 static Status cm_bp_to_prev_word(const CommandArgs *cmd_args)
@@ -345,7 +370,8 @@ static Status cm_bp_to_prev_word(const CommandArgs *cmd_args)
     assert(cmd_args->arg_num == 1);
     Session *sess = cmd_args->sess;
     Value param = cmd_args->args[0];
-    return bf_to_prev_word(sess->active_buffer, IVAL(param) & DIRECTION_WITH_SELECT);
+    return bf_to_prev_word(sess->active_buffer,
+                           IVAL(param) & DIRECTION_WITH_SELECT);
 }
 
 static Status cm_bp_to_buffer_start(const CommandArgs *cmd_args)
@@ -353,7 +379,8 @@ static Status cm_bp_to_buffer_start(const CommandArgs *cmd_args)
     assert(cmd_args->arg_num == 1);
     Session *sess = cmd_args->sess;
     Value param = cmd_args->args[0];
-    return bf_to_buffer_start(sess->active_buffer, IVAL(param) & DIRECTION_WITH_SELECT);
+    return bf_to_buffer_start(sess->active_buffer,
+                              IVAL(param) & DIRECTION_WITH_SELECT);
 }
 
 static Status cm_bp_to_buffer_end(const CommandArgs *cmd_args)
@@ -361,7 +388,8 @@ static Status cm_bp_to_buffer_end(const CommandArgs *cmd_args)
     assert(cmd_args->arg_num == 1);
     Session *sess = cmd_args->sess;
     Value param = cmd_args->args[0];
-    return bf_to_buffer_end(sess->active_buffer, IVAL(param) & DIRECTION_WITH_SELECT);
+    return bf_to_buffer_end(sess->active_buffer,
+                            IVAL(param) & DIRECTION_WITH_SELECT);
 }
 
 static Status cm_bp_change_page(const CommandArgs *cmd_args)
@@ -401,7 +429,9 @@ static Status cm_buffer_backspace(const CommandArgs *cmd_args)
             return STATUS_SUCCESS;
         }
 
-        Status status = bf_change_char(sess->active_buffer, &sess->active_buffer->pos, DIRECTION_LEFT, 1);
+        Status status = bf_change_char(sess->active_buffer,
+                                       &sess->active_buffer->pos,
+                                       DIRECTION_LEFT, 1);
         RETURN_IF_FAIL(status);
     }
 
@@ -524,6 +554,7 @@ static Status cm_buffer_indent(const CommandArgs *cmd_args)
     Buffer *buffer = sess->active_buffer;
     Range range;
 
+    /* Only indent if selected text spans more than one line */
     if (bf_get_range(buffer, &range) &&
         range.end.line_no != range.start.line_no) {
         return bf_indent(buffer, IVAL(param));
@@ -552,9 +583,11 @@ static Status cm_buffer_save_file(const CommandArgs *cmd_args)
         file_path = pr_get_prompt_content(sess->prompt);
 
         if (file_path == NULL) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+            return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                "Unable to process input");
         } else if (*file_path == '\0') {
-            status = st_get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", file_path);
+            status = st_get_error(ERR_INVALID_FILE_PATH,
+                                  "Invalid file path \"%s\"", file_path);
             free(file_path);
             return status;
         } 
@@ -586,6 +619,7 @@ static Status cm_buffer_save_file(const CommandArgs *cmd_args)
     }
 
     if (!file_path_exists || !file_exists_on_disk) {
+        /* Now that file exists on disk, initalise FileInfo for it */
         FileInfo tmp = buffer->file_info;
         status = fi_init(&buffer->file_info, file_path);
         fi_free(&tmp);
@@ -600,13 +634,15 @@ static Status cm_buffer_save_file(const CommandArgs *cmd_args)
     }
 
     char msg[MAX_MSG_SIZE];
-    snprintf(msg, MAX_MSG_SIZE, "Save successful: %zu lines, %zu bytes written", bf_lines(buffer), bf_length(buffer));
+    snprintf(msg, MAX_MSG_SIZE, "Save successful: %zu lines, %zu bytes written",
+                                bf_lines(buffer), bf_length(buffer));
     se_add_msg(sess, msg);
 
     return status;
 }
 
-static void cm_generate_find_prompt(const BufferSearch *search, char prompt_text[MAX_CMD_PROMPT_LENGTH])
+static void cm_generate_find_prompt(const BufferSearch *search,
+                                    char prompt_text[MAX_CMD_PROMPT_LENGTH])
 {
     const char *type = "";
 
@@ -626,7 +662,8 @@ static void cm_generate_find_prompt(const BufferSearch *search, char prompt_text
         case_sensitive = " (case sensitive)";
     }
 
-    snprintf(prompt_text, MAX_CMD_PROMPT_LENGTH, "Find%s%s%s:", type, direction, case_sensitive);
+    snprintf(prompt_text, MAX_CMD_PROMPT_LENGTH, "Find%s%s%s:", type,
+             direction, case_sensitive);
 }
 
 static Status cm_prerpare_search(Session *sess, const BufferPos *start_pos)
@@ -645,7 +682,8 @@ static Status cm_prerpare_search(Session *sess, const BufferPos *start_pos)
     char *pattern = pr_get_prompt_content(sess->prompt);
 
     if (pattern == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to process input");
     } else if (*pattern == '\0') {
         free(pattern);
         return STATUS_SUCCESS;
@@ -689,6 +727,7 @@ static Status cm_buffer_find_next(const CommandArgs *cmd_args)
     int find_prev = IVAL(param);
 
     if (find_prev) {
+        /* Flip the search direction */
         buffer->search.opt.forward ^= 1;
     }
 
@@ -699,21 +738,26 @@ static Status cm_buffer_find_next(const CommandArgs *cmd_args)
     if (STATUS_IS_SUCCESS(status)) {
         if (found_match) {
             if ((buffer->search.opt.forward && 
-                 bp_compare(&buffer->search.last_match_pos, &buffer->pos) == -1) ||
+                 bp_compare(&buffer->search.last_match_pos,
+                            &buffer->pos) == -1) ||
                 (!buffer->search.opt.forward &&
-                 bp_compare(&buffer->search.last_match_pos, &buffer->pos) == 1)) {
+                 bp_compare(&buffer->search.last_match_pos,
+                            &buffer->pos) == 1)) {
+                /* Search wrapped past the start or end of the buffer */
                 se_add_msg(sess, "Search wrapped");
             }
 
             status = bf_set_bp(buffer, &buffer->search.last_match_pos);
         } else {
             char msg[MAX_MSG_SIZE];
-            snprintf(msg, MAX_MSG_SIZE, "Unable to find pattern: \"%s\"", buffer->search.opt.pattern);
+            snprintf(msg, MAX_MSG_SIZE, "Unable to find pattern: \"%s\"",
+                     buffer->search.opt.pattern);
             se_add_msg(sess, msg);
         }
     }
 
     if (find_prev) {
+        /* Set the direction back again */
         buffer->search.opt.forward ^= 1;
     }
 
@@ -779,9 +823,11 @@ static Status cm_buffer_toggle_search_case(const CommandArgs *cmd_args)
     return pr_set_prompt_text(sess->prompt, prompt_text);
 }
 
-static Status cm_prepare_replace(Session *sess, char **rep_text_ptr, size_t *rep_length)
+static Status cm_prepare_replace(Session *sess, char **rep_text_ptr,
+                                 size_t *rep_length)
 {
-    cm_cmd_input_prompt(sess, PT_REPLACE, "Replace With:", sess->replace_history, 1);
+    cm_cmd_input_prompt(sess, PT_REPLACE, "Replace With:",
+                        sess->replace_history, 1);
 
     if (pr_prompt_cancelled(sess->prompt)) {
         return STATUS_SUCCESS;
@@ -790,7 +836,8 @@ static Status cm_prepare_replace(Session *sess, char **rep_text_ptr, size_t *rep
     char *rep_text = pr_get_prompt_content(sess->prompt);
 
     if (rep_text == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to process input");
     } 
 
     *rep_length = strlen(rep_text);
@@ -864,14 +911,19 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
             }
 
             if (response != QR_ALL) {
+                /* Select match */
                 buffer->select_start = buffer->pos;
-                bp_advance_to_offset(&buffer->select_start, buffer->pos.offset + bs_match_length(search));
+                bp_advance_to_offset(&buffer->select_start,
+                                     buffer->pos.offset + 
+                                     bs_match_length(search));
                 update_display(sess);
 
-                response = cm_question_prompt(sess, PT_REPLACE, "Replace (Yes|no|all):", 
+                response = cm_question_prompt(sess, PT_REPLACE,
+                                              "Replace (Yes|no|all):",
                                               QR_YES | QR_NO | QR_ALL, QR_YES);
 
                 if (response == QR_ALL) {
+                    /* All replacements can be undone and redone in one go */
                     status = bc_start_grouped_changes(&buffer->changes);
 
                     if (!STATUS_IS_SUCCESS(status)) {
@@ -881,7 +933,8 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
             }
 
             if (response == QR_ERROR) {
-                status = st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+                status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                      "Unable to process input");
                 break;
             } else if (response == QR_CANCEL) {
                 break;
@@ -893,6 +946,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
             if (search->opt.forward) {
                 if (search->last_match_pos.offset < search->start_pos.offset &&
                     buffer->pos.offset >= search->start_pos.offset) {
+                    /* No text in buffer left to search */
                     break;
                 }
             } else {
@@ -918,7 +972,8 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
     char msg[MAX_MSG_SIZE];
 
     if (match_num == 0) {
-        snprintf(msg, MAX_MSG_SIZE, "Unable to find pattern \"%s\"", search->opt.pattern);
+        snprintf(msg, MAX_MSG_SIZE, "Unable to find pattern \"%s\"",
+                 search->opt.pattern);
     } else if (replace_num == 0) {
         snprintf(msg, MAX_MSG_SIZE, "No occurrences replaced");
     } else {
@@ -994,15 +1049,20 @@ static Status cm_session_open_file(const CommandArgs *cmd_args)
     char *input = pr_get_prompt_content(sess->prompt);
 
     if (input == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to process input");
     } else if (*input == '\0') {
-        status = st_get_error(ERR_INVALID_FILE_PATH, "Invalid file path \"%s\"", input);
+        status = st_get_error(ERR_INVALID_FILE_PATH,
+                              "Invalid file path \"%s\"", input);
     } else {
         status = se_get_buffer_index_by_path(sess, input, &buffer_index);
 
+        /* Can't find existing buffer with this path so add new buffer */
         if (STATUS_IS_SUCCESS(status) && buffer_index == -1) {
             status = se_add_new_buffer(sess, input); 
 
+            /* TODO Need a nicer way to get the index
+             * of a buffer thats just been added */
             if (STATUS_IS_SUCCESS(status)) {
                 buffer_index = sess->buffer_num - 1;
             }
@@ -1040,7 +1100,8 @@ static Status cm_session_change_tab(const CommandArgs *cmd_args)
     size_t new_active_buffer_index;
 
     if (IVAL(param) == DIRECTION_RIGHT) {
-        new_active_buffer_index = (sess->active_buffer_index + 1) % sess->buffer_num;
+        new_active_buffer_index =
+            (sess->active_buffer_index + 1) % sess->buffer_num;
     } else {
         if (sess->active_buffer_index == 0) {
             new_active_buffer_index = sess->buffer_num - 1; 
@@ -1067,6 +1128,7 @@ static Status cm_session_save_all(const CommandArgs *cmd_args)
     Buffer *buffer = sess->buffers;
     size_t buffer_save_num = 0;
     size_t buffer_index = 0;
+    /* We don't want a separate message for each buffer that was saved */
     int re_enable_msgs = se_disable_msgs(sess);
 
     while (buffer != NULL) {
@@ -1088,6 +1150,7 @@ static Status cm_session_save_all(const CommandArgs *cmd_args)
     
     se_set_active_buffer(sess, start_buffer_index);
     
+    /* Only need to re-enable if enabled in the first place */
     if (re_enable_msgs) {
         se_enable_msgs(sess);
     }
@@ -1118,13 +1181,15 @@ static Status cm_session_close_buffer(const CommandArgs *cmd_args)
         char prompt_text[50];
         char *fmt = "Save changes to %.*s (Y/n)?";
         snprintf(prompt_text, sizeof(prompt_text), fmt, 
-                 sizeof(prompt_text) - strlen(fmt) + 3, buffer->file_info.file_name);
+                 sizeof(prompt_text) - strlen(fmt) + 3,
+                 buffer->file_info.file_name);
 
-        QuestionRespose response = cm_question_prompt(sess, PT_SAVE_FILE, prompt_text,
+        QuestionRespose response = cm_question_prompt(sess, PT_SAVE_FILE,
+                                                      prompt_text,
                                                       QR_YES | QR_NO, QR_YES);
 
         if (response == QR_ERROR) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
+            return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                                 "Unable to process input");
         } else if (response == QR_CANCEL) {
             return STATUS_SUCCESS;
@@ -1139,6 +1204,7 @@ static Status cm_session_close_buffer(const CommandArgs *cmd_args)
 
     se_remove_buffer(sess, buffer);
 
+    /* We always want at least one buffer to exist unless we're exiting wed */
     if (sess->buffer_num == 0 && !allow_no_buffers) {
         return cm_session_add_empty_buffer(&close_args); 
     }
@@ -1160,7 +1226,8 @@ static Status cm_session_run_command(const CommandArgs *cmd_args)
     Status status = STATUS_SUCCESS;
 
     if (input == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - Unable to process input");
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to process input");
     } else if (*input != '\0') {
         status = se_add_cmd_to_history(sess, input);
 
@@ -1212,7 +1279,7 @@ static Status cm_session_change_buffer(const CommandArgs *cmd_args)
     Status status = STATUS_SUCCESS;
 
     if (input == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to process input");
     } else if (*input != '\0') {
         status = se_add_buffer_to_history(sess, input);
@@ -1223,6 +1290,7 @@ static Status cm_session_change_buffer(const CommandArgs *cmd_args)
         }
 
         const Buffer *buffer;
+        /* Try and match user input to buffer */
         status = cm_determine_buffer(sess, input, &buffer);
 
         if (!STATUS_IS_SUCCESS(status)) {
@@ -1261,16 +1329,25 @@ static Status cm_determine_buffer(Session *sess, const char *input,
     re_free_instance(&regex);
     RETURN_IF_FAIL(status);
 
+    /* First group is entire match.
+     * Second group is the one we specified in the above regex.
+     * If PCRE captured two groups then our regex matched.
+     * See man pcreapi for more details */
     int is_numeric = (regex_result.return_code == 2);
 
     if (is_numeric) {
+        /* User has entered a buffer id */
         char *group_str;
-        RETURN_IF_FAIL(re_get_group(&regex_result, input, input_len, 1, &group_str));
+        RETURN_IF_FAIL(re_get_group(&regex_result, input, input_len,
+                                    1, &group_str));
         errno = 0;
         size_t buffer_index = strtoull(input, NULL, 10);
         free(group_str);
 
-        if (errno == 0 && 
+        if (errno == 0 &&
+            /* Buffer indexes displayed to users start from 1
+             * so we need to subtract 1 from the value
+             * they entered */
             buffer_index-- > 0 &&
             se_is_valid_buffer_index(sess, buffer_index)) {
             *buffer_ptr = se_get_buffer(sess, buffer_index);
@@ -1281,6 +1358,10 @@ static Status cm_determine_buffer(Session *sess, const char *input,
     RETURN_IF_FAIL(pc_run_prompt_completer(sess, prompt, 0));
     size_t suggestion_num = list_size(prompt->suggestions);
 
+    /* User input is added to prompt->suggestions
+     * (so that it can be cycled back to) such that 
+     * if suggestions were found suggestion_num
+     * should be at least 2 */
     if (suggestion_num < 2) {
         return st_get_error(ERR_NO_BUFFERS_MATCH,
                             "No buffers match \"%s\"",
@@ -1333,8 +1414,10 @@ static Status cm_session_end(const CommandArgs *cmd_args)
     return STATUS_SUCCESS;
 }
 
-static QuestionRespose cm_question_prompt(Session *sess, PromptType prompt_type, const char *question, 
-                                          QuestionRespose allowed_answers, QuestionRespose default_answer)
+static QuestionRespose cm_question_prompt(Session *sess, PromptType prompt_type,
+                                          const char *question,
+                                          QuestionRespose allowed_answers,
+                                          QuestionRespose default_answer)
 {
     QuestionRespose response = QR_NONE;
 
@@ -1351,11 +1434,14 @@ static QuestionRespose cm_question_prompt(Session *sess, PromptType prompt_type,
             return QR_ERROR;
         } else if ((allowed_answers & default_answer) && *input == '\0') {
             response = default_answer;
-        } else if ((allowed_answers & QR_YES) && (*input == 'y' || *input == 'Y')) {
+        } else if ((allowed_answers & QR_YES) &&
+                   (*input == 'y' || *input == 'Y')) {
             response = QR_YES;
-        } else if ((allowed_answers & QR_NO) && (*input == 'n' || *input == 'N')) {
+        } else if ((allowed_answers & QR_NO) &&
+                   (*input == 'n' || *input == 'N')) {
             response = QR_NO;
-        } else if ((allowed_answers & QR_ALL) && (*input == 'a' || *input == 'A')) {
+        } else if ((allowed_answers & QR_ALL) &&
+                   (*input == 'a' || *input == 'A')) {
             response = QR_ALL;
         }
 
@@ -1386,7 +1472,11 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
     se_exclude_command_type(sess, CMDT_CMD_INPUT);
 
     update_display(sess);
+    /* We now start processing input for the prompt.
+     * Execution blocks here until the prompt ends */
     ip_process_input(sess);
+    /* The prompt has ended. We now can access the 
+     * text (if any) the user entered into the prompt */
 
     se_enable_command_type(sess, CMDT_CMD_INPUT);
     se_end_prompt(sess);

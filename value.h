@@ -21,6 +21,7 @@
 
 #include "status.h"
 
+/* Value types supported by the Value struct */
 typedef enum {
     VAL_TYPE_BOOL,
     VAL_TYPE_INT,
@@ -29,14 +30,16 @@ typedef enum {
     VAL_TYPE_REGEX
 } ValueType;
 
+/* Regex in string form */
 typedef struct {
-    char *regex_pattern;
-    int modifiers;
+    char *regex_pattern; /* Regex pattern */
+    int modifiers; /* PCRE modifiers */
 } Regex;
 
-/* Used to pass multiple types to a command through a single instance variable */
+/* Value struct to abstract dealing with different types */
 typedef struct {
-    ValueType type;
+    ValueType type; /* The type of value stored */
+    /* The actual value is stored in the val union */
     union {
         long ival;
         double fval;
@@ -45,11 +48,17 @@ typedef struct {
     } val;
 } Value;
 
-#define BOOL_VAL_STRUCT(bvalue)       { .type = VAL_TYPE_BOOL , .val = { .ival = (bvalue) } }
-#define INT_VAL_STRUCT(ivalue)        { .type = VAL_TYPE_INT  , .val = { .ival = (ivalue) } }
-#define STR_VAL_STRUCT(svalue)        { .type = VAL_TYPE_STR  , .val = { .sval = (svalue) } }
-#define REGEX_VAL_STRUCT(rvalue,rmod) { .type = VAL_TYPE_REGEX, \
-                                        .val = { .rval = { .regex_pattern = (rvalue), .modifiers = (rmod) } } }
+/* Helper macros to create and access value instances */
+
+#define BOOL_VAL_STRUCT(bvalue) \
+        { .type = VAL_TYPE_BOOL , .val = { .ival = (bvalue) } }
+#define INT_VAL_STRUCT(ivalue) \
+        { .type = VAL_TYPE_INT  , .val = { .ival = (ivalue) } }
+#define STR_VAL_STRUCT(svalue) \
+        { .type = VAL_TYPE_STR  , .val = { .sval = (svalue) } }
+#define REGEX_VAL_STRUCT(rvalue,rmod) \
+{ .type = VAL_TYPE_REGEX, \
+  .val = { .rval = { .regex_pattern = (rvalue), .modifiers = (rmod) } } }
 
 #define BOOL_VAL(bvalue)       (Value) BOOL_VAL_STRUCT(bvalue)
 #define INT_VAL(ivalue)        (Value) INT_VAL_STRUCT(ivalue)
@@ -61,11 +70,12 @@ typedef struct {
 #define SVAL(value) (value).val.sval
 #define RVAL(value) (value).val.rval
 
-#define STR_BASED_VAL(value) ((value).type == VAL_TYPE_STR || (value).type == VAL_TYPE_REGEX)
+#define STR_BASED_VAL(value) \
+    ((value).type == VAL_TYPE_STR || (value).type == VAL_TYPE_REGEX)
 
 const char *va_get_value_type(Value);
 const char *va_value_type_string(ValueType);
-Status va_deep_copy_value(Value, Value *);
+Status va_deep_copy_value(Value value, Value *new_val);
 char *va_to_string(Value);
 const char *va_str_val(Value);
 void va_free_value(Value);

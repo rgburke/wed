@@ -19,6 +19,7 @@
 #ifndef WED_SHARED_H
 #define WED_SHARED_H
 
+/* Categorisation of commands */
 typedef enum {
     CMDT_BUFFER_MOVE = 1,
     CMDT_BUFFER_MOD  = 1 << 1,
@@ -29,6 +30,7 @@ typedef enum {
     CMDT_SUSPEND     = 1 << 6
 } CommandType;
 
+/* The main windows the screen is split into in wed */
 typedef enum {
     WIN_MENU,
     WIN_TEXT,
