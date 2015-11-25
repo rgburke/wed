@@ -76,6 +76,8 @@ static Status cm_buffer_vert_move_lines(const CommandArgs *);
 static Status cm_buffer_duplicate_selection(const CommandArgs *);
 static Status cm_buffer_indent(const CommandArgs *);
 static Status cm_buffer_save_file(const CommandArgs *);
+static Status cm_buffer_save_as(const CommandArgs *);
+static Status cm_save_file_prompt(Session *, char **file_path_ptr);
 static void cm_generate_find_prompt(const BufferSearch *,
                                     char prompt_text[MAX_CMD_PROMPT_LENGTH]);
 static Status cm_prerpare_search(Session *, const BufferPos *start_pos);
@@ -143,6 +145,7 @@ static const CommandDefinition cm_commands[] = {
     [CMD_BUFFER_VERT_MOVE_LINES]         = { cm_buffer_vert_move_lines        , CMDT_BUFFER_MOD  },
     [CMD_BUFFER_DUPLICATE_SELECTION]     = { cm_buffer_duplicate_selection    , CMDT_BUFFER_MOD  },
     [CMD_BUFFER_SAVE_FILE]               = { cm_buffer_save_file              , CMDT_CMD_INPUT   },
+    [CMD_BUFFER_SAVE_AS]                 = { cm_buffer_save_as                , CMDT_CMD_INPUT   },
     [CMD_BUFFER_FIND]                    = { cm_buffer_find                   , CMDT_CMD_INPUT   },
     [CMD_BUFFER_FIND_NEXT]               = { cm_buffer_find_next              , CMDT_CMD_INPUT   },
     [CMD_BUFFER_TOGGLE_SEARCH_TYPE]      = { cm_buffer_toggle_search_type     , CMDT_CMD_MOD     },
@@ -215,6 +218,7 @@ static const Operation cm_operations[] = {
     { "<C-S-Down>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_DOWN)                          }, 1, CMD_BUFFER_VERT_MOVE_LINES         },
     { "<C-d>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_DUPLICATE_SELECTION     },
     { "<C-s>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_SAVE_FILE               },
+    { "<M-C-s>"      , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_SAVE_AS                 },
     { "<C-f>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_FIND                    },
     { "<F3>"         , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_FIND_NEXT               },
     { "<F15>"        , OM_STANDARD        , { INT_VAL_STRUCT(1)                                       }, 1, CMD_BUFFER_FIND_NEXT               },
@@ -574,34 +578,11 @@ static Status cm_buffer_save_file(const CommandArgs *cmd_args)
     char *file_path;
 
     if (!file_path_exists) {
-        cm_cmd_input_prompt(sess, PT_SAVE_FILE, "Save As:", NULL, 0);
+        RETURN_IF_FAIL(cm_save_file_prompt(sess, &file_path));
 
         if (pr_prompt_cancelled(sess->prompt)) {
             return STATUS_SUCCESS;
         }
-
-        file_path = pr_get_prompt_content(sess->prompt);
-
-        if (file_path == NULL) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                "Unable to process input");
-        } else if (*file_path == '\0') {
-            status = st_get_error(ERR_INVALID_FILE_PATH,
-                                  "Invalid file path \"%s\"", file_path);
-            free(file_path);
-            return status;
-        } 
-
-        char *processed_path = fi_process_path(file_path);
-        free(file_path);
-
-        if (processed_path == NULL) {
-            return st_get_error(ERR_OUT_OF_MEMORY, 
-                                "Out of memory - "
-                                "Unable to process input");
-        }
-
-        file_path = processed_path; 
     } else if (file_exists_on_disk) {
         file_path = buffer->file_info.abs_path;
     } else {
@@ -639,6 +620,66 @@ static Status cm_buffer_save_file(const CommandArgs *cmd_args)
     se_add_msg(sess, msg);
 
     return status;
+}
+
+static Status cm_buffer_save_as(const CommandArgs *cmd_args)
+{
+    Session *sess = cmd_args->sess;
+    Buffer *buffer = sess->active_buffer;
+    char *file_path;
+
+    RETURN_IF_FAIL(cm_save_file_prompt(sess, &file_path));
+
+    if (pr_prompt_cancelled(sess->prompt)) {
+        return STATUS_SUCCESS;
+    }
+
+    FileInfo orig_file_info = buffer->file_info;
+    Status status = fi_init(&buffer->file_info, file_path);
+    free(file_path);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        buffer->file_info = orig_file_info;
+        return status;
+    }
+
+    fi_free(&orig_file_info);
+
+    return cm_buffer_save_file(cmd_args);
+}
+
+static Status cm_save_file_prompt(Session *sess, char **file_path_ptr)
+{
+    cm_cmd_input_prompt(sess, PT_SAVE_FILE, "Save As:", NULL, 0);
+
+    if (pr_prompt_cancelled(sess->prompt)) {
+        return STATUS_SUCCESS;
+    }
+
+    char *file_path = pr_get_prompt_content(sess->prompt);
+
+    if (file_path == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to process input");
+    } else if (*file_path == '\0') {
+        Status status = st_get_error(ERR_INVALID_FILE_PATH,
+                                     "Invalid file path \"%s\"", file_path);
+        free(file_path);
+        return status;
+    } 
+
+    char *processed_path = fi_process_path(file_path);
+    free(file_path);
+
+    if (processed_path == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY,
+                            "Out of memory - "
+                            "Unable to process input");
+    }
+
+    *file_path_ptr = processed_path;
+
+    return STATUS_SUCCESS;
 }
 
 static void cm_generate_find_prompt(const BufferSearch *search,
