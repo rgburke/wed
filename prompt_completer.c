@@ -129,14 +129,9 @@ Status pc_run_prompt_completer(const Session *sess, Prompt *prompt, int reverse)
     Status status = completer(sess, prompt->suggestions, prompt_content,
                               prompt_content_len);
 
-    if (!STATUS_IS_SUCCESS(status)) {
+    if (!STATUS_IS_SUCCESS(status) || pr_suggestion_num(prompt) == 0) {
         free(prompt_content);
         return status;
-    }
-
-    if (pr_suggestion_num(prompt) == 0) {
-        free(prompt_content);
-        return STATUS_SUCCESS;
     }
 
     list_sort(prompt->suggestions, pc_suggestion_comparator);
@@ -146,6 +141,7 @@ Status pc_run_prompt_completer(const Session *sess, Prompt *prompt, int reverse)
      * been displayed */
     PromptSuggestion *inital_input = pc_new_suggestion(prompt_content,
                                                        SR_NO_MATCH, NULL);
+    free(prompt_content);
 
     if (inital_input == NULL ||
         !list_add(prompt->suggestions, inital_input)) {

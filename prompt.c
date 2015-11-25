@@ -55,7 +55,8 @@ void pr_free(Prompt *prompt, int free_prompt_buffer)
         bf_free(prompt->prompt_buffer);
     }
 
-    list_free_all(prompt->suggestions);
+    list_free_all_custom(prompt->suggestions,
+                         (ListEntryFree)pc_free_suggestion);
     free(prompt->prompt_text);
     free(prompt);
 }
