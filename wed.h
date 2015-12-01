@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Richard Burke
+ * Copyright (C) 2015 Richard Burke
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,20 +16,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_INPUT_H
-#define WED_INPUT_H
-
-#include "lib/libtermkey/termkey.h"
-
-struct Session;
+#ifndef WED_WED_H
+#define WED_WED_H
 
 typedef struct {
-    TermKey *termkey;
-} InputHandler;
-
-int ip_init(InputHandler *);
-void ip_free(InputHandler *);
-void ip_edit(struct Session *);
-void ip_process_input(struct Session *);
+    int test_mode;
+} WedOpt;
 
 #endif

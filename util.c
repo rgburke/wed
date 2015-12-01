@@ -21,9 +21,15 @@
 #include <string.h>
 #include "util.h"
 
+void warn(const char *error_msg)
+{
+    fprintf(stderr, "%s\n", error_msg);
+}
+
 void fatal(const char *error_msg)
 {
-    fprintf(stderr, "FATAL: %s\n", error_msg);
+    warn(error_msg);
+    warn("Fatal error encountered");
     exit(1);
 }
 

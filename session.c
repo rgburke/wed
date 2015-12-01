@@ -43,8 +43,13 @@ Session *se_new(void)
     return sess;
 }
 
-int se_init(Session *sess, char *buffer_paths[], int buffer_num)
+int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
+            int buffer_num)
 {
+    if (!ip_init(&sess->input_handler)) {
+        return 0;
+    }
+
     if ((sess->error_buffer = bf_new_empty("errors", sess->config)) == NULL) {
         return 0;
     }
@@ -139,6 +144,8 @@ int se_init(Session *sess, char *buffer_paths[], int buffer_num)
     cf_set_var(CE_VAL(sess, prompt_buffer), CL_BUFFER, CV_LINEWRAP, INT_VAL(0));
     se_enable_msgs(sess);
 
+    sess->wed_opt = *wed_opt;
+
     sess->initialised = 1;
 
     return 1;
@@ -159,6 +166,7 @@ void se_free(Session *sess)
         buffer = tmp;
     }
 
+    ip_free(&sess->input_handler);
     cm_clear_keymap_entries(sess->keymap);
     cm_clear_keymap_entries(sess->keymap_overrides);
     free_hashmap(sess->keymap);

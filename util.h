@@ -28,6 +28,7 @@
 
 #define ARRAY_SIZE(arr,type) (sizeof(arr) / sizeof(type))
 
+void warn(const char *error_msg);
 void fatal(const char *error_msg);
 int roundup_div(size_t dividend, size_t divisor);
 char *concat(const char *str1, const char *str2);

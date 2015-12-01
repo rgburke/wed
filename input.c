@@ -30,7 +30,6 @@
 #include "command.h"
 #include "status.h"
 #include "util.h"
-#include "lib/libtermkey/termkey.h"
 
 /* Limit the rate at which the screen is updated. At least
  * MIN_DRAW_INTERVAL_NS nano seconds must pass between
@@ -42,10 +41,7 @@ static void ip_handle_keypress(Session *, TermKeyKey *key, char *keystr,
                                int *redraw_due);
 static void ip_handle_error(Session *);
 
-/* TODO Move termkey and sigsets into data structure */
-static TermKey *termkey = NULL;
 static int volatile window_resize_required = 0;
-static sigset_t sig_set, old_set;
 
 static void sigwinch_handler(int signal)
 {
@@ -53,34 +49,43 @@ static void sigwinch_handler(int signal)
     window_resize_required = 1;
 }
 
-void ip_edit(Session *sess)
+int ip_init(InputHandler *input_handler)
 {
+    memset(input_handler, 0, sizeof(InputHandler));
     /* Create new termkey instance monitoring stdin with
      * the SIGINT behaviour of Ctrl-C disabled */
-    termkey = termkey_new(STDIN_FILENO,
-                          TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
+    input_handler->termkey = termkey_new(STDIN_FILENO,
+                                TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
 
-    if (termkey == NULL) {
-        fatal("Unable to initialise termkey instance");
+    if (input_handler->termkey == NULL) {
+        warn("Unable to initialise termkey instance");
+        return 0;
     }
 
     /* Represent ASCII DEL character as backspace */
-    termkey_set_canonflags(termkey, TERMKEY_CANON_DELBS);
+    termkey_set_canonflags(input_handler->termkey, TERMKEY_CANON_DELBS);
 
+    return 1;
+}
+
+void ip_free(InputHandler *input_handler)
+{
+    termkey_destroy(input_handler->termkey);
+}
+
+void ip_edit(Session *sess)
+{
     struct sigaction sig_action;
     memset(&sig_action, 0, sizeof(sig_action));
     sig_action.sa_handler = sigwinch_handler;
 
     /* Detect window size change */
     if (sigaction(SIGWINCH, &sig_action, NULL) == -1) {
-        termkey_destroy(termkey);
         fatal("Unable to set SIGWINCH signal handler");
     }
 
+    sigset_t sig_set;
     sigemptyset(&sig_set);
-    /* old_set is used in pselect below to control
-     * when SIGWINCH signal fires */
-    sigemptyset(&old_set);
     sigaddset(&sig_set, SIGWINCH);
     /* Block SIGWINCH signal */
     sigprocmask(SIG_BLOCK, &sig_set, NULL);
@@ -96,11 +101,11 @@ void ip_edit(Session *sess)
     ip_process_input(sess);
 
     end_display();
-    termkey_destroy(termkey);
 }
 
 void ip_process_input(Session *sess)
 {
+    TermKey *termkey = sess->input_handler.termkey;
     char keystr[MAX_KEY_STR_SIZE];
     TermKeyResult ret;
     TermKeyKey key;
@@ -110,7 +115,11 @@ void ip_process_input(Session *sess)
     struct timespec last_draw; 
     struct timespec *timeout = NULL;
     struct timespec wait_timeout;
+    static sigset_t old_set;
     memset(&wait_timeout, 0, sizeof(struct timespec));
+    /* old_set is used in pselect to control
+     * when SIGWINCH signal fires */
+    sigemptyset(&old_set);
     /* Use monotonic clock as we're only interested in
      * measuring time intervals that have passed */
     clock_gettime(CLOCK_MONOTONIC, &last_draw);
@@ -184,7 +193,8 @@ static void ip_handle_keypress(Session *sess, TermKeyKey *key, char *keystr,
                                int *redraw_due)
 {
     static struct timespec now;
-    termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE, key, TERMKEY_FORMAT_VIM);
+    termkey_strfkey(sess->input_handler.termkey, keystr,
+                    MAX_KEY_STR_SIZE,key, TERMKEY_FORMAT_VIM);
     /* This is where user input invokes a command */
     se_add_error(sess, cm_do_operation(sess, keystr, finished));
     /* Immediately display any errors that have occurred */
@@ -216,6 +226,6 @@ static void ip_handle_error(Session *sess)
     TermKeyKey key;
     draw_errors(sess);
     /* Wait for user to press any key */
-    termkey_waitkey(termkey, &key);
+    termkey_waitkey(sess->input_handler.termkey, &key);
     se_clear_errors(sess);
 }

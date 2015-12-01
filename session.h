@@ -19,6 +19,7 @@
 #ifndef WED_SESSION_H
 #define WED_SESSION_H
 
+#include "wed.h"
 #include "shared.h"
 #include "buffer.h"
 #include "status.h"
@@ -27,12 +28,13 @@
 #include "syntax.h"
 #include "theme.h"
 #include "prompt.h"
+#include "input.h"
 
 #define MAX_KEY_STR_SIZE 50
 
 /* Top level structure containing all state.
  * A new session is created when wed is invoked. */
-typedef struct {
+struct Session {
     Buffer *buffers; /* Linked list of buffers */
     Buffer *active_buffer; /* The buffer currently being edited */
     Buffer *error_buffer; /* Buffer which stores error messages */
@@ -62,10 +64,14 @@ typedef struct {
     List *cfg_buffer_stack; /* Stack of YY_BUFFER_STATE buffers (used for
                                parsing config files) */
     char prev_key[MAX_KEY_STR_SIZE]; /* Previous keypress */
-} Session;
+    WedOpt wed_opt; /* Command line option values */
+    InputHandler input_handler; /* Use to process key press input */
+};
+
+typedef struct Session Session;
 
 Session *se_new(void);
-int se_init(Session *, char *buffer_paths[], int buffer_num);
+int se_init(Session *, const WedOpt *, char *buffer_paths[], int buffer_num);
 void se_free(Session *);
 int se_add_buffer(Session *, Buffer *);
 int se_is_valid_buffer_index(const Session *, size_t buffer_index);
