@@ -294,12 +294,17 @@ int bp_prev_line(BufferPos *pos)
 {
     size_t offset;
 
-    if (gb_find_prev(pos->data, pos->offset, &offset, '\n') &&
-        offset > 0 && gb_find_prev(pos->data, offset, &offset, '\n')) {
-        pos->offset = offset + 1;
-        pos->line_no--;
-        pos->col_no = 1;
-        return 1;
+    if (gb_find_prev(pos->data, pos->offset, &offset, '\n')) {
+        if (pos->line_no == 2) {
+            bp_to_buffer_start(pos);
+            return 1;
+        } else if (offset > 0 &&
+                   gb_find_prev(pos->data, offset, &offset, '\n')) {
+            pos->offset = offset + 1;
+            pos->line_no--;
+            pos->col_no = 1;
+            return 1;
+        }
     }
 
     return 0;

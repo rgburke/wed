@@ -736,14 +736,19 @@ static Status bf_advance_bp_to_line_offset(Buffer *buffer, BufferPos *pos,
     }
 
     size_t last_col;
+    Status status = STATUS_SUCCESS;
 
-    while (!bp_at_line_end(pos) && current_col_offset < global_col_offset) {
+    while (STATUS_IS_SUCCESS(status) &&
+           !bp_at_line_end(pos) &&
+           current_col_offset < global_col_offset) {
         last_col = pos->col_no;
-        RETURN_IF_FAIL(bf_change_char(buffer, pos, direction, 1));
+        status = bf_change_char(buffer, pos, direction, 1);
         current_col_offset += pos->col_no - last_col;
     }
 
-    return STATUS_SUCCESS;
+    buffer->line_col_offset = global_col_offset;
+
+    return status;
 }
 
 Status bf_change_multi_line(Buffer *buffer, BufferPos *pos, Direction direction,
