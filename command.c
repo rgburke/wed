@@ -907,12 +907,9 @@ static Status cm_prepare_replace(Session *sess, char **rep_text_ptr,
 
 static Status cm_buffer_replace(const CommandArgs *cmd_args)
 {
-    assert(cmd_args->arg_num == 1);
     Session *sess = cmd_args->sess;
-    Value param = cmd_args->args[0];
-
     Buffer *buffer = sess->active_buffer;
-    RETURN_IF_FAIL(cm_prerpare_search(sess, &buffer->pos));
+    RETURN_IF_FAIL(cm_prerpare_search(sess, NULL));
 
     if (pr_prompt_cancelled(sess->prompt)) {
         return STATUS_SUCCESS;
@@ -927,15 +924,10 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
         return status;
     }
     
-    int find_prev = IVAL(param);
-
-    if (find_prev) {
-        buffer->search.opt.forward ^= 1;
-    }
-
     int found_match;
     QuestionRespose response = QR_NONE;
     BufferSearch *search = &buffer->search;
+    int direction = search->opt.forward;
     size_t match_num = 0;
     size_t replace_num = 0;
    
@@ -970,6 +962,18 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
                     if (!STATUS_IS_SUCCESS(status)) {
                         break;
                     }
+
+                    BufferPos buffer_start = buffer->pos;
+                    bp_to_buffer_start(&buffer_start);
+                    status = bf_set_bp(buffer, &buffer_start);
+
+                    if (!STATUS_IS_SUCCESS(status)) {
+                        break;
+                    }
+
+                    bs_reset(&buffer->search, &buffer_start);
+                    buffer->search.opt.forward = 1;
+                    continue;
                 }
             }
 
@@ -981,26 +985,23 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
                 break;
             } else if (response == QR_YES || response == QR_ALL) {
                 status = rp_replace_current_match(buffer, rep_text, rep_length);
-                replace_num++;
-            }
 
-            if (search->opt.forward) {
-                if (search->last_match_pos.offset < search->start_pos.offset &&
-                    buffer->pos.offset >= search->start_pos.offset) {
-                    /* No text in buffer left to search */
+                if (!STATUS_IS_SUCCESS(status)) {
                     break;
                 }
-            } else {
-                status = bf_set_bp(buffer, &buffer->search.last_match_pos);
+
+                replace_num++;
+
+                if (search->opt.forward) {
+                    size_t new_offset = buffer->search.last_match_pos.offset;
+                    bp_advance_to_offset(&buffer->pos, new_offset + rep_length);
+                }
             }
         }
     } while (STATUS_IS_SUCCESS(status) && found_match);
 
-    if (find_prev) {
-        buffer->search.opt.forward ^= 1;
-    }
-
     bf_select_reset(buffer);
+    search->opt.forward = direction;
 
     if (bc_grouped_changes_started(&buffer->changes)) {
         bc_end_grouped_changes(&buffer->changes);

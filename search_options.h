@@ -28,4 +28,13 @@ typedef struct {
     int forward; /* True: forwards, False: backwards */
 } SearchOptions;
 
+typedef struct {
+    const BufferPos *search_start_pos; /* Position search started from */
+    const BufferPos *current_start_pos; /* Current position in buffer */
+    int *found_match; /* Set to true if match found */
+    size_t *match_point; /* Set to buffer offset of match */
+    int *wrapped; /* Set to true when search wraps around the start or end of
+                     the buffer */
+} SearchData;
+
 #endif

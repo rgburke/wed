@@ -84,13 +84,9 @@ typedef struct {
 Status rs_init(RegexSearch *, const SearchOptions *);
 void rs_free(RegexSearch *);
 Status rs_reinit(RegexSearch *, const SearchOptions *);
-Status rs_find_next(RegexSearch *, const SearchOptions *,
-                    const BufferPos *search_start_pos,
-                    const BufferPos *current_start_pos,
-                    int *found_match, size_t *match_point);
-Status rs_find_prev(RegexSearch *, const SearchOptions *,
-                    const BufferPos *search_start_pos,
-                    const BufferPos *current_start_pos,
-                    int *found_match, size_t *match_point);
+Status rs_find_next(RegexSearch *search, const SearchOptions *opt,
+                    SearchData *);
+Status rs_find_prev(RegexSearch *search, const SearchOptions *opt,
+                    SearchData *);
 
 #endif

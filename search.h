@@ -39,6 +39,10 @@ struct BufferSearch {
     BufferPos last_match_pos; /* Last match position. line_no = 0 if no match */
     BufferSearchType search_type; /* Current search type */
     BufferSearchType last_search_type; /* Last search type */
+    /* The two fields below are only used when start_pos is specified
+     * i.e. During find a replace when the search has an explicit end */
+    int wrapped; /* Has search wrapped */
+    int finished; /* Has entire buffer been searched */
     /* Searches are either text or regex based. The structures in the 
      * union below contain the search type specific data */
     union {
@@ -53,6 +57,7 @@ Status bs_init(BufferSearch *, const BufferPos *start_pos,
                const char *pattern, size_t pattern_len);
 Status bs_reinit(BufferSearch *, const BufferPos *start_pos,
                  const char *pattern, size_t pattern_len);
+void bs_reset(BufferSearch *, const BufferPos *start_pos);
 Status bs_init_default_opt(BufferSearch *);
 void bs_free(BufferSearch *);
 Status bs_find_next(BufferSearch *, const BufferPos *start_pos,

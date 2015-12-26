@@ -88,67 +88,62 @@ Status rs_reinit(RegexSearch *search, const SearchOptions *opt)
 }
 
 Status rs_find_next(RegexSearch *search, const SearchOptions *opt,
-                    const BufferPos *search_start_pos,
-                    const BufferPos *current_start_pos,
-                    int *found_match, size_t *match_point)
+                    SearchData *data)
 {
-    BufferPos pos = *current_start_pos;
-    /* search_start_pos is only set when a find & replace is performed so
-     * that an end is defined for the search. For a normal find operation
-     * search_start_pos is not set so that the next match in the whole buffer
-     * will be found if possible */
-    int wrapped = search_start_pos != NULL &&
-                  bp_compare(search_start_pos, current_start_pos) == 1;
+    BufferPos pos = *data->current_start_pos;
     size_t buffer_len = gb_length(pos.data);
+    size_t regex_buffer = data->search_start_pos == NULL
+                          ? REGEX_BUFFER_SIZE : 0;
     size_t limit;
     (void)opt;
 
     gb_contiguous_storage((GapBuffer *)pos.data);
 
-    if (wrapped) {
+    if (*data->wrapped) {
         /* Search has wrapped so set the limit to the search starting
          * position (plus buffer) or the remaining length of the buffer */
-        limit = MIN(search_start_pos->offset + REGEX_BUFFER_SIZE, buffer_len);
+        limit = MIN(data->search_start_pos->offset + regex_buffer,
+                    buffer_len);
     } else {
         limit = buffer_len;
     }
 
     RETURN_IF_FAIL(rs_find_next_str(pos.data->text, pos.offset, limit, 
-                                    match_point, found_match, search));
+                                    data->match_point, data->found_match,
+                                    search));
 
-    if (*found_match || wrapped) {
+    if (*data->found_match || *data->wrapped) {
         return STATUS_SUCCESS;
+    } else if (data->search_start_pos != NULL) {
+        *data->wrapped = 1;
     }
 
     bp_to_buffer_start(&pos);
 
-    if (search_start_pos == NULL) {
-        limit = current_start_pos->offset;
+    if (data->search_start_pos == NULL) {
+        limit = data->current_start_pos->offset;
     } else {
-        limit = search_start_pos->offset;
+        limit = data->search_start_pos->offset;
     }
 
     RETURN_IF_FAIL(rs_find_next_str(pos.data->text, pos.offset,
-                                    MIN(limit + REGEX_BUFFER_SIZE, buffer_len),
-                                    match_point, found_match, search));
+                                    MIN(limit + regex_buffer, buffer_len),
+                                    data->match_point, data->found_match,
+                                    search));
 
     return STATUS_SUCCESS;
 }
 
 Status rs_find_prev(RegexSearch *search, const SearchOptions *opt,
-                    const BufferPos *search_start_pos,
-                    const BufferPos *current_start_pos,
-                    int *found_match, size_t *match_point)
+                    SearchData *data)
 {
-    BufferPos pos = *current_start_pos;
+    BufferPos pos = *data->current_start_pos;
     size_t buffer_len = gb_length(pos.data);
-    int wrapped = search_start_pos != NULL &&
-                  bp_compare(search_start_pos, current_start_pos) == -1;
     size_t limit;
     (void)opt;
 
-    if (wrapped) {
-        limit = search_start_pos->offset;
+    if (*data->wrapped) {
+        limit = data->search_start_pos->offset;
     } else {
         limit = 0;
     }
@@ -156,28 +151,24 @@ Status rs_find_prev(RegexSearch *search, const SearchOptions *opt,
     gb_contiguous_storage((GapBuffer *)pos.data);
 
     RETURN_IF_FAIL(rs_find_prev_str(pos.data->text, buffer_len, pos.offset, 
-                                    limit, match_point, found_match, search));
+                                    limit, data->match_point,
+                                    data->found_match, search));
 
-    if (*found_match || wrapped) {
-        if (*found_match && wrapped && 
-            *match_point < search_start_pos->offset) {
-            /* To search backwards using regex we have to go back by chunks
-             * and search forwards. This can mean that a match is found before
-             * the limit, so in this case we unset the false match */
-            *found_match = 0;
-        }
-
+    if (*data->found_match || *data->wrapped) {
         return STATUS_SUCCESS;
+    } else if (data->search_start_pos != NULL) {
+        *data->wrapped = 1;
     }
 
-    if (search_start_pos == NULL) {
-        limit = current_start_pos->offset;
+    if (data->search_start_pos == NULL) {
+        limit = data->current_start_pos->offset;
     } else {
-        limit = search_start_pos->offset;
+        limit = data->search_start_pos->offset;
     }
 
     RETURN_IF_FAIL(rs_find_prev_str(pos.data->text, buffer_len, buffer_len, 
-                                    limit, match_point, found_match, search));
+                                    limit, data->match_point,
+                                    data->found_match, search));
 
     return STATUS_SUCCESS;
 }

@@ -47,12 +47,8 @@ Status ts_init(TextSearch *, const SearchOptions *);
 Status ts_reinit(TextSearch *, const SearchOptions *);
 void ts_free(TextSearch *);
 Status ts_find_next(TextSearch *, const SearchOptions *,
-                    const BufferPos *search_start_pos,
-                    const BufferPos *current_start_pos,
-                    int *found_match, size_t *match_point);
-Status ts_find_prev(TextSearch *, const SearchOptions *, 
-                    const BufferPos *search_start_pos,
-                    const BufferPos *current_start_pos,
-                    int *found_match, size_t *match_point);
+                    SearchData *);
+Status ts_find_prev(TextSearch *, const SearchOptions *,
+                    SearchData *);
 
 #endif

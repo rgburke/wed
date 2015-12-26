@@ -52,11 +52,7 @@ Status bs_init(BufferSearch *search, const BufferPos *start_pos,
 
     search->last_search_type = search->search_type;
 
-    if (start_pos != NULL) {
-        search->start_pos = *start_pos;
-    } else {
-        search->start_pos.line_no = 0;
-    }
+    bs_reset(search, start_pos);
 
     return status;
 }
@@ -66,6 +62,19 @@ Status bs_reinit(BufferSearch *search, const BufferPos *start_pos,
 {
     bs_free(search);
     return bs_init(search, start_pos, pattern, pattern_len);
+}
+
+void bs_reset(BufferSearch *search, const BufferPos *start_pos)
+{
+    search->wrapped = 0;
+    search->finished = 0;
+    search->last_match_pos.line_no = 0;
+
+    if (start_pos != NULL) {
+        search->start_pos = *start_pos;
+    } else {
+        search->start_pos.line_no = 0;
+    }
 }
 
 Status bs_init_default_opt(BufferSearch *search)
@@ -95,16 +104,22 @@ void bs_free(BufferSearch *search)
     search->opt.pattern_len = 0;
 }
 
-Status bs_find_next(BufferSearch *search, const BufferPos *start_pos,
+Status bs_find_next(BufferSearch *search, const BufferPos *current_pos,
                     int *found_match)
 {
     assert(search != NULL);
-    assert(start_pos != NULL);
+    assert(current_pos != NULL);
     assert(found_match != NULL);
 
     *found_match = 0;
 
-    BufferPos pos = *start_pos;
+    if (search->finished) {
+        return STATUS_SUCCESS;
+    }
+
+    BufferPos pos = *current_pos;
+    size_t match_point;
+    Status status;
 
     if (bp_compare(&pos, &search->last_match_pos) == 0) {
         if (search->opt.forward) {
@@ -114,30 +129,30 @@ Status bs_find_next(BufferSearch *search, const BufferPos *start_pos,
         }
     }
 
-    size_t match_point;
-    Status status;
-    BufferPos *search_start_pos = search->start_pos.line_no > 0 ?
-                                  &search->start_pos : NULL;
+    SearchData data = {
+        .search_start_pos = search->start_pos.line_no > 0
+                            ? &search->start_pos : NULL,
+        .current_start_pos = &pos,
+        .found_match = found_match,
+        .match_point = &match_point,
+        .wrapped = &search->wrapped
+    };
 
     if (search->search_type == BST_TEXT) {
         if (search->opt.forward) {
             status = ts_find_next(&search->type.text, &search->opt,
-                                  search_start_pos, &pos, found_match,
-                                  &match_point);
+                                  &data);  
         } else {
             status = ts_find_prev(&search->type.text, &search->opt,
-                                  search_start_pos, &pos, found_match,
-                                  &match_point);
+                                  &data);  
         }
     } else if (search->search_type == BST_REGEX) {
         if (search->opt.forward) {
             status = rs_find_next(&search->type.regex, &search->opt,
-                                  search_start_pos, &pos, found_match,
-                                  &match_point);
+                                  &data);  
         } else {
             status = rs_find_prev(&search->type.regex, &search->opt,
-                                  search_start_pos, &pos, found_match,
-                                  &match_point);
+                                  &data);  
         }
     }
 
@@ -145,8 +160,8 @@ Status bs_find_next(BufferSearch *search, const BufferPos *start_pos,
 
     if (*found_match) {
         search->last_match_pos = bp_init_from_offset(match_point, &pos);
-    } else {
-        search->last_match_pos.line_no = 0;
+    } else if (search->start_pos.line_no > 0) {
+        search->finished = 1;
     }
 
     return STATUS_SUCCESS;
