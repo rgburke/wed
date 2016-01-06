@@ -22,7 +22,7 @@
 #include <pcre.h>
 #include "status.h"
 #include "buffer_pos.h"
-#include "search_options.h"
+#include "search_util.h"
 
 /* Recommend reading: man pcreapi */
 
@@ -45,27 +45,28 @@
 /* The max number of backreferences that can appear in replace text */
 #define MAX_BACK_REF_OCCURRENCES 100
 
+/* Structure to store each backreference occurence in replace text */
+typedef struct {
+    size_t back_ref_num; /* Backreference number */
+    size_t rep_text_index; /* Starting index in replace string */
+    size_t rep_text_length; /* Backreference length in replace string */
+
+    /* e.g. If the user did a regex find and replace and entered \4 as
+     * the replace text then a BackReference struct would look like:
+     * { 4, 0, 2 }
+     *
+     * 1\{2}3 on the other hand would be:
+     * { 2, 1, 4 } */
+} BackReference;
+
 /* This structure contains backreference data processed from replace text 
  * entered by the user */
 typedef struct {
-    /* Each backreference that occurs in replace text has an entry
-     * in the back_refs array below. Each entry has the following 3 properties
-     * stored in an array:
-     *
-     * 0: backreference number
-     * 1: starting index in replace string
-     * 2: backreference length
-     *
-     * e.g. If the user did a regex find and replace and entered \4 as
-     * the replace text then an entry in back_refs would look like:
-     *
-     * 0: 4
-     * 1: 0
-     * 2: 2 
-     *
-     * This information is stored to allow the backreference to be replaced
-     * with the actual matched text once the search has been performed. */
-    size_t back_refs[MAX_BACK_REF_OCCURRENCES][3];
+    /* Each backreference that occurs in the replace text has an entry
+     * in the back_refs array. This information is stored to allow the 
+     * backreference to be replaced with the actual matched text once
+     * a regex search has been performed. */
+    BackReference back_refs[MAX_BACK_REF_OCCURRENCES];
 
     /* The number of backreference entries in the back_refs array */
     size_t back_ref_occurrences;

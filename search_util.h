@@ -19,6 +19,9 @@
 #ifndef WED_SEARCH_OPTIONS_H
 #define WED_SEARCH_OPTIONS_H
 
+#include <stddef.h>
+#include "buffer_pos.h"
+
 /* Base search options common to text and regex search. These
  * values can be set and toggled by the user */
 typedef struct {
@@ -28,6 +31,8 @@ typedef struct {
     int forward; /* True: forwards, False: backwards */
 } SearchOptions;
 
+/* Convenience struct containing various variables used when performing
+ * a search */
 typedef struct {
     const BufferPos *search_start_pos; /* Position search started from */
     const BufferPos *current_start_pos; /* Current position in buffer */
@@ -37,4 +42,27 @@ typedef struct {
                      the buffer */
 } SearchData;
 
+typedef enum {
+    ES_NONE,
+    ES_NEW_LINE,
+    ES_TAB,
+    ES_HEX_NUMBER,
+    ES_BACKSLASH
+} EscapeSequence;
+
+/* Each escape sequence has some basic data stored in the struct below
+ * which allows them to be handled in a generic way */
+typedef struct {
+    size_t escape_sequence_length; /* Length of escape sequence text
+                                      representation */
+    size_t byte_representation_length; /* Length of byte representation */
+} EscapeSequenceInfo;
+
+EscapeSequence su_determine_escape_sequence(const char *str, size_t str_len);
+EscapeSequenceInfo su_get_escape_sequence_info(EscapeSequence,
+                                               int win_line_endings);
+char *su_process_string(const char *str, size_t str_len,
+                        int win_line_endings, size_t *new_str_len_ptr);
+
 #endif
+

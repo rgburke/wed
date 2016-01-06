@@ -1264,7 +1264,8 @@ Status bf_replace_string(Buffer *buffer, size_t replace_length,
 
     if (STATUS_IS_SUCCESS(status)) {
         buffer->is_dirty = 1;
-        status = bf_insert_string(buffer, string, string_length, 1);
+        status = bf_insert_string(buffer, string, string_length,
+                                  advance_cursor);
     }
 
     if (!grouped_changes_started) {
@@ -1273,10 +1274,6 @@ Status bf_replace_string(Buffer *buffer, size_t replace_length,
 
     if (!STATUS_IS_SUCCESS(status)) {
         return status;
-    }
-
-    if (advance_cursor) {
-        bp_advance_to_offset(&buffer->pos, gb_get_point(buffer->data));
     }
 
     return status;

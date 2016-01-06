@@ -19,7 +19,7 @@ STATIC_SOURCES=wed.c display.c buffer.c util.c input.c session.c    \
 	encoding.c config_parse_util.c gap_buffer.c buffer_pos.c    \
 	text_search.c regex_search.c search.c replace.c undo.c      \
 	file_type.c regex_util.c syntax.c theme.c prompt.c          \
-	prompt_completer.c
+	prompt_completer.c search_util.c
 GENERATED_SOURCES=config_parse.c config_scan.c
 SOURCES=$(STATIC_SOURCES) $(GENERATED_SOURCES)
 

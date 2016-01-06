@@ -21,7 +21,7 @@
 
 #include "shared.h"
 #include "buffer_pos.h"
-#include "search_options.h"
+#include "search_util.h"
 #include "status.h"
 
 /* TODO Currently the text search functionality is only guaranteed to work for

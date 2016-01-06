@@ -80,7 +80,7 @@ static Status cm_buffer_save_as(const CommandArgs *);
 static Status cm_save_file_prompt(Session *, char **file_path_ptr);
 static void cm_generate_find_prompt(const BufferSearch *,
                                     char prompt_text[MAX_CMD_PROMPT_LENGTH]);
-static Status cm_prerpare_search(Session *, const BufferPos *start_pos);
+static Status cm_prepare_search(Session *, const BufferPos *start_pos);
 static Status cm_buffer_find(const CommandArgs *);
 static Status cm_buffer_find_next(const CommandArgs *);
 static Status cm_buffer_toggle_search_direction(const CommandArgs *);
@@ -707,7 +707,7 @@ static void cm_generate_find_prompt(const BufferSearch *search,
              direction, case_sensitive);
 }
 
-static Status cm_prerpare_search(Session *sess, const BufferPos *start_pos)
+static Status cm_prepare_search(Session *sess, const BufferPos *start_pos)
 {
     Buffer *buffer = sess->active_buffer;
 
@@ -737,14 +737,36 @@ static Status cm_prerpare_search(Session *sess, const BufferPos *start_pos)
         return status;
     }
 
-    return bs_reinit(&buffer->search, start_pos, pattern, strlen(pattern));
+    size_t pattern_len = strlen(pattern);
+
+    if (buffer->search.search_type == BST_TEXT) {
+        char *processed_pattern = su_process_string(
+                                      pattern, pattern_len,
+                                      buffer->file_format == FF_WINDOWS,
+                                      &pattern_len);
+
+        if (processed_pattern == NULL) {
+            return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                "Unable to process input");
+        } else {
+            pattern = processed_pattern;
+        }
+    }
+
+    status = bs_reinit(&buffer->search, start_pos, pattern, pattern_len);
+
+    if (buffer->search.search_type == BST_TEXT) {
+        free(pattern);
+    }
+
+    return status;
 }
 
 static Status cm_buffer_find(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
 
-    RETURN_IF_FAIL(cm_prerpare_search(sess, NULL));
+    RETURN_IF_FAIL(cm_prepare_search(sess, NULL));
 
     if (pr_prompt_cancelled(sess->prompt)) {
         return STATUS_SUCCESS;
@@ -791,8 +813,15 @@ static Status cm_buffer_find_next(const CommandArgs *cmd_args)
             status = bf_set_bp(buffer, &buffer->search.last_match_pos);
         } else {
             char msg[MAX_MSG_SIZE];
+            const char *pattern = buffer->search.opt.pattern;
+
+            if (list_size(sess->search_history) > 0) {
+                pattern = list_get(sess->search_history,
+                                   list_size(sess->search_history) - 1);
+            }
+
             snprintf(msg, MAX_MSG_SIZE, "Unable to find pattern: \"%s\"",
-                     buffer->search.opt.pattern);
+                     pattern);
             se_add_msg(sess, msg);
         }
     }
@@ -884,12 +913,7 @@ static Status cm_prepare_replace(Session *sess, char **rep_text_ptr,
     *rep_length = strlen(rep_text);
 
     Buffer *buffer = sess->active_buffer;
-    Status status = rp_replace_init(&buffer->search, rep_text, *rep_length);
-
-    if (!STATUS_IS_SUCCESS(status)) {
-        free(rep_text);    
-        return status;
-    }
+    Status status = STATUS_SUCCESS;
 
     if (*rep_text != '\0') {
         status = se_add_replace_to_history(sess, rep_text);
@@ -898,6 +922,18 @@ static Status cm_prepare_replace(Session *sess, char **rep_text_ptr,
             free(rep_text);    
             return status;
         }
+    }
+
+    RETURN_IF_FAIL(rp_replace_init(&buffer->search, rep_text, *rep_length,
+                                   buffer->file_format == FF_WINDOWS));
+
+    rep_text = su_process_string(rep_text, *rep_length,
+                                 buffer->file_format == FF_WINDOWS,
+                                 rep_length);
+
+    if (rep_text == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to process input");
     }
 
     *rep_text_ptr = rep_text;
@@ -909,7 +945,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
     Buffer *buffer = sess->active_buffer;
-    RETURN_IF_FAIL(cm_prerpare_search(sess, NULL));
+    RETURN_IF_FAIL(cm_prepare_search(sess, NULL));
 
     if (pr_prompt_cancelled(sess->prompt)) {
         return STATUS_SUCCESS;
@@ -984,7 +1020,9 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
             } else if (response == QR_CANCEL) {
                 break;
             } else if (response == QR_YES || response == QR_ALL) {
-                status = rp_replace_current_match(buffer, rep_text, rep_length);
+                size_t actual_rep_length;
+                status = rp_replace_current_match(buffer, rep_text, rep_length,
+                                                  &actual_rep_length);
 
                 if (!STATUS_IS_SUCCESS(status)) {
                     break;
@@ -994,7 +1032,8 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
 
                 if (search->opt.forward) {
                     size_t new_offset = buffer->search.last_match_pos.offset;
-                    bp_advance_to_offset(&buffer->pos, new_offset + rep_length);
+                    bp_advance_to_offset(&buffer->pos,
+                                         new_offset + actual_rep_length);
                 }
             }
         }
@@ -1007,6 +1046,8 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
         bc_end_grouped_changes(&buffer->changes);
     }
 
+    free(rep_text);
+
     if (!STATUS_IS_SUCCESS(status)) {
         return status;
     }
@@ -1014,8 +1055,15 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
     char msg[MAX_MSG_SIZE];
 
     if (match_num == 0) {
+        const char *pattern = search->opt.pattern;
+
+        if (list_size(sess->search_history) > 0) {
+            pattern = list_get(sess->search_history,
+                               list_size(sess->search_history) - 1);
+        }
+
         snprintf(msg, MAX_MSG_SIZE, "Unable to find pattern \"%s\"",
-                 search->opt.pattern);
+                 pattern);
     } else if (replace_num == 0) {
         snprintf(msg, MAX_MSG_SIZE, "No occurrences replaced");
     } else {

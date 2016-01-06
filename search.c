@@ -17,6 +17,7 @@
  */
 
 #include <string.h>
+#include <ctype.h>
 #include <assert.h>
 #include "search.h"
 #include "util.h"
@@ -183,4 +184,3 @@ size_t bs_match_length(const BufferSearch *search)
 
     return 0; 
 }
-

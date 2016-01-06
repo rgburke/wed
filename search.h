@@ -24,7 +24,7 @@
 #include "buffer_pos.h"
 #include "text_search.h"
 #include "regex_search.h"
-#include "search_options.h"
+#include "search_util.h"
 
 typedef enum {
     BST_TEXT,
