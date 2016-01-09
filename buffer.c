@@ -48,6 +48,12 @@ static Status bf_change_screen_line(Buffer *, BufferPos *,
 static Status bf_advance_bp_to_line_offset(Buffer *, BufferPos *,
                                            int is_select);
 static void bf_update_line_col_offset(Buffer *, const BufferPos *);
+static void bf_update_mark(BufferPos *mark_pos,
+                           const BufferPos *change_pos,
+                           TextChangeType,
+                           size_t change_length,
+                           size_t change_lines,
+                           int no_change_on_pos);
 static Status bf_insert_expanded_tab(Buffer *, int advance_cursor);
 static Status bf_auto_indent(Buffer *, int advance_cursor);
 static Status bf_convert_fileformat(TextSelection *in_ts, TextSelection *out_ts, 
@@ -1080,6 +1086,48 @@ Status bf_change_page(Buffer *buffer, Direction direction)
     return STATUS_SUCCESS;
 }
 
+static void bf_update_mark(BufferPos *mark_pos,
+                           const BufferPos *change_pos,
+                           TextChangeType change_type,
+                           size_t change_length,
+                           size_t change_lines,
+                           int no_change_on_pos)
+{
+    if (mark_pos->line_no == 0 || change_length == 0 ||
+        mark_pos->offset < change_pos->offset ||
+        (no_change_on_pos && mark_pos->offset == change_pos->offset)) {
+        return;
+    }
+
+    if (change_type == TCT_INSERT) {
+        mark_pos->offset += change_length;
+
+        if (mark_pos->line_no == change_pos->line_no) {
+            bp_recalc_col(mark_pos);
+        }
+
+        mark_pos->line_no += change_lines;
+    } else if (change_type == TCT_DELETE) {
+        if (mark_pos->offset < change_pos->offset + change_length) {
+            *mark_pos = *change_pos;
+        } else {
+            assert(mark_pos->offset >= change_length);
+            mark_pos->offset -= change_length;
+
+            if (mark_pos->line_no <= change_pos->line_no + change_lines) {
+                bp_recalc_col(mark_pos);
+            }
+
+            mark_pos->line_no -= change_lines;
+        }
+    } else {
+        assert(!"Invalid TextChangeType");
+    }
+
+    assert(mark_pos->offset <= gb_length(mark_pos->data));
+    assert(mark_pos->line_no <= gb_lines(mark_pos->data) + 1);
+}
+
 static Status bf_insert_expanded_tab(Buffer *buffer, int advance_cursor)
 {
     static char spaces[CFG_TABWIDTH_MAX + 1];
@@ -1200,11 +1248,7 @@ Status bf_insert_string(Buffer *buffer, const char *string,
     BufferPos *pos = &buffer->pos;
     BufferPos start_pos = *pos;
     gb_set_point(buffer->data, pos->offset);
-    size_t lines_before;
-
-    if (advance_cursor) {
-        lines_before = gb_lines(pos->data);
-    }
+    size_t lines_before = gb_lines(pos->data);
 
     if (!gb_insert(buffer->data, string, string_length)) {
         status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
@@ -1212,7 +1256,11 @@ Status bf_insert_string(Buffer *buffer, const char *string,
         goto cleanup;
     }
 
+    size_t lines_after = gb_lines(buffer->data);
     buffer->is_dirty = 1;
+
+    bf_update_mark(&buffer->screen_start, &buffer->pos, TCT_INSERT,
+                   string_length, lines_after - lines_before, 1);
 
     status = bc_add_text_insert(&buffer->changes, string_length, &start_pos);
 
@@ -1223,7 +1271,6 @@ Status bf_insert_string(Buffer *buffer, const char *string,
     if (advance_cursor) {
         /* TODO Somewhat arbitrary length chosen here */
         if (string_length > 100) {
-            size_t lines_after = gb_lines(buffer->data);
             pos->line_no += lines_after - lines_before;
             pos->offset += string_length;
             bp_recalc_col(pos);
@@ -1304,6 +1351,7 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
 
     gb_get_range(buffer->data, pos->offset, deleted_str, byte_num);
 
+    size_t lines_before = gb_lines(pos->data);
     gb_set_point(buffer->data, pos->offset);
 
     if (!gb_delete(buffer->data, byte_num)) {
@@ -1311,7 +1359,11 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
                             "Unable to delete character");
     }
 
+    size_t lines_after = gb_lines(buffer->data);
     buffer->is_dirty = 1;
+
+    bf_update_mark(&buffer->screen_start, &buffer->pos, TCT_DELETE,
+                   byte_num, lines_before - lines_after, 1);
 
     Status status = bc_add_text_delete(&buffer->changes, deleted_str,
                                        byte_num, pos); 

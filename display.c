@@ -889,6 +889,7 @@ static void vertical_scroll(Buffer *buffer)
     WindowInfo win_info = buffer->win_info;
     BufferPos pos = buffer->pos;
     BufferPos *screen_start = &buffer->screen_start;
+    bp_to_line_start(screen_start);
 
     if (pos.line_no < screen_start->line_no) {
         /* If pos is now before the start of the buffer content we're
