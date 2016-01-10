@@ -33,14 +33,22 @@
 #include "build_config.h"
 
 static void we_init_wedopt(WedOpt *);
+static void we_free_wedopt(WedOpt *);
 static void we_print_usage(void);
 static void we_print_version(void);
 static int we_parse_args(WedOpt *wed_opt, int argc, char *argv[],
                          int *file_args_index);
+static void we_init_test_mode(Session *);
 
 static void we_init_wedopt(WedOpt *wed_opt)
 {
     memset(wed_opt, 0, sizeof(WedOpt));
+}
+
+static void we_free_wedopt(WedOpt *wed_opt)
+{
+    free(wed_opt->keystr_input);
+    free(wed_opt->config_file_path);
 }
 
 static void we_print_usage(void)
@@ -53,8 +61,12 @@ Usage:\n\
 wed [OPTIONS] [FILE]...\n\
 \n\
 OPTIONS:\n\
--h, --help          Print this message.\n\
--v, --version       Print version information.\n\
+-h, --help                 Print this message.\n\
+-v, --version              Print version information.\n\
+-c, --config-file WEDRC    Load the WEDRC config file after all other\n\
+                           config files have been processed.\n\
+-k, --key-string KEYSTR    Process KEYSTR string representation of key\n\
+                           presses after initialisation.\n\
 \n\
 ";
 
@@ -75,24 +87,31 @@ static int we_parse_args(WedOpt *wed_opt, int argc, char *argv[],
                          int *file_args_index)
 {
     struct option wed_options[] = {
-        { "help"      , no_argument, 0, 'h' },
-        { "version"   , no_argument, 0, 'v' },
-        { "test-mode" , no_argument, 0,  0  },
+        { "config-file", required_argument, 0, 'c' },
+        { "help"       , no_argument      , 0, 'h' },
+        { "key-string" , required_argument, 0, 'k' },
+        { "version"    , no_argument      , 0, 'v' },
+        /* Used only for running tests by run_text_tests.sh
+         * so don't mention in help text above */
+        { "test-mode"  , no_argument      , 0,  0  },
         { 0, 0, 0, 0 }
     };
 
-    int long_idx;
     int c;
     /* Disable getopt printing an error message when encountering
      * an unrecognised option character, as we print our own
      * error message */
     opterr = 0;
 
-    while ((c = getopt_long(argc, argv, "hv", wed_options, &long_idx)) != -1) {
+
+    while ((c = getopt_long(argc, argv, ":hvc:k:", wed_options, NULL)) != -1) {
         switch (c) {
-            case 0:
+            case 'c':
                 {
-                    wed_opt->test_mode = 1;
+                    if ((wed_opt->config_file_path = strdup(optarg)) == NULL) {
+                        fatal("Out Of Memory - Unable to parse options");
+                    }
+
                     break;
                 }
             case 'h': 
@@ -100,14 +119,53 @@ static int we_parse_args(WedOpt *wed_opt, int argc, char *argv[],
                     we_print_usage();
                     exit(0);
                 }
+            case 'k':
+                {
+                    if ((wed_opt->keystr_input = strdup(optarg)) == NULL) {
+                        fatal("Out Of Memory - Unable to parse options");
+                    }
+
+                    break;
+                }
             case 'v':
                 {
                     we_print_version();
                     exit(0);
                 }
+            case 0:
+                {
+                    wed_opt->test_mode = 1;
+                    break;
+                }
+            case ':':
+                {
+                    switch (optopt) {
+                        case 'c':
+                            {
+                                fprintf(stderr, "Option -c, --config-file "
+                                        "requires a WEDRC filepath argument\n");
+                                break;
+
+                            }
+                        case 'k':
+                            {
+                                fprintf(stderr, "Option -k, --key-string "
+                                        "requires a KEYSTR argument\n");
+                                break;
+                            }
+                        default:
+                            {
+                                fprintf(stderr, "Unknown option: %c\n",
+                                        optopt);
+                                break;
+                            }
+                    }
+
+                    return 0;
+                }
             case '?': 
                 {
-                    fprintf(stderr, "Invalid option %s\n", argv[optind - 1]);
+                    fprintf(stderr, "Invalid option: %s\n", argv[optind - 1]);
                     return 0;  
                 }
             default: 
@@ -127,6 +185,18 @@ static int we_parse_args(WedOpt *wed_opt, int argc, char *argv[],
     return 1;
 }
 
+static void we_init_test_mode(Session *sess)
+{
+    assert(sess->wed_opt.test_mode);
+    
+    if (sess->input_handler.input_type != IT_KEYSTR) {
+        fatal("A key string argument must be passed in test mode");
+    }
+
+    init_display_test();
+    init_all_window_info(sess);
+}
+
 int main(int argc, char *argv[])
 {
     int file_args_index;
@@ -144,7 +214,7 @@ int main(int argc, char *argv[])
     Session *sess = se_new();
 
     if (sess == NULL) {
-        fatal("Out of memory - Unable to create Session");
+        fatal("Out Of Memory - Unable to create Session");
     }
 
     /* Removed processed options */
@@ -155,9 +225,19 @@ int main(int argc, char *argv[])
         fatal("Unable to initialise session");
     }
 
-    ip_edit(sess);
+    int return_code = 0;
+
+    if (wed_opt.test_mode) {
+        we_init_test_mode(sess);
+        ip_process_keystr_input(sess);
+        return_code = se_has_errors(sess);    
+    } else {
+        ip_edit(sess);
+    }
 
     se_free(sess);
+
+    we_free_wedopt(&wed_opt);
     
-    return 0;
+    return return_code;
 }

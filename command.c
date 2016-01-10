@@ -154,8 +154,8 @@ static const CommandDefinition cm_commands[] = {
     [CMD_BUFFER_REPLACE]                 = { cm_buffer_replace                , CMDT_CMD_INPUT   },
     [CMD_PREVIOUS_PROMPT_ENTRY]          = { cm_previous_prompt_entry         , CMDT_CMD_MOD     },
     [CMD_NEXT_PROMPT_ENTRY]              = { cm_next_prompt_entry             , CMDT_CMD_MOD     },
-    [CMD_PROMPT_INPUT_FINISHED]          = { cm_prompt_input_finished         , CMDT_SESS_MOD    },
-    [CMD_CANCEL_PROMPT]                  = { cm_cancel_prompt                 , CMDT_SESS_MOD    },
+    [CMD_PROMPT_INPUT_FINISHED]          = { cm_prompt_input_finished         , CMDT_CMD_MOD     },
+    [CMD_CANCEL_PROMPT]                  = { cm_cancel_prompt                 , CMDT_CMD_MOD     },
     [CMD_RUN_PROMPT_COMPLETION]          = { cm_run_prompt_completion         , CMDT_CMD_MOD     },
     [CMD_BUFFER_GOTO_LINE]               = { cm_buffer_goto_line              , CMDT_CMD_INPUT   },
     [CMD_SESSION_OPEN_FILE]              = { cm_session_open_file             , CMDT_CMD_INPUT   },
@@ -927,11 +927,17 @@ static Status cm_prepare_replace(Session *sess, char **rep_text_ptr,
     RETURN_IF_FAIL(rp_replace_init(&buffer->search, rep_text, *rep_length,
                                    buffer->file_format == FF_WINDOWS));
 
-    rep_text = su_process_string(rep_text, *rep_length,
-                                 buffer->file_format == FF_WINDOWS,
-                                 rep_length);
+    if (*rep_text != '\0') {
+        rep_text = su_process_string(rep_text, *rep_length,
+                                     buffer->file_format == FF_WINDOWS,
+                                     rep_length);
+    }
 
     if (rep_text == NULL) {
+        if (*rep_text == '\0') {
+            free(rep_text);
+        }
+
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to process input");
     }
@@ -959,14 +965,15 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
     if (pr_prompt_cancelled(sess->prompt) || !STATUS_IS_SUCCESS(status)) {
         return status;
     }
-    
+
     int found_match;
     QuestionRespose response = QR_NONE;
     BufferSearch *search = &buffer->search;
     int direction = search->opt.forward;
     size_t match_num = 0;
     size_t replace_num = 0;
-   
+    search->advance_from_last_match = (rep_length > 0);
+
     do {
         found_match = 0;
         status = bs_find_next(search, &buffer->pos, &found_match);
@@ -1008,6 +1015,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
                     }
 
                     bs_reset(&buffer->search, &buffer_start);
+                    search->advance_from_last_match = (rep_length > 0);
                     buffer->search.opt.forward = 1;
                     continue;
                 }
@@ -1020,21 +1028,13 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
             } else if (response == QR_CANCEL) {
                 break;
             } else if (response == QR_YES || response == QR_ALL) {
-                size_t actual_rep_length;
-                status = rp_replace_current_match(buffer, rep_text, rep_length,
-                                                  &actual_rep_length);
+                status = rp_replace_current_match(buffer, rep_text, rep_length);
 
                 if (!STATUS_IS_SUCCESS(status)) {
                     break;
                 }
 
                 replace_num++;
-
-                if (search->opt.forward) {
-                    size_t new_offset = buffer->search.last_match_pos.offset;
-                    bp_advance_to_offset(&buffer->pos,
-                                         new_offset + actual_rep_length);
-                }
             }
         }
     } while (STATUS_IS_SUCCESS(status) && found_match);
@@ -1559,7 +1559,8 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
     RETURN_IF_FAIL(se_make_prompt_active(sess, prompt_type, prompt_text, 
                                          history, show_last_cmd));
 
-    se_exclude_command_type(sess, CMDT_CMD_INPUT);
+    CommandType disabled_cmd_types = CMDT_CMD_INPUT | CMDT_SESS_MOD;
+    se_exclude_command_type(sess, disabled_cmd_types);
 
     update_display(sess);
     /* We now start processing input for the prompt.
@@ -1568,7 +1569,7 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
     /* The prompt has ended. We now can access the 
      * text (if any) the user entered into the prompt */
 
-    se_enable_command_type(sess, CMDT_CMD_INPUT);
+    se_enable_command_type(sess, disabled_cmd_types);
     se_end_prompt(sess);
     cm_clear_keymap_entries(sess->keymap_overrides);
 

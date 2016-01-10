@@ -4,7 +4,7 @@
 /* Use small gap to force gap expansion and test reallocing code */
 #define GAP_INCREMENT 4
 
-#include "../gap_buffer.h"
+#include "../../gap_buffer.h"
 
 static void gap_buffer_creation(GapBuffer *);
 static void gap_buffer_insert(GapBuffer *, const char *, size_t);

@@ -27,14 +27,17 @@ Status bs_init(BufferSearch *search, const BufferPos *start_pos,
 {
     assert(search != NULL);
     assert(pattern_len > 0);
-    assert(!is_null_or_empty(pattern));
+    assert(pattern != NULL);
 
-    search->opt.pattern = strdup(pattern);
+    search->opt.pattern = malloc(pattern_len + 1);
 
     if (search->opt.pattern == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to copy pattern");
     }
+
+    memcpy(search->opt.pattern, pattern, pattern_len);
+    search->opt.pattern[pattern_len] = '\0';
 
     search->opt.pattern_len = pattern_len;
 
@@ -67,6 +70,7 @@ Status bs_reinit(BufferSearch *search, const BufferPos *start_pos,
 
 void bs_reset(BufferSearch *search, const BufferPos *start_pos)
 {
+    search->advance_from_last_match = 1;
     search->wrapped = 0;
     search->finished = 0;
     search->last_match_pos.line_no = 0;
@@ -122,7 +126,8 @@ Status bs_find_next(BufferSearch *search, const BufferPos *current_pos,
     size_t match_point;
     Status status;
 
-    if (bp_compare(&pos, &search->last_match_pos) == 0) {
+    if (search->advance_from_last_match == 1 &&
+        bp_compare(&pos, &search->last_match_pos) == 0) {
         if (search->opt.forward) {
             bp_next_char(&pos);
         } else {

@@ -94,7 +94,8 @@ typedef enum {
     ERR_NO_BUFFERS_MATCH,
     ERR_MULTIPLE_BUFFERS_MATCH,
     ERR_UNABLE_TO_OPEN_DIRECTORY,
-    ERR_UNABLE_TO_READ_DIRECTORY
+    ERR_UNABLE_TO_READ_DIRECTORY,
+    ERR_INVALID_KEY
 } ErrorCode;
 
 /* Structure used to represent success or failure */

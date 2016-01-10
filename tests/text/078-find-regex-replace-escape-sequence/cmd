@@ -1,0 +1,1 @@
+<C-h><C-r>(\w+)\t(\d)\.\n(\d)\.\t\t(\w+)<Enter>\3\x2E\t\4\n\2\x2E\t\1<Enter>y<Enter>

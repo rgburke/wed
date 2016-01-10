@@ -69,7 +69,8 @@ static const char *st_default_error_messages[] = {
     [ERR_NO_BUFFERS_MATCH]                    = "No buffers match",
     [ERR_MULTIPLE_BUFFERS_MATCH]              = "Multiple buffers match",
     [ERR_UNABLE_TO_OPEN_DIRECTORY]            = "Unable to open directory",
-    [ERR_UNABLE_TO_READ_DIRECTORY]            = "Unable to read directory"
+    [ERR_UNABLE_TO_READ_DIRECTORY]            = "Unable to read directory",
+    [ERR_INVALID_KEY]                         = "Invalid key"
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

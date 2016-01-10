@@ -1,0 +1,1 @@
+<C-h><C-r>^This\sis\stest-(\w)-(\d)\.$<Enter>\2. \1 test<Enter>a<Enter>

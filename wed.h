@@ -21,6 +21,8 @@
 
 typedef struct {
     int test_mode;
+    char *keystr_input;
+    char *config_file_path;
 } WedOpt;
 
 #endif

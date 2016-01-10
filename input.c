@@ -40,6 +40,7 @@ static void ip_handle_keypress(Session *, TermKeyKey *key, char *keystr,
                                int *finished, struct timespec *last_draw,
                                int *redraw_due);
 static void ip_handle_error(Session *);
+static int ip_is_special_key(const TermKeyKey *);
 
 static int volatile window_resize_required = 0;
 
@@ -63,7 +64,10 @@ int ip_init(InputHandler *input_handler)
     }
 
     /* Represent ASCII DEL character as backspace */
-    termkey_set_canonflags(input_handler->termkey, TERMKEY_CANON_DELBS);
+    termkey_set_canonflags(input_handler->termkey,
+                           TERMKEY_CANON_DELBS | TERMKEY_CANON_SPACESYMBOL);
+
+    input_handler->input_type = IT_FD;
 
     return 1;
 }
@@ -71,6 +75,20 @@ int ip_init(InputHandler *input_handler)
 void ip_free(InputHandler *input_handler)
 {
     termkey_destroy(input_handler->termkey);
+}
+
+void ip_set_keystr_input(InputHandler *input_handler, const char *keystr)
+{
+    assert(!is_null_or_empty(keystr));
+
+    input_handler->keystr_input = keystr;
+    input_handler->iter = keystr;
+    input_handler->input_type = IT_KEYSTR;
+}
+
+void ip_set_fd_input(InputHandler *input_handler)
+{
+    input_handler->input_type = IT_FD;
 }
 
 void ip_edit(Session *sess)
@@ -92,6 +110,12 @@ void ip_edit(Session *sess)
 
     init_display(se_get_active_theme(sess));
     init_all_window_info(sess);
+
+    if (sess->input_handler.input_type == IT_KEYSTR) {
+        ip_process_keystr_input(sess);
+        ip_set_fd_input(&sess->input_handler);
+    }
+
     /* If there were errors parsing config
      * or initialising the session then display
      * them first */
@@ -105,6 +129,11 @@ void ip_edit(Session *sess)
 
 void ip_process_input(Session *sess)
 {
+    if (sess->input_handler.input_type == IT_KEYSTR) {
+        ip_process_keystr_input(sess);
+        return;
+    }
+
     TermKey *termkey = sess->input_handler.termkey;
     char keystr[MAX_KEY_STR_SIZE];
     TermKeyResult ret;
@@ -228,4 +257,70 @@ static void ip_handle_error(Session *sess)
     /* Wait for user to press any key */
     termkey_waitkey(sess->input_handler.termkey, &key);
     se_clear_errors(sess);
+}
+
+void ip_process_keystr_input(Session *sess)
+{
+    InputHandler *input_handler = &sess->input_handler;
+    TermKey *termkey = input_handler->termkey;
+
+    assert(input_handler->keystr_input != NULL);
+    assert(input_handler->iter != NULL);
+
+    char keystr[MAX_KEY_STR_SIZE];
+    int finished = 0;
+    TermKeyKey key;
+    Status status;
+    const char *next;
+
+    while (*input_handler->iter && !finished) {
+        if (*input_handler->iter == '<' &&
+            (next = termkey_strpkey(termkey, input_handler->iter + 1,
+                                    &key, TERMKEY_FORMAT_VIM)
+            ) != NULL && ip_is_special_key(&key) && *next == '>') {
+            /* Key has string representation of the form <...> */
+            termkey_strfkey(input_handler->termkey, keystr, MAX_KEY_STR_SIZE,
+                            &key, TERMKEY_FORMAT_VIM);
+            input_handler->iter = next + 1;
+        } else if ((next = termkey_strpkey(termkey, input_handler->iter,
+                                           &key, TERMKEY_FORMAT_VIM)
+                   ) != NULL) {
+            /* Normal Unicode key */
+            termkey_strfkey(input_handler->termkey, keystr, MAX_KEY_STR_SIZE,
+                            &key, TERMKEY_FORMAT_VIM);
+            input_handler->iter = next;
+        } else {
+            se_add_error(sess, st_get_error(ERR_INVALID_KEY,
+                                            "Invalid key specified in key "
+                                            "string starting from %s",
+                                            input_handler->iter)); 
+            return;
+        }
+
+        status = cm_do_operation(sess, keystr, &finished);
+
+        if (!STATUS_IS_SUCCESS(status)) {
+            se_add_error(sess, status);
+
+            if (sess->wed_opt.test_mode) {
+                return;
+            }
+        }
+
+        se_save_key(sess, keystr);
+    }
+}
+
+/* Does key have string representation of the form <...>.
+ * This function is used when parsing a key string
+ * to distinguish between keys and strings.
+ * e.g. <Tab> and <C-v> are keys whereas <b> is a string */
+static int ip_is_special_key(const TermKeyKey *key)
+{
+    if (key->type == TERMKEY_TYPE_FUNCTION ||
+        key->type == TERMKEY_TYPE_KEYSYM) {
+        return 1;
+    }
+    
+    return key->modifiers & (TERMKEY_KEYMOD_CTRL | TERMKEY_KEYMOD_ALT);
 }

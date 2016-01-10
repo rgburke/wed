@@ -95,6 +95,12 @@ void init_display(const Theme *theme)
     refresh();
 }
 
+void init_display_test(void)
+{
+    text_win_x = 80;
+    text_win_y = 24;
+}
+
 void resize_display(Session *sess)
 {
     struct winsize win_size;
@@ -196,6 +202,10 @@ void init_color_pairs(const Theme *theme)
  * needs to be reflected in the UI. */
 void update_display(Session *sess)
 {
+    if (sess->wed_opt.test_mode) {
+        return;
+    }
+
     Buffer *buffer = sess->active_buffer;
     int line_wrap = cf_bool(buffer->config, CV_LINEWRAP);
     WINDOW *draw_win = windows[buffer->win_info.draw_window];

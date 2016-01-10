@@ -24,6 +24,6 @@
 Status rp_replace_init(BufferSearch *, const char *rep_text,
                        size_t rep_length, int win_line_endings);
 Status rp_replace_current_match(Buffer *, const char *rep_text,
-                                size_t rep_length, size_t *actual_rep_length);
+                                size_t rep_length);
 
 #endif

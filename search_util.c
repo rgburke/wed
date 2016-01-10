@@ -150,34 +150,28 @@ char *su_process_string(const char *str, size_t str_len,
                     }
                 case ES_HEX_NUMBER:
                     {
-                        if (k + 3 < str_len &&
-                            isxdigit(str[k + 2]) &&
-                            isxdigit(str[k + 3])) {
-                            /* Generate byte reprentation of 2 digit
-                             * hexadecimal number */
-                            unsigned char value = 0;
+                        /* Generate byte representation of 2 digit
+                         * hexadecimal number */
+                        unsigned char value = 0;
 
-                            for (size_t i = 0; i < 2; i++) {
-                                int c = toupper(str[k + i + 2]);
+                        for (size_t i = 0; i < 2; i++) {
+                            int c = toupper(str[k + i + 2]);
 
-                                if (c >= 'A') {
-                                    /* Handle digits A-F:
-                                     * 'A' - 55 = 10
-                                     * 'B' - 55 = 11 etc...
-                                     * See man 7 ascii */
-                                    value += (value * 16) + (c - 55);
-                                } else {
-                                    /* Handle digits 0-9 */
-                                    value += (value * 16) + (c - '0');
-                                }
+                            if (c >= 'A') {
+                                /* Handle digits A-F:
+                                 * 'A' - 55 = 10
+                                 * 'B' - 55 = 11 etc...
+                                 * See man 7 ascii */
+                                value = (value * 16) + (c - 55);
+                            } else {
+                                /* Handle digits 0-9 */
+                                value = (value * 16) + (c - '0');
                             }
-
-                            new_str[new_str_index++] = *(char *)&value;
-                            k += 3;
-                            continue;
                         }
 
-                        break;
+                        new_str[new_str_index++] = *(char *)&value;
+                        k += 3;
+                        continue;
                     }
                 case ES_NONE:
                 default:

@@ -1,3 +1,4 @@
+WED_DEV?=0
 PREFIX?=/usr/local
 WEDRUNTIME?=$(PREFIX)/share/wed
 WED_VERSION=$(shell git describe --long --tags --dirty --always)
@@ -27,9 +28,9 @@ OBJECTS=$(SOURCES:.c=.o)
 LIBOBJECTS=$(filter-out wed.o, $(OBJECTS))
 DEPENDENCIES=$(OBJECTS:.o=.d)
 
-TESTSOURCES=$(wildcard t/*.c)
+TESTSOURCES=$(wildcard tests/code/*.c)
 TESTOBJECTS=$(TESTSOURCES:.c=.t)
-TESTS=$(filter-out t/tap.t, $(TESTOBJECTS))
+TESTS=$(filter-out tests/code/tap.t, $(TESTOBJECTS))
 TESTDEPENDENCIES=$(TESTSOURCES:.c=.d)
 
 LIBTERMKEYDIR=lib/libtermkey
@@ -37,9 +38,10 @@ LIBTERMKEYLIB=$(LIBTERMKEYDIR)/libtermkey.a
 LIBWED=wedlib.a
 BINARY=wed
 
-ifeq ($(.DEFAULT_GOAL),)
-ifeq ($(DEBUG),1)
+ifeq ($(MAKECMDGOALS),dev)
+WED_DEV=1
+else ifeq ($(.DEFAULT_GOAL),)
+ifeq ($(WED_DEV),1)
 .DEFAULT_GOAL := dev
 endif
 endif
-

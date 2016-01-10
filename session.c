@@ -46,8 +46,14 @@ Session *se_new(void)
 int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
             int buffer_num)
 {
+    sess->wed_opt = *wed_opt;
+
     if (!ip_init(&sess->input_handler)) {
         return 0;
+    }
+
+    if (wed_opt->keystr_input != NULL) {
+        ip_set_keystr_input(&sess->input_handler, wed_opt->keystr_input);
     }
 
     if ((sess->error_buffer = bf_new_empty("errors", sess->config)) == NULL) {
@@ -128,6 +134,11 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
 
     se_add_error(sess, cf_init_session_config(sess));
 
+    if (sess->wed_opt.config_file_path != NULL) {
+        se_add_error(sess, cf_load_config(sess,
+                                          sess->wed_opt.config_file_path));
+    }
+
     for (int k = 1; k < buffer_num; k++) {
         se_add_error(sess, se_add_new_buffer(sess, buffer_paths[k]));
     }
@@ -143,8 +154,6 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
     /* The prompt currently uses a single line, so don't wrap content */
     cf_set_var(CE_VAL(sess, prompt_buffer), CL_BUFFER, CV_LINEWRAP, INT_VAL(0));
     se_enable_msgs(sess);
-
-    sess->wed_opt = *wed_opt;
 
     sess->initialised = 1;
 

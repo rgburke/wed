@@ -23,13 +23,24 @@
 
 struct Session;
 
+typedef enum {
+    IT_FD,
+    IT_KEYSTR
+} InputType;
+
 typedef struct {
+    InputType input_type;
     TermKey *termkey;
+    const char *keystr_input;
+    const char *iter;
 } InputHandler;
 
 int ip_init(InputHandler *);
 void ip_free(InputHandler *);
+void ip_set_keystr_input(InputHandler *, const char *);
+void ip_set_fd_input(InputHandler *input_handler);
 void ip_edit(struct Session *);
 void ip_process_input(struct Session *);
+void ip_process_keystr_input(struct Session *);
 
 #endif

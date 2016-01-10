@@ -80,14 +80,17 @@ Status ts_init(TextSearch *search, const SearchOptions *opt)
     assert(search != NULL);
     assert(opt != NULL);
     assert(opt->pattern_len > 0);
-    assert(!is_null_or_empty(opt->pattern));
+    assert(opt->pattern != NULL);
 
-    search->pattern = strdup(opt->pattern);
+    search->pattern = malloc(opt->pattern_len + 1);
 
     if (search->pattern == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to copy pattern");
     }
+
+    memcpy(search->pattern, opt->pattern, opt->pattern_len);
+    search->pattern[opt->pattern_len] = '\0';
 
     search->pattern_len = opt->pattern_len;
 
@@ -355,7 +358,7 @@ static int ts_find_next_str_in_range(const char *text, size_t *start_point,
     size_t sub_start_point = point;
     size_t pattern_idx;
 
-    while (point <= limit) {
+    while (point < limit) {
         pattern_idx = search->pattern_len;
         sub_start_point = point;
 

@@ -23,6 +23,7 @@
 #include "buffer.h"
 
 void init_display(const Theme *);
+void init_display_test(void);
 void resize_display(Session *);
 void suspend_display(void);
 void end_display(void);

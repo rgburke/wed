@@ -24,6 +24,7 @@
 #include "buffer.h"
 #include "config.h"
 #include "gap_buffer.h"
+#include "util.h"
 
 static void en_ascii_char_info(CharInfo *, CharInfoProperties,
                                const BufferPos *, const HashMap *config,
@@ -63,15 +64,16 @@ void en_utf8_char_info(CharInfo *char_info, CharInfoProperties cip,
 
     if (cip & CIP_SCREEN_LENGTH) {
         char_info->is_printable = 1;
-        uchar ch[5] = { '\0' };
-        gb_get_range(pos->data, pos->offset, (char *)ch,
-                     char_info->byte_length);
 
         if (!char_info->is_valid) {
             /* wed displays the unicode replacement character in place of
              * an invalid character */
             char_info->screen_length = 1;
         } else {
+            uchar ch[4] = { '\0' };
+            assert(char_info->byte_length <= ARRAY_SIZE(ch, uchar));
+            gb_get_range(pos->data, pos->offset, (char *)ch,
+                         char_info->byte_length);
             uint code_point = en_utf8_code_point(ch, char_info->byte_length);    
             int screen_length = wcwidth(code_point);
 

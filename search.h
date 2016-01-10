@@ -39,6 +39,8 @@ struct BufferSearch {
     BufferPos last_match_pos; /* Last match position. line_no = 0 if no match */
     BufferSearchType search_type; /* Current search type */
     BufferSearchType last_search_type; /* Last search type */
+    int advance_from_last_match; /* If searching from same pos as the previous
+                                    match pos then advance the search pos */
     /* The two fields below are only used when start_pos is specified
      * i.e. During find a replace when the search has an explicit end */
     int wrapped; /* Has search wrapped */

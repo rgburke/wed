@@ -1,0 +1,3 @@
+<C-S-Right><C-S-Right><C-S-Right><S-Right><C-x><End>
+# Cut all text and paste it back again as further validation
+<C-v><C-a><C-x><C-v>
