@@ -43,6 +43,8 @@ List *list_new_prealloc(size_t size);
 List *list_new_sized(size_t size);
 size_t list_size(const List *);
 void *list_get(const List *, size_t index);
+void *list_get_first(const List *);
+void *list_get_last(const List *);
 int list_set(List *, void *value, size_t index);
 int list_add(List *, void *value);
 int list_add_at(List *, void *value, size_t index);

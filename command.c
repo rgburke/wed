@@ -816,8 +816,7 @@ static Status cm_buffer_find_next(const CommandArgs *cmd_args)
             const char *pattern = buffer->search.opt.pattern;
 
             if (list_size(sess->search_history) > 0) {
-                pattern = list_get(sess->search_history,
-                                   list_size(sess->search_history) - 1);
+                pattern = list_get_last(sess->search_history);
             }
 
             snprintf(msg, MAX_MSG_SIZE, "Unable to find pattern: \"%s\"",
@@ -1058,8 +1057,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
         const char *pattern = search->opt.pattern;
 
         if (list_size(sess->search_history) > 0) {
-            pattern = list_get(sess->search_history,
-                               list_size(sess->search_history) - 1);
+            pattern = list_get_last(sess->search_history);
         }
 
         snprintf(msg, MAX_MSG_SIZE, "Unable to find pattern \"%s\"",
@@ -1458,7 +1456,7 @@ static Status cm_determine_buffer(Session *sess, const char *input,
                             input);
     }
 
-    const PromptSuggestion *suggestion = list_get(prompt->suggestions, 0);
+    const PromptSuggestion *suggestion = list_get_first(prompt->suggestions);
 
     if (!(suggestion->rank == SR_EXACT_MATCH ||
           suggestion_num == 2)) {

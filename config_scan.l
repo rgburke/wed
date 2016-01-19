@@ -96,7 +96,7 @@ void cp_finish_scan(List *buffer_stack)
         if (--stack_size > 0) {
             /* Process any unfinished buffers left on the stack
                that were switched away from */
-            buffer = list_pop(buffer_stack);
+            buffer = list_get_last(buffer_stack);
             yy_switch_to_buffer(buffer);
         }
     }

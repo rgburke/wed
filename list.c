@@ -123,6 +123,20 @@ void *list_get(const List *list, size_t index)
     return value;
 }
 
+void *list_get_first(const List *list)
+{
+    return list_get(list, 0);
+}
+
+void *list_get_last(const List *list)
+{
+    if (list_size(list) == 0) {
+        return NULL;
+    }
+
+    return list_get(list, list_size(list) - 1);
+}
+
 int list_set(List *list, void *value, size_t index)
 {
     if (index < list->size) {
