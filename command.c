@@ -1474,7 +1474,7 @@ static Status cm_suspend(const CommandArgs *cmd_args)
     Session *sess = cmd_args->sess;
 
     suspend_display();
-    raise(SIGTSTP);
+    kill(0, SIGTSTP);
     resize_display(sess);
 
     return STATUS_SUCCESS;
