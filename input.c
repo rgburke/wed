@@ -36,18 +36,32 @@
  * screen redraws */
 #define MIN_DRAW_INTERVAL_NS 200000
 
+static void ip_setup_signal_handlers(void);
 static void ip_handle_keypress(Session *, TermKeyKey *key, char *keystr,
                                int *finished, struct timespec *last_draw,
                                int *redraw_due);
 static void ip_handle_error(Session *);
 static int ip_is_special_key(const TermKeyKey *);
 
-static int volatile window_resize_required = 0;
+static volatile int ip_window_resize_required = 0;
+static volatile int ip_continue_signal = 0;
+static volatile int ip_sigterm_signal = 0;
 
-static void sigwinch_handler(int signal)
+static void ip_sigwinch_handler(int signal)
 {
     (void)signal;
-    window_resize_required = 1;
+    ip_window_resize_required = 1;
+}
+
+static void ip_sigcont_handler(int signal)
+{
+    (void)signal;
+    ip_continue_signal = 1;
+}
+
+static void ip_sigterm_handler(int signal)
+{
+    ip_sigterm_signal = signal;
 }
 
 int ip_init(InputHandler *input_handler)
@@ -91,22 +105,51 @@ void ip_set_fd_input(InputHandler *input_handler)
     input_handler->input_type = IT_FD;
 }
 
-void ip_edit(Session *sess)
+static void ip_setup_signal_handlers(void)
 {
     struct sigaction sig_action;
     memset(&sig_action, 0, sizeof(sig_action));
-    sig_action.sa_handler = sigwinch_handler;
+    sigfillset(&sig_action.sa_mask);
+    sig_action.sa_handler = ip_sigwinch_handler;
 
     /* Detect window size change */
     if (sigaction(SIGWINCH, &sig_action, NULL) == -1) {
         fatal("Unable to set SIGWINCH signal handler");
     }
+    
+    sig_action.sa_handler = ip_sigcont_handler;
+
+    if (sigaction(SIGCONT, &sig_action, NULL) == -1) {
+        fatal("Unable to set SIGCONT signal handler");
+    }
+
+    sig_action.sa_handler = ip_sigterm_handler;
+
+    if (sigaction(SIGTERM, &sig_action, NULL) == -1) {
+        fatal("Unable to set SIGTERM signal handler");
+    }
+
+    if (sigaction(SIGHUP, &sig_action, NULL) == -1) {
+        fatal("Unable to set SIGHUP signal handler");
+    }
+
+    if (sigaction(SIGINT, &sig_action, NULL) == -1) {
+        fatal("Unable to set SIGINT signal handler");
+    }
 
     sigset_t sig_set;
     sigemptyset(&sig_set);
     sigaddset(&sig_set, SIGWINCH);
-    /* Block SIGWINCH signal */
+    sigaddset(&sig_set, SIGCONT);
+    sigaddset(&sig_set, SIGTERM);
+    sigaddset(&sig_set, SIGHUP);
+    sigaddset(&sig_set, SIGINT);
     sigprocmask(SIG_BLOCK, &sig_set, NULL);
+}
+
+void ip_edit(Session *sess)
+{
+    ip_setup_signal_handlers();
 
     init_display(se_get_active_theme(sess));
     init_all_window_info(sess);
@@ -165,11 +208,18 @@ void ip_process_input(Session *sess)
         /* pselect failed */
             if (errno == EINTR) {
                 /* A signal was caught */
-                /* TODO Need to add SIGTERM handler for a graceful exit */
-                if (window_resize_required) {
+                if (ip_window_resize_required) {
                     resize_display(sess);
-                    window_resize_required = 0;
+                    ip_window_resize_required = 0;
                     continue;
+                } else if (ip_continue_signal) {
+                    resize_display(sess);
+                    ip_continue_signal = 0;
+                    continue;
+                } else if (ip_sigterm_signal) {
+                    end_display();
+                    termkey_destroy(sess->input_handler.termkey);
+                    exit(ip_sigterm_signal);
                 }
             }
             /* TODO Handle general failure of pselect */

@@ -42,6 +42,7 @@ static WINDOW *windows[WINDOW_NUM]; /* Get window by DrawWindow index */
 static size_t text_win_y = 0; /* Text window height */
 static size_t text_win_x = 0; /* Text window width */
 
+static void init_properties_and_windows(const Theme *);
 static short ncurses_color(DrawColor);
 static void draw_prompt(Session *);
 static void draw_menu(Session *);
@@ -70,6 +71,22 @@ void init_display(const Theme *theme)
 {
     initscr();
 
+    text_win_y = LINES - 2;
+    text_win_x = COLS;
+
+    init_properties_and_windows(theme);
+        
+    refresh();
+}
+
+void init_display_test(void)
+{
+    text_win_x = 80;
+    text_win_y = 24;
+}
+
+static void init_properties_and_windows(const Theme *theme)
+{
     if (has_colors()) {
         start_color();
         use_default_colors();
@@ -84,27 +101,17 @@ void init_display(const Theme *theme)
     keypad(stdscr, TRUE);
     curs_set(1);
 
-    text_win_y = LINES - 2;
-    text_win_x = COLS;
-
     windows[0] = menu_win = newwin(1, COLS, 0, 0); 
     windows[1] = text_win = newwin(text_win_y, text_win_x, 1, 0);
     windows[2] = status_win = newwin(1, COLS, LINES - 1, 0);
     windows[3] = line_no_win = newwin(0, 0, 1, 0);
-        
-    refresh();
-}
-
-void init_display_test(void)
-{
-    text_win_x = 80;
-    text_win_y = 24;
 }
 
 void resize_display(Session *sess)
 {
-    struct winsize win_size;
+    end_display();
 
+    struct winsize win_size;
     /* Get terminal size */
     if (ioctl(STDIN_FILENO, TIOCGWINSZ, &win_size) == -1) {
         /* TODO handle */
@@ -114,10 +121,8 @@ void resize_display(Session *sess)
     text_win_x = win_size.ws_col;
 
     resizeterm(win_size.ws_row, win_size.ws_col);
-    wresize(menu_win, 1, text_win_x); 
-    wresize(text_win, text_win_y, text_win_x);
-    wresize(status_win, 1, text_win_x);
 
+    init_properties_and_windows(se_get_active_theme(sess));
     init_all_window_info(sess);
     update_display(sess);
 }
