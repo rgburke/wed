@@ -177,9 +177,9 @@ static int we_parse_args(WedOpt *wed_opt, int argc, char *argv[],
 
     /* Set the index in argv where file path arguments start */
     if (optind > 0) {
-        *file_args_index = optind - 1;
+        *file_args_index = optind;
     } else {
-        *file_args_index = 0;
+        *file_args_index = 1;
     }
 
     return 1;

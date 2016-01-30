@@ -111,6 +111,25 @@ int fi_init_empty(FileInfo *file_info, const char *file_name)
     return 1;
 }
 
+Status fi_init_stdin(FileInfo *file_info, const char *path)
+{
+    RETURN_IF_FAIL(fi_init(file_info, path));
+    
+    if (file_info->abs_path == NULL) {
+        file_info->abs_path = strdup(path);
+
+        if (file_info->abs_path == NULL) {
+            return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
+                                "Unable copy file path");
+        }
+    }
+
+    fi_check_can_read_file(file_info);
+    fi_check_can_write_file(file_info);
+
+    return STATUS_SUCCESS;
+}
+
 void fi_free(FileInfo *file_info)
 {
     if (fi_file_exists(file_info)) {

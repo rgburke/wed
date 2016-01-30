@@ -47,6 +47,7 @@ typedef struct {
 
 Status fi_init(FileInfo *, const char *path);
 int fi_init_empty(FileInfo *, const char *file_name);
+Status fi_init_stdin(FileInfo *, const char *path);
 void fi_free(FileInfo *);
 char *fi_process_path(const char *path);
 int fi_is_directory(const FileInfo *);

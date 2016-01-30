@@ -97,7 +97,7 @@ void se_clear_msgs(Session *);
 int se_msgs_enabled(const Session *);
 int se_enable_msgs(Session *);
 int se_disable_msgs(Session *);
-Status se_add_new_buffer(Session *, const char *file_path);
+Status se_add_new_buffer(Session *, const char *file_path, int is_stdin);
 Status se_add_new_empty_buffer(Session *);
 Status se_get_buffer_index_by_path(const Session *, const char *file_path,
                                    int *buffer_index_ptr);

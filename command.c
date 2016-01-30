@@ -1147,7 +1147,7 @@ static Status cm_session_open_file(const CommandArgs *cmd_args)
 
         /* Can't find existing buffer with this path so add new buffer */
         if (STATUS_IS_SUCCESS(status) && buffer_index == -1) {
-            status = se_add_new_buffer(sess, input); 
+            status = se_add_new_buffer(sess, input, 0); 
 
             /* TODO Need a nicer way to get the index
              * of a buffer thats just been added */

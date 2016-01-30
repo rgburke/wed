@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <fcntl.h>
 #include <assert.h>
 #include "session.h"
 #include "status.h"
@@ -28,11 +29,13 @@
 
 #define MAX_EMPTY_BUFFER_NAME_SIZE 20
 
+static const char *se_get_empty_buffer_name(Session *);
 static Status se_add_to_history(List *, char *text);
 static void se_determine_filetype(Session *, Buffer *);
 static void se_determine_fileformat(Session *, Buffer *);
 static int se_is_valid_config_def(Session *, HashMap *, ConfigType,
                                   const char *def_name);
+static int se_add_buffer_from_stdin(Session *);
 
 Session *se_new(void)
 {
@@ -139,8 +142,15 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
                                           sess->wed_opt.config_file_path));
     }
 
-    for (int k = 1; k < buffer_num; k++) {
-        se_add_error(sess, se_add_new_buffer(sess, buffer_paths[k]));
+    if (buffer_num == 1 && strcmp("-", buffer_paths[0]) == 0) {
+        if (!se_add_buffer_from_stdin(sess)) {
+            warn("Failed to read from stdin");
+            return 0;
+        }
+    } else {
+        for (int k = 0; k < buffer_num; k++) {
+            se_add_error(sess, se_add_new_buffer(sess, buffer_paths[k], 0));
+        }
     }
 
     if (sess->buffer_num == 0) {
@@ -490,7 +500,7 @@ void se_clear_msgs(Session *sess)
     bf_clear(sess->msg_buffer);
 }
 
-Status se_add_new_buffer(Session *sess, const char *file_path)
+Status se_add_new_buffer(Session *sess, const char *file_path, int is_stdin)
 {
     if (file_path == NULL || strnlen(file_path, 1) == 0) {
         return st_get_error(ERR_INVALID_FILE_PATH,
@@ -498,22 +508,25 @@ Status se_add_new_buffer(Session *sess, const char *file_path)
     }
 
     FileInfo file_info;
-    Buffer *buffer = NULL;
     Status status;
 
-    RETURN_IF_FAIL(fi_init(&file_info, file_path));
+    if (is_stdin) {
+        RETURN_IF_FAIL(fi_init_stdin(&file_info, file_path));
+    } else {
+        RETURN_IF_FAIL(fi_init(&file_info, file_path));
+    }
 
     if (fi_is_directory(&file_info)) {
         status = st_get_error(ERR_FILE_IS_DIRECTORY,
                               "%s is a directory", file_info.file_name);
         goto cleanup;
-    } else if (fi_is_special(&file_info)) {
+    } else if (!is_stdin && fi_is_special(&file_info)) {
         status = st_get_error(ERR_FILE_IS_SPECIAL,
                               "%s is not a regular file", file_info.file_name);
         goto cleanup;
     }
 
-    buffer = bf_new(&file_info, sess->config);
+    Buffer *buffer = bf_new(&file_info, sess->config);
 
     if (buffer == NULL) {
         status = st_get_error(ERR_OUT_OF_MEMORY, 
@@ -543,11 +556,18 @@ cleanup:
     return status;
 }
 
-Status se_add_new_empty_buffer(Session *sess)
+static const char *se_get_empty_buffer_name(Session *sess)
 {
-    char empty_buf_name[MAX_EMPTY_BUFFER_NAME_SIZE];
+    static char empty_buf_name[MAX_EMPTY_BUFFER_NAME_SIZE];
     snprintf(empty_buf_name, MAX_EMPTY_BUFFER_NAME_SIZE,
              "[new %zu]", ++sess->empty_buffer_num);
+
+    return empty_buf_name;
+}
+
+Status se_add_new_empty_buffer(Session *sess)
+{
+    const char *empty_buf_name = se_get_empty_buffer_name(sess);
 
     Buffer *buffer = bf_new_empty(empty_buf_name, sess->config);
 
@@ -880,3 +900,32 @@ const char *se_get_prev_key(const Session *sess)
 {
     return sess->prev_key;
 }
+
+static int se_add_buffer_from_stdin(Session *sess)
+{
+    if (!STATUS_IS_SUCCESS(se_add_new_buffer(sess, "/dev/stdin", 1))) {
+        return 0;
+    }
+
+    Buffer *buffer = sess->buffers;
+    buffer->is_dirty = 1;
+    FileInfo *file_info = &buffer->file_info;
+    fi_free(file_info);
+    
+    if (!fi_init_empty(file_info, se_get_empty_buffer_name(sess))) {
+        return 0; 
+    }
+
+    int fd = open("/dev/tty", O_RDONLY);
+
+    if (fd == -1) {
+        return 0;
+    }
+
+    int dup_success = (dup2(fd, STDIN_FILENO) != -1);
+
+    close(fd);
+
+    return dup_success;
+}
+
