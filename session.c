@@ -148,8 +148,18 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
             return 0;
         }
     } else {
+        Status status;
+        int buffer_index;
+
         for (int k = 0; k < buffer_num; k++) {
-            se_add_error(sess, se_add_new_buffer(sess, buffer_paths[k], 0));
+            status = se_get_buffer_index_by_path(sess, buffer_paths[k],
+                                                 &buffer_index);
+
+            if (STATUS_IS_SUCCESS(status) && buffer_index < 0) {
+                status = se_add_new_buffer(sess, buffer_paths[k], 0);
+            }
+
+            se_add_error(sess, status);
         }
     }
 
@@ -162,7 +172,8 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
     }
 
     /* The prompt currently uses a single line, so don't wrap content */
-    cf_set_var(CE_VAL(sess, prompt_buffer), CL_BUFFER, CV_LINEWRAP, INT_VAL(0));
+    cf_set_var(CE_VAL(sess, prompt_buffer), CL_BUFFER,
+               CV_LINEWRAP, INT_VAL(0));
     se_enable_msgs(sess);
 
     sess->initialised = 1;
