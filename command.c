@@ -53,7 +53,9 @@ typedef enum {
 static Status cm_bp_change_line(const CommandArgs *);
 static Status cm_bp_change_char(const CommandArgs *); 
 static Status cm_bp_to_line_start(const CommandArgs *);
+static Status cm_bp_to_hard_line_start(const CommandArgs *);
 static Status cm_bp_to_line_end(const CommandArgs *);
+static Status cm_bp_to_hard_line_end(const CommandArgs *);
 static Status cm_bp_to_next_word(const CommandArgs *);
 static Status cm_bp_to_prev_word(const CommandArgs *);
 static Status cm_bp_to_buffer_start(const CommandArgs *);
@@ -122,7 +124,9 @@ static const CommandDefinition cm_commands[] = {
     [CMD_BP_CHANGE_LINE]                 = { cm_bp_change_line                , CMDT_BUFFER_MOVE },
     [CMD_BP_CHANGE_CHAR]                 = { cm_bp_change_char                , CMDT_BUFFER_MOVE },
     [CMD_BP_TO_LINE_START]               = { cm_bp_to_line_start              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_HARD_LINE_START]          = { cm_bp_to_hard_line_start         , CMDT_BUFFER_MOVE },
     [CMD_BP_TO_LINE_END]                 = { cm_bp_to_line_end                , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_HARD_LINE_END]            = { cm_bp_to_hard_line_end           , CMDT_BUFFER_MOVE },
     [CMD_BP_TO_NEXT_WORD]                = { cm_bp_to_next_word               , CMDT_BUFFER_MOVE },
     [CMD_BP_TO_PREV_WORD]                = { cm_bp_to_prev_word               , CMDT_BUFFER_MOVE },
     [CMD_BP_TO_BUFFER_START]             = { cm_bp_to_buffer_start            , CMDT_BUFFER_MOVE },
@@ -176,7 +180,9 @@ static const Operation cm_operations[] = {
     { "<Right>"      , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_RIGHT)                         }, 1, CMD_BP_CHANGE_CHAR                 },
     { "<Left>"       , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_LEFT)                          }, 1, CMD_BP_CHANGE_CHAR                 },
     { "<Home>"       , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_LINE_START               },
+    { "<M-Home>"     , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_HARD_LINE_START          },
     { "<End>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_LINE_END                 },
+    { "<M-End>"      , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_HARD_LINE_END            },
     { "<C-Right>"    , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_NEXT_WORD                },
     { "<C-Left>"     , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_PREV_WORD                },
     { "<C-Home>"     , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_BUFFER_START             },
@@ -188,7 +194,9 @@ static const Operation cm_operations[] = {
     { "<S-Right>"    , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR                 },
     { "<S-Left>"     , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_LEFT  | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR                 },
     { "<S-Home>"     , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_LINE_START               },
+    { "<M-S-Home>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_HARD_LINE_START          },
     { "<S-End>"      , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_LINE_END                 },
+    { "<M-S-End>"    , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_HARD_LINE_END            },
     { "<C-S-Right>"  , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_NEXT_WORD                },
     { "<C-S-Left>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_PREV_WORD                },
     { "<C-S-Home>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_BUFFER_START             },
@@ -223,6 +231,7 @@ static const Operation cm_operations[] = {
     { "<F3>"         , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_FIND_NEXT               },
     { "<F15>"        , OM_STANDARD        , { INT_VAL_STRUCT(1)                                       }, 1, CMD_BUFFER_FIND_NEXT               },
     { "<C-h>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_REPLACE                 },
+    { "<C-r>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_REPLACE                 },
     { "<C-g>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_GOTO_LINE               },
     { "<C-o>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_OPEN_FILE              },
     { "<C-n>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_ADD_EMPTY_BUFFER       },
@@ -237,7 +246,7 @@ static const Operation cm_operations[] = {
     { "<M-z>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SUSPEND                        },
     { "<M-c>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_END                    },
     { "<Escape>"     , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_END                    },
-    { "<C-r>"        , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_TOGGLE_SEARCH_TYPE      },
+    { "<C-t>"        , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_TOGGLE_SEARCH_TYPE      },
     { "<C-s>"        , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_TOGGLE_SEARCH_CASE      },
     { "<C-d>"        , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_TOGGLE_SEARCH_DIRECTION },
     { "<Up>"         , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_PREVIOUS_PROMPT_ENTRY          },
@@ -351,6 +360,19 @@ static Status cm_bp_to_line_start(const CommandArgs *cmd_args)
                             IVAL(param) & DIRECTION_WITH_SELECT, 1);
 }
 
+static Status cm_bp_to_hard_line_start(const CommandArgs *cmd_args)
+{
+    assert(cmd_args->arg_num == 1);
+    Session *sess = cmd_args->sess;
+    Value param = cmd_args->args[0];
+
+    Buffer *buffer = sess->active_buffer;
+    BufferPos *pos = &buffer->pos;
+    int is_select = IVAL(param) & DIRECTION_WITH_SELECT;
+
+    return bf_bp_to_line_start(buffer, pos, is_select, 1);
+}
+
 static Status cm_bp_to_line_end(const CommandArgs *cmd_args)
 {
     assert(cmd_args->arg_num == 1);
@@ -358,6 +380,19 @@ static Status cm_bp_to_line_end(const CommandArgs *cmd_args)
     Value param = cmd_args->args[0];
     return bf_to_line_end(sess->active_buffer,
                           IVAL(param) & DIRECTION_WITH_SELECT);
+}
+
+static Status cm_bp_to_hard_line_end(const CommandArgs *cmd_args)
+{
+    assert(cmd_args->arg_num == 1);
+    Session *sess = cmd_args->sess;
+    Value param = cmd_args->args[0];
+
+    Buffer *buffer = sess->active_buffer;
+    BufferPos *pos = &buffer->pos;
+    int is_select = IVAL(param) & DIRECTION_WITH_SELECT;
+
+    return bf_bp_to_line_end(buffer, pos, is_select, 1);
 }
 
 static Status cm_bp_to_next_word(const CommandArgs *cmd_args)
