@@ -59,6 +59,8 @@ static size_t draw_line(Buffer *, BufferPos *, int y, int is_selection,
                         SyntaxMatches *syn_matches);
 static void draw_char(CharInfo, const BufferPos *, WINDOW *,
                       size_t window_width, int line_wrap);
+static void draw_line_ending(WINDOW *draw_win, const Range *select_range,
+                             const BufferPos *draw_pos, int is_selection);
 static void position_cursor(Buffer *, int line_wrap);
 static void vertical_scroll(Buffer *);
 static void vertical_scroll_linewrap(Buffer *);
@@ -674,8 +676,17 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y,
         wattroff(line_no_win, SC_COLOR_PAIR(SC_LINENO));
     }
 
+    WINDOW *draw_win = windows[win_info.draw_window];
+    const size_t window_width = win_info.start_x + win_info.width;
+    const size_t window_height = win_info.start_y + win_info.height;
+
     /* Empty line */
     if (bp_at_line_end(draw_pos)) {
+        if (line_wrap || win_info.horizontal_scroll == 1) {
+            wmove(draw_win, win_info.start_y + y, win_info.start_x);
+            draw_line_ending(draw_win, &select_range, draw_pos, is_selection);
+        }
+
         return 1;
     }
 
@@ -707,15 +718,22 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y,
             bp_at_line_end(draw_pos)) {
             /* This line is too short to be displayed with this
              * much horizontal scrolling */
+
+            /* If the line ending is inside a selection however then it may
+             * be far along enough horizontally to appear on the screen */
+            if (draw_pos->col_no == win_info.horizontal_scroll &&
+                bp_at_line_end(draw_pos)) {
+                wmove(draw_win, win_info.start_y + y, win_info.start_x);
+                draw_line_ending(draw_win, &select_range,
+                                 draw_pos, is_selection);
+            }
+
             return 1;
         }
     }
 
-    WINDOW *draw_win = windows[win_info.draw_window];
     size_t scr_line_num = 0;
     size_t start_col = draw_pos->col_no;
-    size_t window_width = win_info.start_x + win_info.width;
-    size_t window_height = win_info.start_y + win_info.height;
     size_t screen_length = 0;
     const SyntaxMatch *syn_match;
 
@@ -771,6 +789,10 @@ static size_t draw_line(Buffer *buffer, BufferPos *draw_pos, int y,
         screen_length -= window_width;
     }
 
+    if (line_wrap || (draw_pos->col_no - start_col) < window_width) {
+        draw_line_ending(draw_win, &select_range, draw_pos, is_selection);
+    }
+
     size_t col_diff = draw_pos->col_no - start_col;
 
     /* When a line ends at the last column of the screen then we need to
@@ -816,6 +838,16 @@ static void draw_char(CharInfo char_info, const BufferPos *draw_pos,
         }
     } else {
         waddnstr(draw_win, (char *)character, char_info.byte_length);
+    }
+}
+
+static void draw_line_ending(WINDOW *draw_win, const Range *select_range,
+                             const BufferPos *draw_pos, int is_selection)
+{
+    if (is_selection && bp_at_line_end(draw_pos) &&
+        bf_bp_in_range(select_range, draw_pos)) {
+        wattron(draw_win, A_REVERSE);
+        waddstr(draw_win, " ");
     }
 }
 
