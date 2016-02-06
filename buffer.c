@@ -158,6 +158,7 @@ static Status reset_buffer(Buffer *buffer)
     bf_update_line_col_offset(buffer, &buffer->pos);
     bc_free(&buffer->changes);
     bc_init(&buffer->changes);
+    bf_set_is_draw_dirty(buffer, 1);
 
     return STATUS_SUCCESS;
 }
@@ -242,9 +243,10 @@ Status bf_load_file(Buffer *buffer)
         }
     } while (read == FILE_BUF_SIZE);
 
-    gb_set_point(buffer->data, 0);
-
     fclose(input_file);
+
+    gb_set_point(buffer->data, 0);
+    bf_set_is_draw_dirty(buffer, 1);
 
     return status;
 }
@@ -417,6 +419,16 @@ size_t bf_lines(const Buffer *buffer)
 size_t bf_length(const Buffer *buffer)
 {
     return gb_length(buffer->data);
+}
+
+int bf_is_draw_dirty(const Buffer *buffer)
+{
+    return buffer->is_draw_dirty;
+}
+
+void bf_set_is_draw_dirty(Buffer *buffer, int is_draw_dirty)
+{
+    buffer->is_draw_dirty = is_draw_dirty;
 }
 
 int bf_get_range(Buffer *buffer, Range *range)
@@ -1081,6 +1093,7 @@ Status bf_change_page(Buffer *buffer, Direction direction)
         buffer->screen_start = buffer->pos;
         RETURN_IF_FAIL(bf_bp_to_screen_line_start(buffer, &buffer->screen_start,
                                                   0, 0));
+        bf_set_is_draw_dirty(buffer, 1);
     }
 
     return STATUS_SUCCESS;
@@ -1257,7 +1270,7 @@ Status bf_insert_string(Buffer *buffer, const char *string,
     }
 
     size_t lines_after = gb_lines(buffer->data);
-    buffer->is_dirty = 1;
+    buffer->is_dirty = buffer->is_draw_dirty = 1;
 
     bf_update_mark(&buffer->screen_start, &buffer->pos, TCT_INSERT,
                    string_length, lines_after - lines_before, 1);
@@ -1310,7 +1323,6 @@ Status bf_replace_string(Buffer *buffer, size_t replace_length,
     Status status = bf_delete(buffer, replace_length);
 
     if (STATUS_IS_SUCCESS(status)) {
-        buffer->is_dirty = 1;
         status = bf_insert_string(buffer, string, string_length,
                                   advance_cursor);
     }
@@ -1360,7 +1372,7 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
     }
 
     size_t lines_after = gb_lines(buffer->data);
-    buffer->is_dirty = 1;
+    buffer->is_dirty = buffer->is_draw_dirty = 1;
 
     bf_update_mark(&buffer->screen_start, &buffer->pos, TCT_DELETE,
                    byte_num, lines_before - lines_after, 1);
@@ -1396,16 +1408,22 @@ Status bf_delete_character(Buffer *buffer)
 Status bf_select_continue(Buffer *buffer)
 {
     /* If selection not started then start it from this position */
-    if (buffer->select_start.line_no == 0) {
+    if (!bf_selection_started(buffer)) {
         buffer->select_start = buffer->pos;
     }
+
+    bf_set_is_draw_dirty(buffer, 1);
 
     return STATUS_SUCCESS;
 }
 
 Status bf_select_reset(Buffer *buffer)
 {
-    buffer->select_start.line_no = 0;
+    if (bf_selection_started(buffer)) {
+        buffer->select_start.line_no = 0;
+        bf_set_is_draw_dirty(buffer, 1);
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -1427,15 +1445,10 @@ Status bf_select_all_text(Buffer *buffer)
         return STATUS_SUCCESS;
     }
 
-    BufferPos *pos = &buffer->pos, *select_start = &buffer->select_start;
-
-    select_start->line_no = gb_lines(buffer->data) + 1;
-    select_start->offset = gb_length(buffer->data);
-    bp_recalc_col(select_start);
-
-    pos->offset = 0;
-    pos->line_no = 1;
-    pos->col_no = 1;
+    bf_select_reset(buffer);
+    bp_to_buffer_end(&buffer->select_start);
+    bp_to_buffer_start(&buffer->pos);
+    bf_select_continue(buffer);
 
     return STATUS_SUCCESS;
 }

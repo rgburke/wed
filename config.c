@@ -232,7 +232,7 @@ static const char *cf_get_config_type_string(ConfigType config_type)
 
 /* Config block definitions can be loaded by name.
  * The convention is best explained with an example:
- * Enter <C-\>st=c; then wed will load WEDRUNTIME/syntax/c.wed
+ * Enter <C-\>st="c"; then wed will load WEDRUNTIME/syntax/c.wed
  * if it exists followed by ~/.wed/syntax/c.wed if it exists */
 void cf_load_config_def(Session *sess, ConfigType cf_type,
                         const char *config_name)
@@ -375,6 +375,10 @@ Status cf_set_var(ConfigEntity entity, ConfigLevel config_level,
     }
 
     va_free_value(old_value);
+
+    if (config_level == CL_BUFFER) {
+        bf_set_is_draw_dirty(entity.buffer, 1);
+    }
 
     char config_msg[MAX_MSG_SIZE];
     char *value_str = va_to_string(value);

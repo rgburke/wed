@@ -1022,7 +1022,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
 
             if (response != QR_ALL) {
                 /* Select match */
-                buffer->select_start = buffer->pos;
+                bf_select_continue(buffer);
                 bp_advance_to_offset(&buffer->select_start,
                                      buffer->pos.offset + 
                                      bs_match_length(search));
@@ -1061,6 +1061,11 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
                 break;
             } else if (response == QR_CANCEL) {
                 break;
+            } else if (response == QR_NO) {
+                if (!search->advance_from_last_match &&
+                    search->opt.forward) {
+                    bp_next_char(&buffer->pos);
+                }
             } else if (response == QR_YES || response == QR_ALL) {
                 status = rp_replace_current_match(buffer, rep_text, rep_length);
 
@@ -1257,14 +1262,15 @@ static Status cm_session_save_all(const CommandArgs *cmd_args)
     while (buffer != NULL) {
         if (buffer->is_dirty) {
             se_set_active_buffer(sess, buffer_index);
+            update_display(sess);
             
             status = cm_buffer_save_file(cmd_args);
             
             if (!STATUS_IS_SUCCESS(status)) {
                 break;
+            } else if (!pr_prompt_cancelled(sess->prompt)) {
+                buffer_save_num++;
             }
-            
-            buffer_save_num++;
         }
         
         buffer = buffer->next;
@@ -1603,6 +1609,7 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
     se_enable_command_type(sess, disabled_cmd_types);
     se_end_prompt(sess);
     cm_clear_keymap_entries(sess->keymap_overrides);
+    bf_set_is_draw_dirty(sess->active_buffer, 1);
 
     return STATUS_SUCCESS;
 }

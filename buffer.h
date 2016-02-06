@@ -89,6 +89,7 @@ struct Buffer {
     WindowInfo win_info; /* Window dimension info */
     HashMap *config; /* Stores config variables */
     int is_dirty; /* Any modification performed on buffer since last write */
+    int is_draw_dirty; /* Any modification performed since last draw */
     GapBuffer *data; /* Gap Buffer which stores buffer content */
     BufferSearch search; /* Search params */
     BufferChanges changes; /* Undo/Redo */
@@ -108,6 +109,8 @@ char *bf_join_lines(const Buffer *, const char *seperator);
 int bf_is_empty(const Buffer *);
 size_t bf_lines(const Buffer *);
 size_t bf_length(const Buffer *);
+int bf_is_draw_dirty(const Buffer *);
+void bf_set_is_draw_dirty(Buffer *, int);
 int bf_get_range(Buffer *, Range *);
 int bf_bp_in_range(const Range *, const BufferPos *);
 CharacterClass bf_character_class(const Buffer *, const BufferPos *);

@@ -106,6 +106,8 @@ Status pr_set_prompt_text(Prompt *prompt, const char *prompt_text)
                             "Unable to set prompt text");
     }
 
+    bf_set_is_draw_dirty(prompt->prompt_buffer, 1);
+
     return STATUS_SUCCESS;
 }
 

@@ -304,6 +304,7 @@ int se_set_active_buffer(Session *sess, size_t buffer_index)
 
     sess->active_buffer = buffer;
     sess->active_buffer_index = buffer_index;
+    bf_set_is_draw_dirty(buffer, 1);
 
     return 1;
 }
