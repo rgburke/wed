@@ -61,12 +61,12 @@ Usage:\n\
 wed [OPTIONS] [FILE]...\n\
 \n\
 OPTIONS:\n\
--h, --help                 Print this message.\n\
--v, --version              Print version information.\n\
 -c, --config-file WEDRC    Load the WEDRC config file after all other\n\
                            config files have been processed.\n\
+-h, --help                 Print this message.\n\
 -k, --key-string KEYSTR    Process KEYSTR string representation of key\n\
                            presses after initialisation.\n\
+-v, --version              Print version information.\n\
 \n\
 ";
 
@@ -77,10 +77,10 @@ static void we_print_version(void)
 {
     const char *version = 
 "\
-WED - Windows terminal EDitor %s (Built %s)\n\
+WED - Windows terminal EDitor %s (%s, Built %s)\n\
 ";
 
-    printf(version, WED_VERSION, __DATE__ " " __TIME__);
+    printf(version, WED_VERSION, WED_VERSION_LONG, WED_BUILD_DATETIME);
 }
 
 static int we_parse_args(WedOpt *wed_opt, int argc, char *argv[],

@@ -1,0 +1,39 @@
+theme {
+    name = "minred";
+
+    group {
+        name = "lineno";
+        fgcolor = "red";
+        bgcolor = "none";
+    }
+
+    group {
+        name = "buffertabbar";
+        fgcolor = "red";
+        bgcolor = "none";
+    }
+
+    group {
+        name = "activebuffertabbar";
+        fgcolor = "red";
+        bgcolor = "none";
+    }
+
+    group {
+        name = "statusbar";
+        fgcolor = "red";
+        bgcolor = "none";
+    }
+
+    group {
+        name = "errormessage";
+        fgcolor = "red";
+        bgcolor = "none";
+    }
+
+    group {
+        name = "bufferend";
+        fgcolor = "red";
+        bgcolor = "none";
+    }
+}

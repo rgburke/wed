@@ -1,7 +1,9 @@
 WED_DEV?=0
 PREFIX?=/usr/local
 WEDRUNTIME?=$(PREFIX)/share/wed
-WED_VERSION=$(shell git describe --long --tags --dirty --always)
+WED_VERSION_LONG=$(shell git describe --long --tags --dirty --always)
+WED_VERSION=$(shell git describe --tags --always)
+WED_BUILD_DATETIME=$(shell date '+%Y-%m-%d %H:%M:%S')
 
 CC?=cc
 LEX?=lex

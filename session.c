@@ -521,6 +521,7 @@ Status se_add_new_buffer(Session *sess, const char *file_path, int is_stdin)
 
     FileInfo file_info;
     Status status;
+    Buffer *buffer = NULL;
 
     if (is_stdin) {
         RETURN_IF_FAIL(fi_init_stdin(&file_info, file_path));
@@ -538,7 +539,7 @@ Status se_add_new_buffer(Session *sess, const char *file_path, int is_stdin)
         goto cleanup;
     }
 
-    Buffer *buffer = bf_new(&file_info, sess->config);
+    buffer = bf_new(&file_info, sess->config);
 
     if (buffer == NULL) {
         status = st_get_error(ERR_OUT_OF_MEMORY, 
