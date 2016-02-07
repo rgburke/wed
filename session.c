@@ -941,3 +941,12 @@ static int se_add_buffer_from_stdin(Session *sess)
     return dup_success;
 }
 
+int se_session_finished(const Session *sess)
+{
+    return sess->finished;
+}
+
+void se_set_session_finished(Session *sess)
+{
+    sess->finished = 1;
+}

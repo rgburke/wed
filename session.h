@@ -61,6 +61,7 @@ struct Session {
     HashMap *syn_defs; /* Store syntax definitions by name */
     HashMap *themes; /* Store themes by name */
     int initialised; /* True if session finished initialising */
+    int finished; /* True if the session has finished */
     List *cfg_buffer_stack; /* Stack of YY_BUFFER_STATE buffers (used for
                                parsing config files) */
     char prev_key[MAX_KEY_STR_SIZE]; /* Previous keypress */
@@ -117,5 +118,7 @@ const Theme *se_get_active_theme(const Session *);
 int se_initialised(const Session *);
 void se_save_key(Session *, const char *key);
 const char *se_get_prev_key(const Session *);
+int se_session_finished(const Session *);
+void se_set_session_finished(Session *);
 
 #endif

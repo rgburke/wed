@@ -157,6 +157,11 @@ void ip_edit(Session *sess)
     if (sess->input_handler.input_type == IT_KEYSTR) {
         ip_process_keystr_input(sess);
         ip_set_fd_input(&sess->input_handler);
+
+        if (se_session_finished(sess)) {
+            end_display();
+            return;
+        }
     }
 
     /* If there were errors parsing config

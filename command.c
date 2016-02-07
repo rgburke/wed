@@ -1537,6 +1537,7 @@ static Status cm_session_end(const CommandArgs *cmd_args)
     }  
 
     *cmd_args->finished = 1;
+    se_set_session_finished(sess);
 
     return STATUS_SUCCESS;
 }
