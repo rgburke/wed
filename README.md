@@ -24,6 +24,7 @@ The following libraries and tools are required to build wed:
   - PCRE
   - Flex
   - Bison
+  - GNU make
 
 To build and install wed (defaults to `/usr/local/`) simply run:
 
@@ -42,6 +43,16 @@ sudo make install PREFIX=/opt
 ```
 
 To uninstall wed run `make uninstall`.
+
+As of 7060788 (9/Feb/2016) wed builds successfully without any compilation
+warnings using the latest packages available on the following systems:
+
+ - Ubuntu 15.10
+ - FreeBSD 10.2
+ - Cygwin 2.4.1
+
+Wed should build and run on any \*nix system, although changes may be required
+to `config.mk` in order to do so.
 
 For a quick overview of functionality read the [Key Bindings](#key-bindings)
 and [Config Variables](#config-variables) sections below.
@@ -80,7 +91,7 @@ software such as notepad++, it has not been possible in all cases.
 The default GNOME Terminal that ships with Ubuntu 15.10 has been used for
 testing which key bindings can be detected by wed. Consequently certain key
 combinations such as `C-Tab` and `<S-C-s>` cannot be detected in this
-enviroment (and this is true for xterm as well). Therefore in some cases the
+environment (and this is true for Xterm as well). Therefore in some cases the
 key bindings wed uses differ from what would be expected.
 
 Further to this some actions listed below can be achieved with multiple key
@@ -517,7 +528,7 @@ For example, with the file content as `order Right`, the regex specifed as
 
 ## Current State and Future Development
 
-wed is currently at version 0.1 which coincides with it being made public.
+Wed is currently at version 0.1 which coincides with it being made public.
 Overall the basic elements of a text editor have been implemented and wed can
 be used for general editing tasks. It is not ready for use in production or
 on data which isn't backed up or retrievable.
@@ -533,7 +544,7 @@ fundamentally change the way wed works. They should ideally be targeted first
 before looking at the [Future Tasks](#future-tasks) section.
 
   - Copy `<C-c>` and cut `<C-x>` should also copy to the system clipboard on
-    all supported systems (any POSIX compliant system).
+    all supported systems (any \*nix system).
   - Join (selected) lines using `<C-j>`.
   - Add text and code tests for remaining untested features.
   - Set session or buffer level variable using ":" syntax. i.e. `s:ln=0;` to
@@ -837,6 +848,7 @@ even if you don't agree with them:
  - wed is compiled using c99, so no need for c89 style variable declarations.
  - Namespace global variables and functions with a two letter file id.
  - Add tests where possible for any new code.
+ - Ensure there are no compiler warnings.
 
 Look through the code base and the meaning of the rules above should be clear.
 Please try and keep any changes you make consistent with the existing style of
@@ -889,6 +901,4 @@ sections. Hopefully the aim, state and direction are clear and you have a
 fairly good idea whether wed is suitable for you or not.
 Wed was written with those new to editors such as vim or emacs in mind and not
 for those already experienced with such tools. However that doesn't preclude
-anyone from using wed when appropriate or getting involved. After all wed has
-so far been written entirely using vim!
-
+anyone from using wed when appropriate or getting involved.
