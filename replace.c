@@ -135,7 +135,7 @@ static int parse_backreference(const char *str, size_t str_len,
 
     size_t back_ref_num = 0;
 
-    while (index < str_len && isdigit(str[index])) {
+    while (index < str_len && isdigit((uchar)str[index])) {
         back_ref_num = (back_ref_num * 10) + (str[index++] - '0');
     }
 

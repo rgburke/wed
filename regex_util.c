@@ -24,7 +24,7 @@
 
 static Status re_custom_error_msg(Status, const char *fmt, va_list);
 
-Status re_compile(RegexInstance *reg_inst, const Regex *regex)
+Status ru_compile(RegexInstance *reg_inst, const Regex *regex)
 {
     assert(reg_inst != NULL);
     assert(regex != NULL);
@@ -69,10 +69,10 @@ static Status re_custom_error_msg(Status status, const char *fmt,
 }
 
 /* Add extra info to regex error */
-Status re_compile_custom_error_msg(RegexInstance *reg_inst, const Regex *regex,
+Status ru_compile_custom_error_msg(RegexInstance *reg_inst, const Regex *regex,
                                    const char *fmt, ...)
 {
-    Status status = re_compile(reg_inst, regex);
+    Status status = ru_compile(reg_inst, regex);
 
     va_list arg_ptr;
     va_start(arg_ptr, fmt);
@@ -82,7 +82,7 @@ Status re_compile_custom_error_msg(RegexInstance *reg_inst, const Regex *regex,
     return status;
 }
 
-void re_free_instance(const RegexInstance *reg_inst)
+void ru_free_instance(const RegexInstance *reg_inst)
 {
     if (reg_inst == NULL) {
         return;
@@ -92,7 +92,7 @@ void re_free_instance(const RegexInstance *reg_inst)
     pcre_free(reg_inst->regex);
 }
 
-Status re_exec(RegexResult *result, const RegexInstance *reg_inst,
+Status ru_exec(RegexResult *result, const RegexInstance *reg_inst,
                const char *str, size_t str_len, size_t start)
 {
     assert(str != NULL);
@@ -124,12 +124,12 @@ Status re_exec(RegexResult *result, const RegexInstance *reg_inst,
     return STATUS_SUCCESS;
 }
 
-Status re_exec_custom_error_msg(RegexResult *result,
+Status ru_exec_custom_error_msg(RegexResult *result,
                                 const RegexInstance *reg_inst,
                                 const char *str, size_t str_len, size_t start,
                                 const char *fmt, ...)
 {
-    Status status = re_exec(result, reg_inst, str, str_len, start);
+    Status status = ru_exec(result, reg_inst, str, str_len, start);
 
     va_list arg_ptr;
     va_start(arg_ptr, fmt);
@@ -140,7 +140,7 @@ Status re_exec_custom_error_msg(RegexResult *result,
 }
 
 /* Get captured group by number */
-Status re_get_group(const RegexResult *result, const char *str, 
+Status ru_get_group(const RegexResult *result, const char *str, 
                     size_t str_len, size_t group, char **group_str_ptr)
 {
     assert(!is_null_or_empty(str));

@@ -132,10 +132,10 @@ static Status bc_add_text_change_to_prev(BufferChanges *changes,
             add_to_prev = 1;
 
             if (prev_change->str_len > 1) {
-                char last_char = gb_get_at(prev_change->pos.data, 
-                                           prev_change->pos.offset + 
-                                           prev_change->str_len - 1);
-                char next_char = gb_get_at(pos->data, pos->offset);
+                uchar last_char = gb_getu_at(prev_change->pos.data,
+                                             prev_change->pos.offset +
+                                             prev_change->str_len - 1);
+                uchar next_char = gb_getu_at(pos->data, pos->offset);
 
                 if (isspace(last_char) && !isspace(next_char)) {
                     /* We group a typed word and a space into a single

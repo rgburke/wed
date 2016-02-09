@@ -225,8 +225,6 @@ static const char *cf_get_config_type_string(ConfigType config_type)
         [CT_THEME]  = "theme"
     };
 
-    assert(config_type < ARRAY_SIZE(config_types, const char *));
-
     return config_types[config_type];
 }
 

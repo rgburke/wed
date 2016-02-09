@@ -6,16 +6,9 @@ WED_VERSION=$(shell git describe --tags --always)
 WED_BUILD_DATETIME=$(shell date '+%Y-%m-%d %H:%M:%S')
 
 CC?=cc
-LEX?=lex
-YACC?=yacc
+FLEX?=flex
+BISON?=bison
 AR?=ar
-
-CFLAGS_BASE=-std=c99 -Wall -Wextra -pedantic -MMD -MP \
-	    -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
-CFLAGS=$(CFLAGS_BASE) -O2 -DNDEBUG
-CFLAGS_DEBUG=$(CFLAGS_BASE) -Werror -g
-
-LDFLAGS=-lncursesw -lpcre
 
 STATIC_SOURCES=wed.c display.c buffer.c util.c input.c session.c    \
 	status.c command.c file.c value.c list.c hashmap.c config.c \
@@ -41,9 +34,29 @@ LIBWED=wedlib.a
 BINARY=wed
 
 ifeq ($(MAKECMDGOALS),dev)
-WED_DEV=1
+	WED_DEV=1
 else ifeq ($(.DEFAULT_GOAL),)
-ifeq ($(WED_DEV),1)
-.DEFAULT_GOAL := dev
+	ifeq ($(WED_DEV),1)
+		.DEFAULT_GOAL := dev
+	endif
 endif
+
+CFLAGS=-std=c99 -Wall -Wextra -pedantic -MMD -MP
+LDFLAGS=-lncursesw -lpcre
+
+OS=$(shell uname)
+
+ifeq ($(OS),Linux)
+	CFLAGS+=-D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
+else ifeq ($(OS),FreeBSD)
+	CFLAGS+=-I/usr/local/include
+	LDFLAGS+=-L/usr/local/lib
+else ifeq ($(findstring CYGWIN,$(OS)),CYGWIN)
+	CFLAGS+=-U__STRICT_ANSI__
+endif
+
+ifeq ($(WED_DEV),1)
+	CFLAGS+=-Werror -g
+else
+	CFLAGS+=-O2 -DNDEBUG
 endif

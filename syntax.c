@@ -67,7 +67,7 @@ Status sy_new_pattern(SyntaxPattern **syn_pattern_ptr, const Regex *regex,
 
     memset(syn_pattern, 0, sizeof(SyntaxPattern));
 
-    Status status = re_compile_custom_error_msg(&syn_pattern->regex, regex, 
+    Status status = ru_compile_custom_error_msg(&syn_pattern->regex, regex, 
                                                 "pattern ");
 
     if (!STATUS_IS_SUCCESS(status)) {
@@ -87,7 +87,7 @@ void syn_free_pattern(SyntaxPattern *syn_pattern)
         return;
     }
 
-    re_free_instance(&syn_pattern->regex);
+    ru_free_instance(&syn_pattern->regex);
     free(syn_pattern);
 }
 
@@ -157,7 +157,7 @@ SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def,
          * exceed MAX_SYNTAX_MATCH_NUM */
         while (syn_matches->match_num < MAX_SYNTAX_MATCH_NUM &&
                offset < str_len) {
-            status = re_exec(&result, &pattern->regex, str, str_len, offset);
+            status = ru_exec(&result, &pattern->regex, str, str_len, offset);
 
             if (!(STATUS_IS_SUCCESS(status) && result.match)) {
                 /* Failure or no matches in the remainder of str

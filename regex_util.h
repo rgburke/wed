@@ -45,16 +45,16 @@ typedef struct {
     int match_length; /* output_vector[1] - output_vector[0] for convenience */
 } RegexResult;
 
-Status re_compile(RegexInstance *, const Regex *);
-Status re_compile_custom_error_msg(RegexInstance *, const Regex *,
+Status ru_compile(RegexInstance *, const Regex *);
+Status ru_compile_custom_error_msg(RegexInstance *, const Regex *,
                                    const char *fmt, ...);
-void re_free_instance(const RegexInstance *);
-Status re_exec(RegexResult *, const RegexInstance *, const char *str,
+void ru_free_instance(const RegexInstance *);
+Status ru_exec(RegexResult *, const RegexInstance *, const char *str,
                size_t str_len, size_t start);
-Status re_exec_custom_error_msg(RegexResult *, const RegexInstance *,
+Status ru_exec_custom_error_msg(RegexResult *, const RegexInstance *,
                                 const char *str, size_t str_len, size_t start,
                                 const char *fmt, ...);
-Status re_get_group(const RegexResult *, const char *str, size_t str_len,
+Status ru_get_group(const RegexResult *, const char *str, size_t str_len,
                     size_t group, char **group_str_ptr);
 
 #endif

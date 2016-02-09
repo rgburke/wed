@@ -44,8 +44,8 @@ EscapeSequence su_determine_escape_sequence(const char *str, size_t str_len)
         case 'x':
             {
                 if (str_len > 3 &&
-                    isxdigit(str[2]) &&
-                    isxdigit(str[3])) {
+                    isxdigit((uchar)str[2]) &&
+                    isxdigit((uchar)str[3])) {
                     return ES_HEX_NUMBER;
                 }
             }
@@ -155,7 +155,7 @@ char *su_process_string(const char *str, size_t str_len,
                         unsigned char value = 0;
 
                         for (size_t i = 0; i < 2; i++) {
-                            int c = toupper(str[k + i + 2]);
+                            int c = toupper((uchar)str[k + i + 2]);
 
                             if (c >= 'A') {
                                 /* Handle digits A-F:

@@ -42,7 +42,7 @@ Status ft_init(FileType **file_type_ptr, const char *name,
     memset(file_type, 0, sizeof(FileType));
     Status status = STATUS_SUCCESS;
 
-    status = re_compile_custom_error_msg(&file_type->file_pattern, regex, 
+    status = ru_compile_custom_error_msg(&file_type->file_pattern, regex, 
                                          "filetype %s ", name);
 
     if (!STATUS_IS_SUCCESS(status)) {
@@ -85,7 +85,7 @@ void ft_free(FileType *file_type)
 
     free(file_type->name);
     free(file_type->display_name);
-    re_free_instance(&file_type->file_pattern);
+    ru_free_instance(&file_type->file_pattern);
     free(file_type);
 }
 
@@ -103,7 +103,7 @@ Status ft_matches(FileType *file_type, FileInfo *file_info, int *matches)
     assert(path != NULL); 
     RegexResult result;
 
-    Status status = re_exec_custom_error_msg(&result, &file_type->file_pattern,
+    Status status = ru_exec_custom_error_msg(&result, &file_type->file_pattern,
                                              path, strlen(path), 0,
                                              "filetype %s - ", file_type->name);
 

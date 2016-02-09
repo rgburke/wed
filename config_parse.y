@@ -34,10 +34,12 @@ int yylex(Session *, const char *file_path);
 }
 
 /* yyparse arguments */
-%parse-param { Session *sess } { ConfigLevel config_level }
-             { const char *file_path }
+%parse-param { Session *sess }
+%parse-param { ConfigLevel config_level }
+%parse-param { const char *file_path }
 /* yylex arguments */
-%lex-param { Session *sess } { const char *file_path }
+%lex-param { Session *sess }
+%lex-param { const char *file_path }
 /* Bison provides more verbose and specific error messages */
 %error-verbose
 /* Track locations */

@@ -1453,9 +1453,9 @@ static Status cm_determine_buffer(Session *sess, const char *input,
         .modifiers = 0
     };
 
-    RETURN_IF_FAIL(re_compile(&regex, &numeric_regex));
-    Status status = re_exec(&regex_result, &regex, input, input_len, 0);
-    re_free_instance(&regex);
+    RETURN_IF_FAIL(ru_compile(&regex, &numeric_regex));
+    Status status = ru_exec(&regex_result, &regex, input, input_len, 0);
+    ru_free_instance(&regex);
     RETURN_IF_FAIL(status);
 
     /* First group is entire match.
@@ -1467,7 +1467,7 @@ static Status cm_determine_buffer(Session *sess, const char *input,
     if (is_numeric) {
         /* User has entered a buffer id */
         char *group_str;
-        RETURN_IF_FAIL(re_get_group(&regex_result, input, input_len,
+        RETURN_IF_FAIL(ru_get_group(&regex_result, input, input_len,
                                     1, &group_str));
         errno = 0;
         size_t buffer_index = strtoull(input, NULL, 10);

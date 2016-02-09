@@ -4,7 +4,6 @@ include config.mk
 all: $(BINARY)
 
 .PHONY: dev
-dev: CFLAGS=$(CFLAGS_DEBUG)
 dev: all test
 
 $(BINARY): $(SOURCES) $(LIBTERMKEYLIB) $(LIBWED) wed.o
@@ -24,10 +23,10 @@ $(LIBTERMKEYLIB):
 config_scan.o: config_scan.c config_parse.c
 
 config_scan.c: config_scan.l
-	$(LEX) -o $@ $^
+	$(FLEX) -o $@ $^
 
 config_parse.c: config_parse.y
-	$(YACC) -y -d -o $@ $^
+	$(BISON) -y -d -o $@ $^
 
 $(STATIC_SOURCES): build_config.h
 

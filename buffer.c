@@ -1644,7 +1644,7 @@ Status bf_set_text(Buffer *buffer, const char *text)
 Status bf_set_mask(Buffer *buffer, const Regex *regex)
 {
     bf_remove_mask(buffer);
-    return re_compile(&buffer->mask, regex);
+    return ru_compile(&buffer->mask, regex);
 }
 
 int bf_has_mask(const Buffer *buffer)
@@ -1663,7 +1663,7 @@ static Status bf_mask_allows_input(const Buffer *buffer, const char *str,
     }
 
     RegexResult result;
-    RETURN_IF_FAIL(re_exec(&result, &buffer->mask, str, str_len, 0));
+    RETURN_IF_FAIL(ru_exec(&result, &buffer->mask, str, str_len, 0));
     *input_allowed = result.match;
     
     return STATUS_SUCCESS;
@@ -1675,7 +1675,7 @@ void bf_remove_mask(Buffer *buffer)
         return;
     }
 
-    re_free_instance(&buffer->mask);
+    ru_free_instance(&buffer->mask);
     memset(&buffer->mask, 0, sizeof(RegexInstance));
 }
 
