@@ -71,7 +71,7 @@ install:
 	@cp -fr wedruntime/* $(WEDRUNTIME)
 	@find $(WEDRUNTIME) -type f -exec chmod 644 {} \;
 	@mkdir -p $(PREFIX)/share/man/man1
-	@sed 's/VERSION/$(WED_VERSION)/g' wed.1 | gzip > $(PREFIX)/share/man/man1/wed.1.gz
+	@sed 's/VERSION/$(WED_VERSION)/g' doc/man/wed.1 | gzip > $(PREFIX)/share/man/man1/wed.1.gz
 	@chmod 644 $(PREFIX)/share/man/man1/wed.1.gz
 
 .PHONY: uninstall

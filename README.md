@@ -9,12 +9,21 @@ to a Unix terminal environment. Using standard Windows editor key bindings
 of key bindings whilst also takes advantage of existing muscle memory. For the
 most basic tasks reading wed documentation should be unnecessary.
 
-The key aims of wed can be summarized as:
+## Summary Of Core Features
 
- - Match key bindings commonly used in Windows whenever possible.
- - Features should be enabled by default.
- - Keep both the editor and its code simple, whilst ensuring it is lean, fast
-   and efficient.
+ - Multiple files open in tabbed layout
+ - Find & Replace (using PCRE and back references)
+ - Text selection, copy/cut & paste (not to/from system clipboard yet)
+ - Syntax Highlighting
+ - Themes to customise display colours
+ - Supports Unix and Windows line endings
+ - Unlimited undo & redo
+ - Configurable using config files and runtime config commands
+ - Gap buffer used as underlying storage structure
+
+## Demo
+
+![weddemo](doc/wed-demo.gif)
 
 ## Quick Start
 
@@ -42,7 +51,7 @@ make CC=clang PREFIX=/opt
 sudo make install PREFIX=/opt
 ```
 
-To uninstall wed run `make uninstall`.
+To uninstall wed run `sudo make uninstall`.
 
 As of 7060788 (9/Feb/2016) wed builds successfully without any compilation
 warnings using the latest packages available on the following systems:
@@ -77,7 +86,7 @@ Thus the idea for wed was born.
 
 ## Features
 
-Below the some of the main features of wed are examined.
+The main features of wed are detailed below.
 
 ### Key Bindings
 
@@ -96,7 +105,7 @@ key bindings wed uses differ from what would be expected.
 
 Further to this some actions listed below can be achieved with multiple key
 combinations for convenience and to avoid conflicting with other programs such
-as window managers etc.
+as window managers.
 
 #### Movement
 
@@ -250,7 +259,7 @@ fileformat | ff    | File        | string | "unix"      | Sets line endings used
 An example of a `~/.wedrc` could be:
 
 ```
-wedruntime="/opt/share/wed"; # wed was installed in /opt
+wedruntime="/opt/share/wed"; # wed shared files were moved to /opt
 tabwidth=4;                  # Tabs use 4 spaces when displayed
 expandtab=true;              # Tabs are expanded to spaces
 autoindent=true;             # New lines are indented based off previous line

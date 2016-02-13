@@ -63,10 +63,10 @@ wed [OPTIONS] [FILE]...\n\
 OPTIONS:\n\
 -c, --config-file WEDRC    Load the WEDRC config file after all other\n\
                            config files have been processed.\n\
--h, --help                 Print this message.\n\
+-h, --help                 Print this message and exit.\n\
 -k, --key-string KEYSTR    Process KEYSTR string representation of key\n\
                            presses after initialisation.\n\
--v, --version              Print version information.\n\
+-v, --version              Print version information and exit.\n\
 \n\
 ";
 
