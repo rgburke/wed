@@ -102,11 +102,11 @@ Status se_add_new_buffer(Session *, const char *file_path, int is_stdin);
 Status se_add_new_empty_buffer(Session *);
 Status se_get_buffer_index_by_path(const Session *, const char *file_path,
                                    int *buffer_index_ptr);
-Status se_add_search_to_history(Session *, char *search_text);
-Status se_add_replace_to_history(Session *, char *replace_text);
-Status se_add_cmd_to_history(Session *, char *cmd_text);
-Status se_add_lineno_to_history(Session *, char *lineno_text);
-Status se_add_buffer_to_history(Session *, char *buffer_text);
+Status se_add_search_to_history(Session *, const char *search_text);
+Status se_add_replace_to_history(Session *, const char *replace_text);
+Status se_add_cmd_to_history(Session *, const char *cmd_text);
+Status se_add_lineno_to_history(Session *, const char *lineno_text);
+Status se_add_buffer_to_history(Session *, const char *buffer_text);
 Status se_add_filetype_def(Session *, FileType *);
 Status se_add_syn_def(Session *, SyntaxDefinition *, const char *syn_name);
 void se_determine_syntaxtype(Session *, Buffer *);

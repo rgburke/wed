@@ -203,7 +203,7 @@ Status bf_load_file(Buffer *buffer)
     if (!fi_file_exists(&buffer->file_info)) {
         /* If the file represented by this buffer doesn't exist
          * then the buffer content is empty */
-        return reset_buffer(buffer);
+        return bf_clear(buffer);
     }
 
     FILE *input_file = fopen(buffer->file_info.abs_path, "rb");

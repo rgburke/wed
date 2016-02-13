@@ -30,7 +30,7 @@
 #define MAX_EMPTY_BUFFER_NAME_SIZE 20
 
 static const char *se_get_empty_buffer_name(Session *);
-static Status se_add_to_history(List *, char *text);
+static Status se_add_to_history(List *, const char *text);
 static void se_determine_filetype(Session *, Buffer *);
 static void se_determine_fileformat(Session *, Buffer *);
 static int se_is_valid_config_def(Session *, HashMap *, ConfigType,
@@ -622,18 +622,26 @@ Status se_get_buffer_index_by_path(const Session *sess, const char *file_path,
     return STATUS_SUCCESS;
 }
 
-static Status se_add_to_history(List *history, char *text)
+static Status se_add_to_history(List *history, const char *text)
 {
-    assert(!is_null_or_empty(text));
+    assert(text != NULL);
 
-    size_t size = list_size(history);
-
-    /* Avoid duplicate entries in sequence */
-    if (size > 0 && strcmp(list_get(history, size - 1), text) == 0) {
+    /* Avoid empty text and duplicate entries in sequence */
+    if (*text == '\0' ||
+        (list_size(history) > 0 &&
+         strcmp(list_get_last(history), text) == 0)) {
         return STATUS_SUCCESS;
     }
 
-    if (!list_add(history, text)) {
+    char *text_copy = strdup(text);
+
+    if (text_copy == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable save search history");
+    }
+
+    if (!list_add(history, text_copy)) {
+        free(text_copy);
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable save search history");
     }
@@ -641,27 +649,27 @@ static Status se_add_to_history(List *history, char *text)
     return STATUS_SUCCESS;
 }
 
-Status se_add_search_to_history(Session *sess, char *search_text)
+Status se_add_search_to_history(Session *sess, const char *search_text)
 {
     return se_add_to_history(sess->search_history, search_text);
 }
 
-Status se_add_replace_to_history(Session *sess, char *replace_text)
+Status se_add_replace_to_history(Session *sess, const char *replace_text)
 {
     return se_add_to_history(sess->replace_history, replace_text);
 }
 
-Status se_add_cmd_to_history(Session *sess, char *cmd_text)
+Status se_add_cmd_to_history(Session *sess, const char *cmd_text)
 {
     return se_add_to_history(sess->command_history, cmd_text);
 }
 
-Status se_add_lineno_to_history(Session *sess, char *lineno_text)
+Status se_add_lineno_to_history(Session *sess, const char *lineno_text)
 {
     return se_add_to_history(sess->lineno_history, lineno_text);
 }
 
-Status se_add_buffer_to_history(Session *sess, char *buffer_text)
+Status se_add_buffer_to_history(Session *sess, const char *buffer_text)
 {
     return se_add_to_history(sess->buffer_history, buffer_text);
 }

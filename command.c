@@ -780,6 +780,8 @@ static Status cm_prepare_search(Session *sess, const BufferPos *start_pos)
                                       buffer->file_format == FF_WINDOWS,
                                       &pattern_len);
 
+        free(pattern);
+
         if (processed_pattern == NULL) {
             return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                                 "Unable to process input");
@@ -790,9 +792,7 @@ static Status cm_prepare_search(Session *sess, const BufferPos *start_pos)
 
     status = bs_reinit(&buffer->search, start_pos, pattern, pattern_len);
 
-    if (buffer->search.search_type == BST_TEXT) {
-        free(pattern);
-    }
+    free(pattern);
 
     return status;
 }
@@ -945,38 +945,29 @@ static Status cm_prepare_replace(Session *sess, char **rep_text_ptr,
     } 
 
     *rep_length = strlen(rep_text);
-
     Buffer *buffer = sess->active_buffer;
-    Status status = STATUS_SUCCESS;
 
-    if (*rep_text != '\0') {
-        status = se_add_replace_to_history(sess, rep_text);
+    Status status = se_add_replace_to_history(sess, rep_text);
 
-        if (!STATUS_IS_SUCCESS(status)) {
-            free(rep_text);    
-            return status;
-        }
+    if (!STATUS_IS_SUCCESS(status)) {
+        free(rep_text);    
+        return status;
     }
 
     RETURN_IF_FAIL(rp_replace_init(&buffer->search, rep_text, *rep_length,
                                    buffer->file_format == FF_WINDOWS));
 
-    if (*rep_text != '\0') {
-        rep_text = su_process_string(rep_text, *rep_length,
-                                     buffer->file_format == FF_WINDOWS,
-                                     rep_length);
-    }
+    char *processed_rep_text = su_process_string(rep_text, *rep_length,
+                                            buffer->file_format == FF_WINDOWS,
+                                            rep_length);
+    free(rep_text);
 
-    if (rep_text == NULL) {
-        if (*rep_text == '\0') {
-            free(rep_text);
-        }
-
+    if (processed_rep_text == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to process input");
     }
 
-    *rep_text_ptr = rep_text;
+    *rep_text_ptr = processed_rep_text;
 
     return status;
 }
@@ -987,7 +978,8 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
     Buffer *buffer = sess->active_buffer;
     RETURN_IF_FAIL(cm_prepare_search(sess, NULL));
 
-    if (pr_prompt_cancelled(sess->prompt)) {
+    if (pr_prompt_cancelled(sess->prompt) ||
+        buffer->search.opt.pattern == NULL) {
         return STATUS_SUCCESS;
     }
 
@@ -1130,19 +1122,15 @@ static Status cm_buffer_goto_line(const CommandArgs *cmd_args)
     }
 
     char *input = pr_get_prompt_content(sess->prompt);
-    Status status = STATUS_SUCCESS;
 
     if (input == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
                             "Unable to process input");
-    } else if (*input != '\0') {
-        status = se_add_lineno_to_history(sess, input);
+    }
 
-        if (!STATUS_IS_SUCCESS(status)) {
-            free(input);
-            return status;
-        }
+    Status status = se_add_lineno_to_history(sess, input);
 
+    if (STATUS_IS_SUCCESS(status) && *input != '\0') {
         errno = 0;
 
         size_t line_no = strtoull(input, NULL, 10);
@@ -1154,9 +1142,9 @@ static Status cm_buffer_goto_line(const CommandArgs *cmd_args)
         } else {
             status = bf_goto_line(sess->active_buffer, line_no);
         }
-    } else {
-        free(input);
     }
+
+    free(input);
 
     return status;
 }
@@ -1352,23 +1340,19 @@ static Status cm_session_run_command(const CommandArgs *cmd_args)
     }
 
     char *input = pr_get_prompt_content(sess->prompt);
-    Status status = STATUS_SUCCESS;
 
     if (input == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to process input");
-    } else if (*input != '\0') {
-        status = se_add_cmd_to_history(sess, input);
-
-        if (!STATUS_IS_SUCCESS(status)) {
-            free(input);
-            return status;
-        }
-
-        status = cp_parse_config_string(sess, CL_BUFFER, input);
-    } else {
-        free(input);
     }
+
+    Status status = se_add_cmd_to_history(sess, input);
+
+    if (STATUS_IS_SUCCESS(status) && *input != '\0') {
+        status = cp_parse_config_string(sess, CL_BUFFER, input);
+    }
+
+    free(input);
 
     return status;
 }
@@ -1405,38 +1389,35 @@ static Status cm_session_change_buffer(const CommandArgs *cmd_args)
     }
 
     char *input = pr_get_prompt_content(sess->prompt);
-    Status status = STATUS_SUCCESS;
 
     if (input == NULL) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to process input");
-    } else if (*input != '\0') {
-        status = se_add_buffer_to_history(sess, input);
+    }
 
-        if (!STATUS_IS_SUCCESS(status)) {
-            free(input);
-            return status;
-        }
+    Status status = se_add_buffer_to_history(sess, input);
+    int empty = (*input == '\0');
+    const Buffer *buffer;
 
-        const Buffer *buffer;
+    if (STATUS_IS_SUCCESS(status) && !empty) {
         /* Try and match user input to buffer */
         status = cm_determine_buffer(sess, input, &buffer);
-
-        if (!STATUS_IS_SUCCESS(status)) {
-            return status;
-        }
-
-        size_t buffer_index;
-
-        if (!se_get_buffer_index(sess, buffer, &buffer_index)) {
-            assert(!"Buffer has no valid buffer index");
-        }
-
-        se_set_active_buffer(sess, buffer_index);
-    } else {
-        free(input);
     }
-    
+
+    free(input);
+
+    if (!STATUS_IS_SUCCESS(status) || empty) {
+        return status;
+    }
+
+    size_t buffer_index;
+
+    if (!se_get_buffer_index(sess, buffer, &buffer_index)) {
+        assert(!"Buffer has no valid buffer index");
+    }
+
+    se_set_active_buffer(sess, buffer_index);
+
     return status;
 }
 
