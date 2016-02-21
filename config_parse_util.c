@@ -35,6 +35,11 @@
 #include "syntax.h"
 #include "theme.h"
 
+/* Bison v2.5 shipped with Ubuntu 12.04.5 LTS doesn't add a yyparse
+ * declaration to config_parse.h, so we have to add it here to avoid an
+ * implicit function declaration warning */
+int yyparse (Session *sess, ConfigLevel config_level, const char *file_path);
+
 /* Used to process variable assignments in wed block definitions.
  * i.e. A list of expected variable assignments can be used to
  * validate a block definition */

@@ -56,7 +56,7 @@ To uninstall wed run `sudo make uninstall`.
 As of 7060788 (9/Feb/2016) wed builds successfully without any compilation
 warnings using the latest packages available on the following systems:
 
- - Ubuntu 15.10
+ - Ubuntu 15.10 and 12.04.5
  - FreeBSD 10.2
  - Cygwin 2.4.1
 

@@ -21,6 +21,7 @@
 #include <assert.h>
 #include "regex_util.h"
 #include "util.h"
+#include "build_config.h"
 
 static Status re_custom_error_msg(Status, const char *fmt, va_list);
 
@@ -88,7 +89,9 @@ void ru_free_instance(const RegexInstance *reg_inst)
         return;
     }
 
+#if WED_PCRE_VERSION_GE_8_20
     pcre_free_study(reg_inst->regex_study);
+#endif
     pcre_free(reg_inst->regex);
 }
 

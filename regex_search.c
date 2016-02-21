@@ -26,6 +26,7 @@
 #include "status.h"
 #include "buffer_pos.h"
 #include "util.h"
+#include "build_config.h"
 
 static Status rs_find_prev_str(const char *str, size_t str_len, size_t point,
                                size_t limit, size_t *match_point,
@@ -77,7 +78,9 @@ void rs_free(RegexSearch *search)
         return;
     }
 
+#if WED_PCRE_VERSION_GE_8_20
     pcre_free_study(search->study);
+#endif
     pcre_free(search->regex);
 }
 

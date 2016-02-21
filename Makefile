@@ -39,6 +39,7 @@ build_config.h:
 	@echo '#define WED_VERSION "$(WED_VERSION)"' >> build_config.h
 	@echo '#define WED_VERSION_LONG "$(WED_VERSION_LONG)"' >> build_config.h
 	@echo '#define WED_BUILD_DATETIME "$(WED_BUILD_DATETIME)"' >> build_config.h
+	@echo '#define WED_PCRE_VERSION_GE_8_20 $(WED_PCRE_VERSION_GE_8_20)' >> build_config.h
 	@echo '#endif' >> build_config.h
 
 test: $(BINARY) $(TESTS)

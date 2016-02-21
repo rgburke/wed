@@ -431,7 +431,7 @@ static const ConfigVariableDescriptor *cf_get_variable(const HashMap *config,
                                                        ConfigVariable config_var
                                                       )
 {
-    assert(config_var >= 0 && config_var < CV_ENTRY_NUM);
+    assert(config_var < CV_ENTRY_NUM);
 
     const char *var_name = cf_default_config[config_var].name;
     const ConfigVariableDescriptor *var = hashmap_get(config, var_name);

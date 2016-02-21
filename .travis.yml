@@ -1,0 +1,18 @@
+language: c
+
+compiler:
+  - gcc
+  - clang
+
+addons:
+  apt:
+    packages:
+      - bison
+      - flex
+      - libncurses5-dev
+      - libncursesw5-dev
+      - libpcre3-dev
+      - realpath
+
+script: make dev
+

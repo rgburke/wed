@@ -8,6 +8,12 @@ WED_VERSION=$(shell git describe --tags --always 2>/dev/null || \
 	      echo '$(WED_VERSION_DEFAULT)')
 WED_BUILD_DATETIME=$(shell date '+%Y-%m-%d %H:%M:%S')
 
+# Only versions of PCRE >= 8.20 have pcre_free_study
+WED_PCRE_VERSION_GE_8_20=$(shell pcre-config --version 2>/dev/null | awk -F'.' \
+	'BEGIN { output = 0; } \
+	 NR == 1 && ($$1 > 8 || ($$1 == 8 && $$2 >= 20)) { output = 1; } \
+	 END { print output; }' 2>/dev/null)
+
 CC?=cc
 FLEX?=flex
 BISON?=bison
@@ -45,7 +51,7 @@ else ifeq ($(.DEFAULT_GOAL),)
 endif
 
 CFLAGS=-std=c99 -Wall -Wextra -pedantic -MMD -MP
-LDFLAGS=-lncursesw -lpcre
+LDFLAGS=-lncursesw -lpcre -lrt
 
 OS=$(shell uname)
 
