@@ -1,4 +1,4 @@
-# wed - Windows terminal EDitor
+# wed - Windows terminal EDitor [![Build Status](https://travis-ci.org/rgburke/wed.svg?branch=master)](https://travis-ci.org/rgburke/wed)
 
 ## Introduction
 
