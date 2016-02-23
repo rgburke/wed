@@ -4,7 +4,7 @@ WEDRUNTIME?=$(PREFIX)/share/wed
 WED_VERSION_DEFAULT=v0.1
 WED_VERSION_LONG=$(shell git describe --long --tags --dirty --always \
 		   2>/dev/null || echo '$(WED_VERSION_DEFAULT)')
-WED_VERSION=$(shell git describe --tags --always 2>/dev/null || \
+WED_VERSION=$(shell git describe --tags --abbrev=0 2>/dev/null || \
 	      echo '$(WED_VERSION_DEFAULT)')
 WED_BUILD_DATETIME=$(shell date '+%Y-%m-%d %H:%M:%S')
 
