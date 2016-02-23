@@ -485,7 +485,7 @@ static void draw_status_general_info(Session *sess, size_t file_info_size,
                                      size_t available_space)
 {
     char status_text[STATUS_TEXT_SIZE];
-    char *msg = bf_join_lines(sess->msg_buffer, ". ");
+    char *msg = bf_join_lines_string(sess->msg_buffer, ". ");
     se_clear_msgs(sess);
 
     if (msg == NULL) {

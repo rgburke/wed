@@ -76,6 +76,7 @@ static Status cm_buffer_undo(const CommandArgs *);
 static Status cm_buffer_redo(const CommandArgs *);
 static Status cm_buffer_vert_move_lines(const CommandArgs *);
 static Status cm_buffer_duplicate_selection(const CommandArgs *);
+static Status cm_buffer_join_lines(const CommandArgs *);
 static Status cm_buffer_indent(const CommandArgs *);
 static Status cm_buffer_save_file(const CommandArgs *);
 static Status cm_buffer_save_as(const CommandArgs *);
@@ -148,6 +149,7 @@ static const CommandDefinition cm_commands[] = {
     [CMD_BUFFER_REDO]                    = { cm_buffer_redo                   , CMDT_BUFFER_MOD  },
     [CMD_BUFFER_VERT_MOVE_LINES]         = { cm_buffer_vert_move_lines        , CMDT_BUFFER_MOD  },
     [CMD_BUFFER_DUPLICATE_SELECTION]     = { cm_buffer_duplicate_selection    , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_JOIN_LINES]              = { cm_buffer_join_lines             , CMDT_BUFFER_MOD  },
     [CMD_BUFFER_SAVE_FILE]               = { cm_buffer_save_file              , CMDT_CMD_INPUT   },
     [CMD_BUFFER_SAVE_AS]                 = { cm_buffer_save_as                , CMDT_CMD_INPUT   },
     [CMD_BUFFER_FIND]                    = { cm_buffer_find                   , CMDT_CMD_INPUT   },
@@ -225,6 +227,7 @@ static const Operation cm_operations[] = {
     { "<C-S-Up>"     , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_UP)                            }, 1, CMD_BUFFER_VERT_MOVE_LINES         },
     { "<C-S-Down>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_DOWN)                          }, 1, CMD_BUFFER_VERT_MOVE_LINES         },
     { "<C-d>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_DUPLICATE_SELECTION     },
+    { "<C-j>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_JOIN_LINES              },
     { "<C-s>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_SAVE_FILE               },
     { "<M-C-s>"      , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_SAVE_AS                 },
     { "<C-f>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_FIND                    },
@@ -582,6 +585,15 @@ static Status cm_buffer_duplicate_selection(const CommandArgs *cmd_args)
 
     Buffer *buffer = sess->active_buffer;
     return bf_duplicate_selection(buffer);
+}
+
+static Status cm_buffer_join_lines(const CommandArgs *cmd_args)
+{
+    Session *sess = cmd_args->sess;
+
+    Buffer *buffer = sess->active_buffer;
+    const char *sep = " ";
+    return bf_join_lines(buffer, sep, strlen(sep));
 }
 
 static Status cm_buffer_indent(const CommandArgs *cmd_args)

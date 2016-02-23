@@ -153,6 +153,7 @@ depending on whether line wrap is disabled or enabled.
 <C-S-Up>                    Move current line (or selected lines) up
 <C-S-Down>                  Move current line (or selected lines) down
 <C-d>                       Duplicate current line (or selected lines)
+<C-j>                       Join (selected) lines
 ```
 
 #### General
@@ -555,7 +556,6 @@ before looking at the [Future Tasks](#future-tasks) section.
 
   - Copy `<C-c>` and cut `<C-x>` should also copy to the system clipboard on
     all supported systems (any \*nix system).
-  - Join (selected) lines using `<C-j>`.
   - Add text and code tests for remaining untested features.
   - Set session or buffer level variable using ":" syntax. i.e. `s:ln=0;` to
     turn off line numbers at global level.

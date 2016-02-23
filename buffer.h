@@ -105,7 +105,7 @@ FileFormat bf_detect_fileformat(const Buffer *);
 Status bf_load_file(Buffer *);
 Status bf_write_file(Buffer *, const char *file_path);
 char *bf_to_string(const Buffer *);
-char *bf_join_lines(const Buffer *, const char *seperator);
+char *bf_join_lines_string(const Buffer *, const char *seperator);
 int bf_is_empty(const Buffer *);
 size_t bf_lines(const Buffer *);
 size_t bf_length(const Buffer *);
@@ -168,5 +168,6 @@ Status bf_vert_move_lines(Buffer *, Direction);
 Status bf_indent(Buffer *, Direction);
 Status bf_jump_to_matching_bracket(Buffer *);
 Status bf_duplicate_selection(Buffer *);
+Status bf_join_lines(Buffer *, const char *sep, size_t sep_len);
 
 #endif

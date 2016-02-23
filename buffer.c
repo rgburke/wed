@@ -388,7 +388,7 @@ char *bf_to_string(const Buffer *buffer)
 }
 
 /* TODO This is a simple but somewhat inefficient implementation */
-char *bf_join_lines(const Buffer *buffer, const char *seperator)
+char *bf_join_lines_string(const Buffer *buffer, const char *seperator)
 {
     assert(seperator != NULL);
 
@@ -2052,3 +2052,47 @@ Status bf_duplicate_selection(Buffer *buffer)
     return status;
 }
 
+Status bf_join_lines(Buffer *buffer, const char *sep, size_t sep_len)
+{
+    Range range;
+    
+    if (!bf_get_range(buffer, &range)) {
+        range.start = range.end = buffer->pos;
+    }
+    
+    if (range.start.line_no == bf_lines(buffer)) {
+        return STATUS_SUCCESS;
+    }
+
+    RETURN_IF_FAIL(bc_start_grouped_changes(&buffer->changes));
+
+    size_t new_line_len = strlen(bf_new_line_str(buffer->file_format));
+    size_t line_range = range.end.line_no - range.start.line_no;
+
+    if (line_range == 0) {
+        line_range++;
+    }
+
+    buffer->pos = range.start;
+    BufferPos *pos = &buffer->pos;
+    bf_select_reset(buffer);
+    Status status = STATUS_SUCCESS;
+
+    for (size_t k = 0; STATUS_IS_SUCCESS(status) && k < line_range; k++) {
+        bp_to_line_end(pos);
+        status = bf_delete(buffer, new_line_len);
+
+        while (STATUS_IS_SUCCESS(status) && !bp_at_line_end(pos) &&
+               bf_character_class(buffer, pos) == CCLASS_WHITESPACE) {
+            status = bf_delete_character(buffer);
+        }
+
+        if (!bp_at_line_end(pos) && STATUS_IS_SUCCESS(status)) {
+            status = bf_insert_string(buffer, sep, sep_len, 0);
+        }
+    }
+
+    bc_end_grouped_changes(&buffer->changes);
+
+    return status;
+}
