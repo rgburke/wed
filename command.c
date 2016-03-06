@@ -507,50 +507,19 @@ static Status cm_buffer_select_all_text(const CommandArgs *cmd_args)
 static Status cm_buffer_copy_selected_text(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
-
-    TextSelection text_selection;
-
-    Status status = bf_copy_selected_text(sess->active_buffer, &text_selection);
-
-    RETURN_IF_FAIL(status);
-
-    if (text_selection.str_len == 0) {
-        return STATUS_SUCCESS; 
-    }
-
-    se_set_clipboard(sess, text_selection);
-
-    return status;
+    return cl_copy(&sess->clipboard, sess->active_buffer);
 }
 
 static Status cm_buffer_cut_selected_text(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
-
-    TextSelection text_selection;
-
-    Status status = bf_cut_selected_text(sess->active_buffer, &text_selection);
-
-    RETURN_IF_FAIL(status);
-
-    if (text_selection.str_len == 0) {
-        return STATUS_SUCCESS; 
-    }
-
-    se_set_clipboard(sess, text_selection);
-
-    return status;
+    return cl_cut(&sess->clipboard, sess->active_buffer);
 }
 
 static Status cm_buffer_paste_text(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
-
-    if (sess->clipboard.str == NULL) {
-        return STATUS_SUCCESS;
-    }
-
-    return bf_insert_textselection(sess->active_buffer, &sess->clipboard, 1);
+    return cl_paste(&sess->clipboard, sess->active_buffer);
 }
 
 static Status cm_buffer_undo(const CommandArgs *cmd_args)

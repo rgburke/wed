@@ -70,7 +70,11 @@ static const char *st_default_error_messages[] = {
     [ERR_MULTIPLE_BUFFERS_MATCH]              = "Multiple buffers match",
     [ERR_UNABLE_TO_OPEN_DIRECTORY]            = "Unable to open directory",
     [ERR_UNABLE_TO_READ_DIRECTORY]            = "Unable to read directory",
-    [ERR_INVALID_KEY]                         = "Invalid key"
+    [ERR_INVALID_KEY]                         = "Invalid key",
+    [ERR_UNABLE_TO_RUN_EXTERNAL_COMMAND]      = "Unable to run external command",
+    [ERR_INVALID_MARK]                        = "Invalid mark",
+    [ERR_DUPLICATE_MARK]                      = "Duplicate mark",
+    [ERR_CLIPBOARD_ERROR]                     = "Clipboard error"
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

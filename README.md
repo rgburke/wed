@@ -13,7 +13,7 @@ most basic tasks reading wed documentation should be unnecessary.
 
  - Multiple files open in tabbed layout
  - Find & Replace (using PCRE and back references)
- - Text selection, copy/cut & paste (not to/from system clipboard yet)
+ - Text selection, copy/cut & paste
  - Syntax Highlighting
  - Themes to customise display colours
  - Supports Unix and Windows line endings
@@ -554,9 +554,8 @@ changes. Some may still involve a fair amount of work, but none
 fundamentally change the way wed works. They should ideally be targeted first
 before looking at the [Future Tasks](#future-tasks) section.
 
-  - Copy `<C-c>` and cut `<C-x>` should also copy to the system clipboard on
-    all supported systems (any \*nix system).
   - Add text and code tests for remaining untested features.
+  - Highlight line or line number cursor is on.
   - Set session or buffer level variable using ":" syntax. i.e. `s:ln=0;` to
     turn off line numbers at global level.
   - Add functions to wed config language to implement new functionality and

@@ -31,6 +31,7 @@
 #include "search.h"
 #include "undo.h"
 #include "regex_util.h"
+#include "external_command.h"
 
 /* Character classification */
 typedef enum {
@@ -95,7 +96,22 @@ struct Buffer {
     BufferChanges changes; /* Undo/Redo */
     FileFormat file_format; /* Unix or Windows line endings */
     RegexInstance mask; /* Inserted text can match mask */
+    HashMap *marks; /* Buffer marks */
 };
+
+typedef struct {
+    InputStream is;
+    Buffer *buffer;
+    BufferPos end_pos;
+    BufferPos read_pos;
+} BufferInputStream;
+
+typedef struct {
+    OutputStream os;
+    Buffer *buffer;
+    BufferPos write_pos;
+    int replace_mode;
+} BufferOutputStream;
 
 Buffer *bf_new(const FileInfo *, const HashMap *config);
 Buffer *bf_new_empty(const char *, const HashMap *config);
@@ -113,6 +129,10 @@ int bf_is_draw_dirty(const Buffer *);
 void bf_set_is_draw_dirty(Buffer *, int);
 int bf_get_range(Buffer *, Range *);
 int bf_bp_in_range(const Range *, const BufferPos *);
+Status bf_get_buffer_input_stream(BufferInputStream *, Buffer *, const Range *);
+Status bf_get_buffer_output_stream(BufferOutputStream *, Buffer *,
+                                   const BufferPos *write_pos,
+                                   int replace_mode);
 CharacterClass bf_character_class(const Buffer *, const BufferPos *);
 int bf_get_fileformat(const char *ff_name, FileFormat *);
 const char *bf_get_fileformat_str(FileFormat);

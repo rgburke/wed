@@ -171,6 +171,8 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
         return 0;
     }
 
+    cl_init(&sess->clipboard);
+
     /* The prompt currently uses a single line, so don't wrap content */
     cf_set_var(CE_VAL(sess, prompt_buffer), CL_BUFFER,
                CV_LINEWRAP, INT_VAL(0));
@@ -201,7 +203,6 @@ void se_free(Session *sess)
     cm_clear_keymap_entries(sess->keymap_overrides);
     free_hashmap(sess->keymap);
     free_hashmap(sess->keymap_overrides);
-    bf_free_textselection(&sess->clipboard);
     cf_free_config(sess->config);
     pr_free(sess->prompt, 1);
     bf_free(sess->error_buffer);
@@ -218,6 +219,7 @@ void se_free(Session *sess)
     free_hashmap_values(sess->themes, NULL);
     free_hashmap(sess->themes);
     list_free(sess->cfg_buffer_stack);
+    cl_free(&sess->clipboard);
 
     free(sess);
 }
@@ -378,6 +380,10 @@ int se_remove_buffer(Session *sess, Buffer *to_remove)
 
     bf_free(buffer);
 
+    if (sess->active_buffer != NULL) {
+        bf_set_is_draw_dirty(sess->active_buffer, 1);
+    }
+
     return 1;
 }
 
@@ -421,15 +427,6 @@ int se_prompt_active(const Session *sess)
     }
 
     return sess->active_buffer == pr_get_prompt_buffer(sess->prompt);
-}
-
-void se_set_clipboard(Session *sess, TextSelection clipboard)
-{
-    if (sess->clipboard.str != NULL) {
-        bf_free_textselection(&sess->clipboard);
-    }
-
-    sess->clipboard = clipboard;
 }
 
 void se_exclude_command_type(Session *sess, CommandType cmd_type)
@@ -959,3 +956,4 @@ void se_set_session_finished(Session *sess)
 {
     sess->finished = 1;
 }
+

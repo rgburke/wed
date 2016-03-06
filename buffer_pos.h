@@ -36,8 +36,21 @@ struct BufferPos {
 
 typedef struct BufferPos BufferPos;
 
+typedef enum {
+    MP_NONE = 0,
+    MP_ADJUST_OFFSET_ONLY = 1,
+    MP_NO_ADJUST_ON_BUFFER_POS = 1 << 1 
+} MarkProperties;
+
+typedef struct {
+    BufferPos *pos;
+    MarkProperties prop;
+} Mark;
+
 int bp_init(BufferPos *, const GapBuffer *, const FileFormat *,
             const HashMap *config);
+Mark *bp_new_mark(BufferPos *, MarkProperties);
+void bp_free_mark(Mark *);
 char bp_get_char(const BufferPos *);
 unsigned char bp_get_uchar(const BufferPos *);
 int bp_compare(const BufferPos *, const BufferPos *);

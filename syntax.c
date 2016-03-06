@@ -160,6 +160,7 @@ SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def,
             status = ru_exec(&result, &pattern->regex, str, str_len, offset);
 
             if (!(STATUS_IS_SUCCESS(status) && result.match)) {
+                st_free_status(status);
                 /* Failure or no matches in the remainder of str
                  * so we're finished with this SyntaxPatten */
                 break;

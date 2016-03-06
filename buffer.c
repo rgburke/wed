@@ -38,6 +38,12 @@
 
 static Status reset_buffer(Buffer *);
 static Status bf_add_new_line_at_buffer_end(Buffer *);
+static Status bf_input_stream_read(InputStream *, char buf[], size_t buf_len,
+                                   size_t *bytes_read);
+static Status bf_input_stream_close(InputStream *);
+static Status bf_output_stream_write(OutputStream *, const char buf[],
+                                     size_t buf_len, size_t *bytes_written);
+static Status bf_output_stream_close(OutputStream *);
 static int is_selection(Direction *);
 static void bf_default_movement_selection_handler(Buffer *, int is_select,
                                                   Direction *);
@@ -48,12 +54,17 @@ static Status bf_change_screen_line(Buffer *, BufferPos *,
 static Status bf_advance_bp_to_line_offset(Buffer *, BufferPos *,
                                            int is_select);
 static void bf_update_line_col_offset(Buffer *, const BufferPos *);
-static void bf_update_mark(BufferPos *mark_pos,
-                           const BufferPos *change_pos,
-                           TextChangeType,
-                           size_t change_length,
-                           size_t change_lines,
-                           int no_change_on_pos);
+static Status bf_add_new_mark(Buffer *, BufferPos *, MarkProperties);
+static Status bf_add_mark(Buffer *, Mark *);
+static Mark *bf_get_mark(const Buffer *, const BufferPos *);
+static int bf_remove_pos_mark(Buffer *, const BufferPos *, int free);
+static int bf_remove_mark(Buffer *, Mark *, int free);
+static Status bf_update_marks(Buffer *, const BufferPos *change_pos,
+                              TextChangeType change_type, size_t change_length,
+                              size_t change_lines);
+static void bf_update_mark(Mark *, const BufferPos *change_pos,
+                           TextChangeType change_type, size_t change_length,
+                           size_t change_lines);
 static Status bf_insert_expanded_tab(Buffer *, int advance_cursor);
 static Status bf_auto_indent(Buffer *, int advance_cursor);
 static Status bf_convert_fileformat(TextSelection *in_ts, TextSelection *out_ts, 
@@ -71,6 +82,11 @@ Buffer *bf_new(const FileInfo *file_info, const HashMap *config)
     memset(buffer, 0, sizeof(Buffer));
 
     if ((buffer->config = new_hashmap()) == NULL) {
+        bf_free(buffer);
+        return NULL;
+    }
+
+    if ((buffer->marks = new_hashmap()) == NULL) {
         bf_free(buffer);
         return NULL;
     }
@@ -96,6 +112,12 @@ Buffer *bf_new(const FileInfo *file_info, const HashMap *config)
     init_window_info(&buffer->win_info);
     bs_init_default_opt(&buffer->search);
     bc_init(&buffer->changes);
+
+    if (!STATUS_IS_SUCCESS(bf_add_new_mark(buffer, &buffer->screen_start,
+                                           MP_NO_ADJUST_ON_BUFFER_POS))) {
+        bf_free(buffer);
+        return NULL;
+    }
 
     return buffer;
 }
@@ -125,6 +147,8 @@ void bf_free(Buffer *buffer)
     cf_free_config(buffer->config);
     gb_free(buffer->data);
     bc_free(&buffer->changes);
+    free_hashmap_values(buffer->marks, (void (*)(void *))bp_free_mark);
+    free_hashmap(buffer->marks);
 
     free(buffer);
 }
@@ -455,6 +479,102 @@ int bf_bp_in_range(const Range *range, const BufferPos *pos)
     }
 
     return 1;
+}
+
+static Status bf_input_stream_read(InputStream *is, char buf[], size_t buf_len,
+                                   size_t *bytes_read)
+{
+    BufferInputStream *bis = (BufferInputStream *)is;
+    size_t offset = bis->read_pos.offset;
+    size_t limit_offset = bis->end_pos.offset;
+
+    if (offset < limit_offset) {
+        buf_len = MIN(buf_len, limit_offset - offset);
+        *bytes_read = gb_get_range(bis->buffer->data, offset, buf, buf_len);
+        bis->read_pos.offset += *bytes_read;
+    } else {
+        *bytes_read = 0;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static Status bf_input_stream_close(InputStream *is)
+{
+    BufferInputStream *bis = (BufferInputStream *)is;
+    bf_remove_pos_mark(bis->buffer, &bis->read_pos, 1);
+    bf_remove_pos_mark(bis->buffer, &bis->end_pos, 1);
+
+    return STATUS_SUCCESS;
+}
+
+Status bf_get_buffer_input_stream(BufferInputStream *bis, Buffer *buffer,
+                                  const Range *range)
+{
+    *bis = (BufferInputStream) {
+        .is = {
+            .read = bf_input_stream_read,
+            .close = bf_input_stream_close
+        },
+        .buffer = buffer,
+        .read_pos = range->start,
+        .end_pos = range->end
+    };
+
+    RETURN_IF_FAIL(bf_add_new_mark(buffer, &bis->read_pos,
+                                   MP_ADJUST_OFFSET_ONLY));
+    Status status = bf_add_new_mark(buffer, &bis->end_pos,
+                                    MP_ADJUST_OFFSET_ONLY);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        bf_remove_pos_mark(buffer, &bis->read_pos, 1);
+    }
+
+    return status;
+}
+
+static Status bf_output_stream_write(OutputStream *os, const char buf[],
+                                     size_t buf_len, size_t *bytes_written)
+{
+    BufferOutputStream *bos = (BufferOutputStream *)os;
+    BufferPos pos = bos->buffer->pos;
+    bos->buffer->pos = bos->write_pos;
+
+    Status status = bf_replace_string(bos->buffer,
+                                      bos->replace_mode ? buf_len : 0,
+                                      buf, buf_len, 1);
+
+    if (STATUS_IS_SUCCESS(status)) {
+        bos->write_pos = bos->buffer->pos;
+        *bytes_written = buf_len;
+    }
+
+    bos->buffer->pos = pos;
+
+    return status;
+}
+
+static Status bf_output_stream_close(OutputStream *os)
+{
+    (void)os;
+    return STATUS_SUCCESS;
+}
+
+Status bf_get_buffer_output_stream(BufferOutputStream *bos, Buffer *buffer,
+                                   const BufferPos *write_pos,
+                                   int replace_mode)
+{
+    *bos = (BufferOutputStream) {
+        .os = {
+            .write = bf_output_stream_write,
+            .close = bf_output_stream_close
+        },
+        .buffer = buffer,
+        .write_pos = *write_pos,
+        .replace_mode = replace_mode
+    };
+
+    return STATUS_SUCCESS;
 }
 
 /* TODO Consider UTF-8 punctuation and whitespace */
@@ -1099,27 +1219,130 @@ Status bf_change_page(Buffer *buffer, Direction direction)
     return STATUS_SUCCESS;
 }
 
-static void bf_update_mark(BufferPos *mark_pos,
-                           const BufferPos *change_pos,
-                           TextChangeType change_type,
-                           size_t change_length,
-                           size_t change_lines,
-                           int no_change_on_pos)
+static Status bf_add_new_mark(Buffer *buffer, BufferPos *pos,
+                              MarkProperties prop)
 {
+    Mark *mark = bp_new_mark(pos, prop);
+
+    if (mark == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable allocate mark" );
+    }
+
+    Status status = bf_add_mark(buffer, mark);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        bp_free_mark(mark);
+    }
+
+    return status;
+}
+
+static Status bf_add_mark(Buffer *buffer, Mark *mark)
+{
+    if (mark == NULL) {
+        return st_get_error(ERR_INVALID_MARK, "NULL mark");        
+    }
+
+    char addr[50];
+    snprintf(addr, sizeof(addr), "%p", (void *)mark->pos);
+
+    if (hashmap_get(buffer->marks, addr) != NULL) {
+        return st_get_error(ERR_DUPLICATE_MARK, "Mark already tracked");
+    } else if (!hashmap_set(buffer->marks, addr, mark)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to save mark" );
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static Mark *bf_get_mark(const Buffer *buffer, const BufferPos *pos)
+{
+    char addr[50];
+    snprintf(addr, sizeof(addr), "%p", (void *)pos);
+
+    return hashmap_get(buffer->marks, addr);
+}
+
+static int bf_remove_pos_mark(Buffer *buffer, const BufferPos *pos, int free)
+{
+    Mark *mark = bf_get_mark(buffer, pos);
+    return bf_remove_mark(buffer, mark, free);
+}
+
+static int bf_remove_mark(Buffer *buffer, Mark *mark, int free)
+{
+    if (mark == NULL) {
+        return 0;
+    }
+
+    char addr[50];
+    snprintf(addr, sizeof(addr), "%p", (void *)mark->pos);
+
+    int deleted = hashmap_delete(buffer->marks, addr);
+
+    if (free) {
+        bp_free_mark(mark);
+    }
+
+    return deleted;
+}
+
+static Status bf_update_marks(Buffer *buffer, const BufferPos *change_pos,
+                              TextChangeType change_type, size_t change_length,
+                              size_t change_lines)
+{
+    /* TODO Need HashMapIterator implementation to avoid heap allocation
+     * just to loop through hash entries */
+    const char **mark_refs = hashmap_get_keys(buffer->marks);
+
+    if (mark_refs == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to allocate mark list");
+    }
+
+    size_t mark_num = hashmap_size(buffer->marks);
+    Mark *mark;
+
+    for (size_t k = 0; k < mark_num; k++) {
+        mark = (Mark *)hashmap_get(buffer->marks, mark_refs[k]);
+        assert(mark != NULL);
+
+        if (mark != NULL) {
+            bf_update_mark(mark, change_pos, change_type,
+                           change_length, change_lines);
+        }
+    }
+
+    free(mark_refs);
+
+    return STATUS_SUCCESS;
+}
+
+static void bf_update_mark(Mark *mark, const BufferPos *change_pos,
+                           TextChangeType change_type, size_t change_length,
+                           size_t change_lines)
+{
+    BufferPos *mark_pos = mark->pos;
+
     if (mark_pos->line_no == 0 || change_length == 0 ||
         mark_pos->offset < change_pos->offset ||
-        (no_change_on_pos && mark_pos->offset == change_pos->offset)) {
+        ((mark->prop & MP_NO_ADJUST_ON_BUFFER_POS) &&
+         mark_pos->offset == change_pos->offset)) {
         return;
     }
 
     if (change_type == TCT_INSERT) {
         mark_pos->offset += change_length;
 
-        if (mark_pos->line_no == change_pos->line_no) {
-            bp_recalc_col(mark_pos);
-        }
+        if (!(mark->prop & MP_ADJUST_OFFSET_ONLY)) {
+            if (mark_pos->line_no == change_pos->line_no) {
+                bp_recalc_col(mark_pos);
+            }
 
-        mark_pos->line_no += change_lines;
+            mark_pos->line_no += change_lines;
+        }
     } else if (change_type == TCT_DELETE) {
         if (mark_pos->offset < change_pos->offset + change_length) {
             *mark_pos = *change_pos;
@@ -1127,18 +1350,21 @@ static void bf_update_mark(BufferPos *mark_pos,
             assert(mark_pos->offset >= change_length);
             mark_pos->offset -= change_length;
 
-            if (mark_pos->line_no <= change_pos->line_no + change_lines) {
-                bp_recalc_col(mark_pos);
-            }
+            if (!(mark->prop & MP_ADJUST_OFFSET_ONLY)) {
+                if (mark_pos->line_no <= change_pos->line_no + change_lines) {
+                    bp_recalc_col(mark_pos);
+                }
 
-            mark_pos->line_no -= change_lines;
+                mark_pos->line_no -= change_lines;
+            }
         }
     } else {
         assert(!"Invalid TextChangeType");
     }
 
     assert(mark_pos->offset <= gb_length(mark_pos->data));
-    assert(mark_pos->line_no <= gb_lines(mark_pos->data) + 1);
+    assert(!(mark->prop & MP_ADJUST_OFFSET_ONLY) ||
+           mark_pos->line_no <= gb_lines(mark_pos->data) + 1);
 }
 
 static Status bf_insert_expanded_tab(Buffer *buffer, int advance_cursor)
@@ -1272,8 +1498,8 @@ Status bf_insert_string(Buffer *buffer, const char *string,
     size_t lines_after = gb_lines(buffer->data);
     buffer->is_dirty = buffer->is_draw_dirty = 1;
 
-    bf_update_mark(&buffer->screen_start, &buffer->pos, TCT_INSERT,
-                   string_length, lines_after - lines_before, 1);
+    bf_update_marks(buffer, &buffer->pos, TCT_INSERT, string_length,
+                    lines_after - lines_before);
 
     status = bc_add_text_insert(&buffer->changes, string_length, &start_pos);
 
@@ -1374,8 +1600,8 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
     size_t lines_after = gb_lines(buffer->data);
     buffer->is_dirty = buffer->is_draw_dirty = 1;
 
-    bf_update_mark(&buffer->screen_start, &buffer->pos, TCT_DELETE,
-                   byte_num, lines_before - lines_after, 1);
+    bf_update_marks(buffer, &buffer->pos, TCT_DELETE, byte_num,
+                    lines_before - lines_after);
 
     Status status = bc_add_text_delete(&buffer->changes, deleted_str,
                                        byte_num, pos); 

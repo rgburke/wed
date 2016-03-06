@@ -1,0 +1,121 @@
+#!/bin/sh
+
+# This script is part of wed - Windows terminal EDitor
+#
+# Copyright (C) 2016 Richard Burke
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+wc_fatal() {
+    echo "$@" >&2
+    exit 1
+}
+
+wc_usage() {
+    wc_fatal "`basename $0` (--usable|--copy|--paste)"
+}
+
+wc_determine_command() {
+    if [ -n "$DISPLAY" ]; then
+        for c in xclip xsel; do
+            if type "$c" >/dev/null 2>&1; then
+                echo "$c"
+                return 0
+            fi
+        done
+    elif type pbcopy >/dev/null 2>&1; then
+        echo 'mac'
+        return 0
+    elif [ -c /dev/clipboard ]; then
+        echo 'cygwin'
+        return 0
+    fi
+
+    return 1
+}
+
+wc_usable() {
+    if wc_determine_command >/dev/null 2>&1; then
+        exit 0
+    fi
+
+    exit 1
+}
+
+wc_copy() {
+    COPY_CMD="`wc_determine_command 2>/dev/null`"
+
+    if [ $? -ne 0 ] || [ -z "$COPY_CMD" ]; then
+        wc_fatal 'Unable to find copy command'
+    fi
+
+    wc_${COPY_CMD}_copy
+
+    exit $?
+}
+
+wc_paste() {
+    PASTE_CMD="`wc_determine_command 2>/dev/null`"
+
+    if [ $? -ne 0 ] || [ -z "$PASTE_CMD" ]; then
+        wc_fatal 'Unable to find paste command'
+    fi
+
+    wc_${PASTE_CMD}_paste
+
+    exit $?
+}
+
+wc_xsel_copy() {
+    xsel -bi
+}
+
+wc_xsel_paste() {
+    xsel -bo
+}
+
+wc_xclip_copy() {
+    xclip -selection clipboard -i >/dev/null 2>&1
+}
+
+wc_xclip_paste() {
+    xclip -selection clipboard -o
+}
+
+wc_mac_copy() {
+    pbcopy
+}
+
+wc_mac_paste() {
+    pbpaste
+}
+
+wc_cygwin_copy() {
+    cat >/dev/clipboard 
+}
+
+wc_cygwin_paste() {
+    cat /dev/clipboard
+}
+
+case "$1" in
+    --usable) wc_usable;;
+    --copy) wc_copy;;
+    --paste) wc_paste;;
+    *) break;;
+esac
+
+wc_usage 
+

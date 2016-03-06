@@ -68,6 +68,7 @@ install:
 	@echo 'Installing wed under $(PREFIX)'
 	@mkdir -p $(PREFIX)/bin
 	@install -m755 -s $(BINARY) $(PREFIX)/bin
+	@install -m755 '$(WEDCLIPBOARD)' $(PREFIX)/bin
 	@install -m755 -d $(WEDRUNTIME)	
 	@cp -fr wedruntime/* $(WEDRUNTIME)
 	@find $(WEDRUNTIME) -type f -exec chmod 644 {} \;
@@ -79,5 +80,6 @@ install:
 uninstall:
 	@echo 'Uninstalling wed'
 	@rm -f $(PREFIX)/bin/$(BINARY)
+	@rm -f '$(PREFIX)/bin/$(WEDCLIPBOARD)'
 	@rm -fr $(WEDRUNTIME)
 	@rm -f $(PREFIX)/share/man/man1/wed.1.gz

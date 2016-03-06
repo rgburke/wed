@@ -16,9 +16,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
 #include "buffer_pos.h"
 #include "util.h"
-#include <assert.h>
+#include "status.h"
 
 #define CORRECT_LINE_NO(lineno, maxlineno) \
         ((lineno) == 0 ? 1 : MIN((lineno), (maxlineno)))
@@ -53,6 +56,25 @@ int bp_init(BufferPos *pos, const GapBuffer *data,
     pos->config = config;
 
     return 1;
+}
+
+Mark *bp_new_mark(BufferPos *pos, MarkProperties prop)
+{
+    Mark *mark = malloc(sizeof(Mark));
+    RETURN_IF_NULL(mark);
+
+    memset(mark, 0, sizeof(Mark));
+    mark->pos = pos;
+    mark->prop = prop;
+
+    return mark;
+}
+
+void bp_free_mark(Mark *mark)
+{
+    if (mark != NULL) {
+        free(mark);
+    }
 }
 
 char bp_get_char(const BufferPos *pos)

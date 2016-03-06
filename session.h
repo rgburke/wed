@@ -29,6 +29,7 @@
 #include "theme.h"
 #include "prompt.h"
 #include "input.h"
+#include "clipboard.h"
 
 #define MAX_KEY_STR_SIZE 50
 
@@ -41,7 +42,7 @@ struct Session {
     Buffer *msg_buffer; /* Buffer which stores messages */
     HashMap *keymap; /* Maps keyboard inputs to commands */
     HashMap *keymap_overrides; /* Keymap overrides active when in prompt */
-    TextSelection clipboard; /* Stores copied and cut text */
+    Clipboard clipboard; /* Handles copy and paste to system clipboard */
     HashMap *config; /* Stores config variables */
     Prompt *prompt; /* Used to control prompt */
     CommandType exclude_cmd_types; /* Types of commands that shouldn't run */
@@ -85,7 +86,6 @@ Status se_make_prompt_active(Session *, PromptType, const char *prompt_text,
                              List *history, int show_last_cmd);
 int se_end_prompt(Session *);
 int se_prompt_active(const Session *);
-void se_set_clipboard(Session *, TextSelection);
 void se_exclude_command_type(Session *, CommandType);
 void se_enable_command_type(Session *, CommandType);
 int se_command_type_excluded(const Session *, CommandType);
