@@ -35,7 +35,7 @@ build_config.h:
 	@echo '#ifndef WED_BUILD_CONFIG_H' >> build_config.h
 	@echo '#define WED_BUILD_CONFIG_H' >> build_config.h
 	@echo '#define WED_DEV $(WED_DEV)' >> build_config.h
-	@echo '#define WEDRUNTIME "$(WEDRUNTIME)"' >> build_config.h
+	@echo '#define WEDRUNTIME "$(DESTDIR)$(WEDRUNTIME)"' >> build_config.h
 	@echo '#define WED_VERSION "$(WED_VERSION)"' >> build_config.h
 	@echo '#define WED_VERSION_LONG "$(WED_VERSION_LONG)"' >> build_config.h
 	@echo '#define WED_BUILD_DATETIME "$(WED_BUILD_DATETIME)"' >> build_config.h
@@ -65,21 +65,21 @@ clean:
 
 .PHONY: install
 install:
-	@echo 'Installing wed under $(PREFIX)'
-	@mkdir -p $(PREFIX)/bin
-	@install -m755 -s $(BINARY) $(PREFIX)/bin
-	@install -m755 '$(WEDCLIPBOARD)' $(PREFIX)/bin
-	@install -m755 -d $(WEDRUNTIME)	
-	@cp -fr wedruntime/* $(WEDRUNTIME)
-	@find $(WEDRUNTIME) -type f -exec chmod 644 {} \;
-	@mkdir -p $(PREFIX)/share/man/man1
-	@sed 's/VERSION/$(WED_VERSION)/g' doc/man/wed.1 | gzip > $(PREFIX)/share/man/man1/wed.1.gz
-	@chmod 644 $(PREFIX)/share/man/man1/wed.1.gz
+	@echo 'Installing wed under $(DESTDIR)$(PREFIX)'
+	@mkdir -p $(DESTDIR)$(PREFIX)/bin
+	@install -m755 -s $(BINARY) $(DESTDIR)$(PREFIX)/bin
+	@install -m755 '$(WEDCLIPBOARD)' $(DESTDIR)$(PREFIX)/bin
+	@install -m755 -d $(DESTDIR)$(WEDRUNTIME)	
+	@cp -fr wedruntime/* $(DESTDIR)$(WEDRUNTIME)
+	@find $(DESTDIR)$(WEDRUNTIME) -type f -exec chmod 644 {} \;
+	@mkdir -p $(DESTDIR)$(PREFIX)/share/man/man1
+	@sed 's/VERSION/$(WED_VERSION)/g' doc/man/wed.1 | gzip > $(DESTDIR)$(PREFIX)/share/man/man1/wed.1.gz
+	@chmod 644 $(DESTDIR)$(PREFIX)/share/man/man1/wed.1.gz
 
 .PHONY: uninstall
 uninstall:
 	@echo 'Uninstalling wed'
-	@rm -f $(PREFIX)/bin/$(BINARY)
-	@rm -f '$(PREFIX)/bin/$(WEDCLIPBOARD)'
-	@rm -fr $(WEDRUNTIME)
-	@rm -f $(PREFIX)/share/man/man1/wed.1.gz
+	@rm -f $(DESTDIR)$(PREFIX)/bin/$(BINARY)
+	@rm -f '$(DESTDIR)$(PREFIX)/bin/$(WEDCLIPBOARD)'
+	@rm -fr $(DESTDIR)$(WEDRUNTIME)
+	@rm -f $(DESTDIR)$(PREFIX)/share/man/man1/wed.1.gz
