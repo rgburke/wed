@@ -39,6 +39,12 @@
 #define CFG_FILETYPES_FILE_NAME "filetypes.wed"
 #define CFG_USER_DIR "wed"
 
+#if WED_SOURCE_HIGHLIGHT
+#define CFG_DEFAULT_SDT "sh"
+#else
+#define CFG_DEFAULT_SDT "wed"
+#endif
+
 static Status cf_path_append(const char *path, const char *append,
                              char **result);
 static void cf_free_cvd(ConfigVariableDescriptor *);
@@ -55,19 +61,22 @@ static Status cf_theme_validator(ConfigEntity, Value);
 static Status cf_theme_on_change_event(ConfigEntity, Value, Value);
 static Status cf_fileformat_validator(ConfigEntity, Value);
 static Status cf_fileformat_on_change_event(ConfigEntity, Value, Value);
+static Status cf_sdt_validator(ConfigEntity, Value);
 
 static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
-    [CV_LINEWRAP]   = { "linewrap"  , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
-    [CV_LINENO]     = { "lineno"    , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
-    [CV_TABWIDTH]   = { "tabwidth"  , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8)         , cf_tabwidth_validator  , NULL },
-    [CV_WEDRUNTIME] = { "wedruntime", "wrt", CL_SESSION            , STR_VAL_STRUCT(WEDRUNTIME), NULL                   , NULL },
-    [CV_FILETYPE]   = { "filetype"  , "ft" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_filetype_validator  , cf_filetype_on_change_event },
-    [CV_SYNTAX]     = { "syntax"    , "sy" , CL_SESSION            , BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
-    [CV_SYNTAXTYPE] = { "syntaxtype", "st" , CL_BUFFER             , STR_VAL_STRUCT("")        , cf_syntaxtype_validator, NULL },
-    [CV_THEME]      = { "theme"     , "th" , CL_SESSION            , STR_VAL_STRUCT("default") , cf_theme_validator     , cf_theme_on_change_event },
-    [CV_EXPANDTAB]  = { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0)        , NULL                   , NULL },
-    [CV_AUTOINDENT] = { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1)        , NULL                   , NULL },
-    [CV_FILEFORMAT] = { "fileformat", "ff" , CL_BUFFER             , STR_VAL_STRUCT("unix")    , cf_fileformat_validator, cf_fileformat_on_change_event }
+    [CV_LINEWRAP] = { "linewrap" , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL },
+    [CV_LINENO] = { "lineno" , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL },
+    [CV_TABWIDTH] = { "tabwidth" , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8) , cf_tabwidth_validator , NULL },
+    [CV_WEDRUNTIME] = { "wedruntime", "wrt", CL_SESSION , STR_VAL_STRUCT(WEDRUNTIME), NULL , NULL },
+    [CV_FILETYPE] = { "filetype" , "ft" , CL_BUFFER , STR_VAL_STRUCT("") , cf_filetype_validator , cf_filetype_on_change_event },
+    [CV_SYNTAX] = { "syntax" , "sy" , CL_SESSION , BOOL_VAL_STRUCT(1) , NULL , NULL },
+    [CV_SYNTAXTYPE] = { "syntaxtype", "st" , CL_BUFFER , STR_VAL_STRUCT("") , cf_syntaxtype_validator, NULL },
+    [CV_THEME] = { "theme" , "th" , CL_SESSION , STR_VAL_STRUCT("default") , cf_theme_validator , cf_theme_on_change_event },
+    [CV_EXPANDTAB] = { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0) , NULL , NULL },
+    [CV_AUTOINDENT] = { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL },
+    [CV_FILEFORMAT] = { "fileformat", "ff" , CL_BUFFER , STR_VAL_STRUCT("unix") , cf_fileformat_validator, cf_fileformat_on_change_event },
+    [CV_SYNTAXDEFTYPE] = { "syntaxdeftype", "sdt", CL_SESSION, STR_VAL_STRUCT(CFG_DEFAULT_SDT), cf_sdt_validator, NULL },
+    [CV_SHDATADIR] = { "shdatadir", "shdd", CL_SESSION, STR_VAL_STRUCT(""), NULL, NULL }
 };
 
 static const size_t cf_var_num = ARRAY_SIZE(cf_default_config,
@@ -609,3 +618,20 @@ static Status cf_fileformat_on_change_event(ConfigEntity entity, Value old_val,
     return STATUS_SUCCESS;
 }
 
+static Status cf_sdt_validator(ConfigEntity entity,
+                               Value value)
+{
+    (void)entity;
+
+    if (!is_null_or_empty(SVAL(value)) && (
+            strncmp(SVAL(value), "wed", 4) == 0
+#if WED_SOURCE_HIGHLIGHT
+            || strncmp(SVAL(value), "sh", 3) == 0
+#endif
+        )) {
+        return STATUS_SUCCESS;
+    }
+
+    return st_get_error(ERR_INVALID_SYNTAXDEFTYPE,
+                        "Invalid syntax definition type \"%s\"", SVAL(value));
+}

@@ -18,6 +18,9 @@ $(LIBTERMKEYLIB):
 .c.o:
 	$(CC) -c $(CFLAGS) $< -o $@
 
+.cc.o:
+	$(CXX) -c $(CXXFLAGS) $< -o $@
+
 -include $(DEPENDENCIES)
 
 config_scan.o: config_scan.c config_parse.c
@@ -40,6 +43,7 @@ build_config.h:
 	@echo '#define WED_VERSION_LONG "$(WED_VERSION_LONG)"' >> build_config.h
 	@echo '#define WED_BUILD_DATETIME "$(WED_BUILD_DATETIME)"' >> build_config.h
 	@echo '#define WED_PCRE_VERSION_GE_8_20 $(WED_PCRE_VERSION_GE_8_20)' >> build_config.h
+	@echo '#define WED_SOURCE_HIGHLIGHT $(WED_SOURCE_HIGHLIGHT)' >> build_config.h
 	@echo '#endif' >> build_config.h
 
 test: $(BINARY) $(TESTS)

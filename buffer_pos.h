@@ -58,6 +58,7 @@ BufferPos bp_min(const BufferPos *, const BufferPos *);
 BufferPos bp_max(const BufferPos *, const BufferPos *);
 int bp_at_line_start(const BufferPos *);
 int bp_at_line_end(const BufferPos *);
+int bp_on_empty_line(const BufferPos *);
 int bp_at_first_line(const BufferPos *);
 int bp_at_last_line(const BufferPos *);
 int bp_at_buffer_start(const BufferPos *);

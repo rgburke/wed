@@ -147,6 +147,11 @@ int bp_at_line_end(const BufferPos *pos)
     return bp_get_char(pos) == '\n';
 }
 
+int bp_on_empty_line(const BufferPos *pos)
+{
+    return bp_at_line_start(pos) && bp_at_line_end(pos);
+}
+
 int bp_at_first_line(const BufferPos *pos)
 {
     return pos->line_no == 1;

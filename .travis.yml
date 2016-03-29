@@ -13,6 +13,8 @@ addons:
       - libncursesw5-dev
       - libpcre3-dev
       - realpath
+      - libsource-highlight-dev
+      - libboost-regex-dev
 
 script: make dev
 

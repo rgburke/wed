@@ -22,11 +22,12 @@
 #include "regex_util.h"
 #include "shared.h"
 #include "status.h"
+#include "source_highlight_interface.h"
 
 #define MAX_SYNTAX_MATCH_NUM 500
 
 /* The list of tokens available in wed. Syntax patterns can specify one 
- * of these tokens for matched buffer content, allowing wed to tokenise
+ * of these tokens for matched buffer content, allowing wed to tokenize
  * buffer content. This data can be used by theme's to provide custom
  * colouring for each matched token */
 typedef enum {
@@ -42,19 +43,30 @@ typedef enum {
     ST_ENTRY_NUM
 } SyntaxToken;
 
+typedef enum {
+    SDT_WED,
+    SDT_SOURCE_HIGHLIGHT
+} SyntaxDefinitionType;
+
 typedef struct SyntaxPattern SyntaxPattern;
 
-/* Used to tokenise buffer content */
+/* Used to tokenize buffer content */
 struct SyntaxPattern {
     RegexInstance regex; /* Pattern run against buffer content */
     SyntaxToken token; /* Token that matched buffer content corresponds with */
     SyntaxPattern *next; /* SynaxtPattern's are stored in a linked list */
 };
 
+typedef union {
+    SyntaxPattern *patterns;
+    SourceHighlight sh;
+} SyntaxDefinitionInstance;
+
 /* Syntax definition for a language. Each language is represented by its
  * own SyntaxDefinition instance */
 typedef struct {
-    SyntaxPattern *patterns; /* Linked list of syntax patterns */
+    SyntaxDefinitionType type;
+    SyntaxDefinitionInstance sdi;
 } SyntaxDefinition;
 
 /* Match data for SyntaxPattern's that have matched buffer content */
@@ -65,7 +77,7 @@ typedef struct {
 } SyntaxMatch;
 
 /* All token data for a SyntaxDefinition run on a buffer range */
-typedef struct {
+struct SyntaxMatches {
     size_t match_num; /* Number of SyntaxMatch's found */
     size_t current_match; /* Used to keep track of the last SyntaxMatch
                              requested */
@@ -75,12 +87,14 @@ typedef struct {
                       SyntaxMatch's by using the buffer's offset
                       rather than the substring offset */
     SyntaxMatch matches[MAX_SYNTAX_MATCH_NUM]; /* Array that stores matches */
-} SyntaxMatches;
+};
+
+typedef struct SyntaxMatches SyntaxMatches;
 
 int sy_str_to_token(SyntaxToken *, const char *token_str);
 Status sy_new_pattern(SyntaxPattern **, const Regex *, SyntaxToken);
 void syn_free_pattern(SyntaxPattern *);
-SyntaxDefinition *sy_new_def(SyntaxPattern *);
+SyntaxDefinition *sy_new_def(SyntaxDefinitionType, SyntaxDefinitionInstance);
 void sy_free_def(SyntaxDefinition *);
 SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *,
                                      const char *str, size_t str_len,

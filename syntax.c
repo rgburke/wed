@@ -23,6 +23,7 @@
 #include "syntax.h"
 #include "regex_util.h"
 #include "util.h"
+#include "build_config.h"
 
 static void sy_add_match(SyntaxMatches *, const SyntaxMatch *);
 static int sy_match_cmp(const void *, const void *);
@@ -91,17 +92,17 @@ void syn_free_pattern(SyntaxPattern *syn_pattern)
     free(syn_pattern);
 }
 
-SyntaxDefinition *sy_new_def(SyntaxPattern *patterns)
+SyntaxDefinition *sy_new_def(SyntaxDefinitionType type,
+                             SyntaxDefinitionInstance instance)
 {
-    assert(patterns != NULL);
-
     SyntaxDefinition *syn_def = malloc(sizeof(SyntaxDefinition));
 
     if (syn_def == NULL) {
         return NULL;
     }
 
-    syn_def->patterns = patterns;
+    syn_def->type = type;
+    syn_def->sdi = instance;
 
     return syn_def;
 }
@@ -112,12 +113,19 @@ void sy_free_def(SyntaxDefinition *syn_def)
         return;
     }
 
-    SyntaxPattern *next;
+    if (syn_def->type == SDT_WED) {
+        SyntaxPattern *next;
+        SyntaxPattern *current = syn_def->sdi.patterns;
 
-    while (syn_def->patterns != NULL) {
-        next = syn_def->patterns->next;
-        syn_free_pattern(syn_def->patterns);
-        syn_def->patterns = next;
+        while (current != NULL) {
+            next = current->next;
+            syn_free_pattern(current);
+            current = next;
+        }
+    } else if (syn_def->type == SDT_SOURCE_HIGHLIGHT) {
+#if WED_SOURCE_HIGHLIGHT
+        sh_free(&syn_def->sdi.sh);
+#endif
     }
 
     free(syn_def);
@@ -134,6 +142,14 @@ SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def,
         return NULL;
     }
 
+#if WED_SOURCE_HIGHLIGHT
+    if (syn_def->type == SDT_SOURCE_HIGHLIGHT) {
+        SyntaxMatches *syn_matches = sh_tokenize(&syn_def->sdi.sh, str);
+        syn_matches->offset = offset;
+        return syn_matches;
+    }
+#endif
+
     SyntaxMatches *syn_matches = malloc(sizeof(SyntaxMatches));
 
     if (syn_matches == NULL) {
@@ -144,7 +160,7 @@ SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *syn_def,
     syn_matches->current_match = 0;
     syn_matches->offset = offset;
     
-    SyntaxPattern *pattern = syn_def->patterns;
+    SyntaxPattern *pattern = syn_def->sdi.patterns;
     SyntaxMatch syn_match;
     RegexResult result;
     Status status;

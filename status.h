@@ -99,7 +99,8 @@ typedef enum {
     ERR_UNABLE_TO_RUN_EXTERNAL_COMMAND,
     ERR_INVALID_MARK,
     ERR_DUPLICATE_MARK,
-    ERR_CLIPBOARD_ERROR
+    ERR_CLIPBOARD_ERROR,
+    ERR_INVALID_SYNTAXDEFTYPE
 } ErrorCode;
 
 /* Structure used to represent success or failure */

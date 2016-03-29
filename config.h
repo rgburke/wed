@@ -67,6 +67,8 @@ typedef enum {
     CV_EXPANDTAB,
     CV_AUTOINDENT,
     CV_FILEFORMAT,
+    CV_SYNTAXDEFTYPE,
+    CV_SHDATADIR,
     CV_ENTRY_NUM
 } ConfigVariable;
 

@@ -1,6 +1,11 @@
+WED_SOURCE_HIGHLIGHT?=1
 WED_DEV?=0
 PREFIX?=/usr/local
 WEDRUNTIME?=$(PREFIX)/share/wed
+
+FLEX?=flex
+BISON?=bison
+
 WED_VERSION_DEFAULT=v0.1
 WED_VERSION_LONG=$(shell git describe --long --tags --dirty --always \
 		   2>/dev/null || echo '$(WED_VERSION_DEFAULT)')
@@ -14,11 +19,6 @@ WED_PCRE_VERSION_GE_8_20=$(shell pcre-config --version 2>/dev/null | awk -F'.' \
 	 NR == 1 && ($$1 > 8 || ($$1 == 8 && $$2 >= 20)) { output = 1; } \
 	 END { print output; }' 2>/dev/null)
 
-CC?=cc
-FLEX?=flex
-BISON?=bison
-AR?=ar
-
 STATIC_SOURCES=wed.c display.c buffer.c util.c input.c session.c    \
 	status.c command.c file.c value.c list.c hashmap.c config.c \
 	encoding.c config_parse_util.c gap_buffer.c buffer_pos.c    \
@@ -26,10 +26,16 @@ STATIC_SOURCES=wed.c display.c buffer.c util.c input.c session.c    \
 	file_type.c regex_util.c syntax.c theme.c prompt.c          \
 	prompt_completer.c search_util.c external_command.c         \
 	clipboard.c
+STATIC_CXX_SOURCES=source_highlight.cc
 GENERATED_SOURCES=config_parse.c config_scan.c
 SOURCES=$(STATIC_SOURCES) $(GENERATED_SOURCES)
+OBJECTS:=$(SOURCES:.c=.o)
 
-OBJECTS=$(SOURCES:.c=.o)
+ifeq ($(WED_SOURCE_HIGHLIGHT),1)
+	SOURCES:=$(SOURCES) $(STATIC_CXX_SOURCES)
+	OBJECTS:=$(OBJECTS) $(STATIC_CXX_SOURCES:.cc=.o)
+endif
+
 LIBOBJECTS=$(filter-out wed.o, $(OBJECTS))
 DEPENDENCIES=$(OBJECTS:.o=.d)
 
@@ -52,22 +58,29 @@ else ifeq ($(.DEFAULT_GOAL),)
 	endif
 endif
 
-CFLAGS=-std=c99 -Wall -Wextra -pedantic -MMD -MP
+CFLAGS_BASE=-Wall -Wextra -pedantic -MMD -MP
 LDFLAGS=-lncursesw -lpcre -lrt
 
 OS=$(shell uname)
 
 ifeq ($(OS),Linux)
-	CFLAGS+=-D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
+	CFLAGS_BASE+=-D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
 else ifeq ($(OS),FreeBSD)
-	CFLAGS+=-I/usr/local/include
+	CFLAGS_BASE+=-I/usr/local/include
 	LDFLAGS+=-L/usr/local/lib
 else ifeq ($(findstring CYGWIN,$(OS)),CYGWIN)
-	CFLAGS+=-U__STRICT_ANSI__
+	CFLAGS_BASE+=-U__STRICT_ANSI__
 endif
 
 ifeq ($(WED_DEV),1)
-	CFLAGS+=-Werror -g
+	CFLAGS_BASE+=-Werror -g
 else
-	CFLAGS+=-O2 -DNDEBUG
+	CFLAGS_BASE+=-O2 -DNDEBUG
+endif
+
+CFLAGS=-std=c99 $(CFLAGS_BASE)
+CXXFLAGS=-std=c++98 $(CFLAGS_BASE)
+
+ifeq ($(WED_SOURCE_HIGHLIGHT),1)
+	LDFLAGS+=-lsource-highlight -lboost_regex -lstdc++
 endif

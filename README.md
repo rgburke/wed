@@ -36,6 +36,12 @@ The following libraries and tools are required to build wed:
   - GNU make
   - realpath (for running tests)
 
+When using Source-highlight for syntax highlighting (enabled by default) the
+following libraries are also required:
+
+  - Source-highlight
+  - Boost Regex
+
 To build and install wed (defaults to `/usr/local/`) simply run:
 
 ```
@@ -48,7 +54,7 @@ relevant arguments. For example to build wed using clang and then install to
 `/opt` run:
 
 ```
-make CC=clang PREFIX=/opt
+make CC=clang CXX=clang++ PREFIX=/opt
 sudo make install PREFIX=/opt
 ```
 
@@ -243,19 +249,21 @@ regex      | \/(\\\/|[^\/])*\/[imsx]*
 The table below lists the variables available in wed and their properties:
 
 ```
-Name       | Short | Level       | Type   | Default Val | Description
------------|-------|-------------|--------|-------------|---------------------------------------------------------
-linewrap   | lw    | Global/File | bool   | true        | Enables/Disables line wrap
-lineno     | ln    | Global/File | bool   | true        | Enables/Disables line numbers
-tabwidth   | tw    | Global/File | int    | 8           | Sets tab character screen width (allowed 1 - 8)
-expandtab  | et    | Global/File | bool   | false       | Enables/Disables expanding tab characters into spaces
-autoindent | ai    | Global/File | bool   | true        | Enables/Disables autoindent
-wedruntime | wrt   | Global      | string | WEDRUNTIME  | Config definition location directory (set in config.mk)
-syntax     | sy    | Global      | bool   | true        | Enables/Disables syntax highlighting
-theme      | th    | Global      | string | "default"   | Set the active theme
-filetype   | ft    | File        | string | ""          | Sets the type of the current file (drives syntaxtype)
-syntaxtype | st    | File        | string | ""          | Set the syntax definition to use for highlighting
-fileformat | ff    | File        | string | "unix"      | Sets line endings used by file (allowed "dos" or "unix")
+Name          | Short | Level       | Type   | Default Val | Description
+--------------|-------|-------------|--------|-------------|---------------------------------------------------------
+linewrap      | lw    | Global/File | bool   | true        | Enables/Disables line wrap
+lineno        | ln    | Global/File | bool   | true        | Enables/Disables line numbers
+tabwidth      | tw    | Global/File | int    | 8           | Sets tab character screen width (allowed 1 - 8)
+expandtab     | et    | Global/File | bool   | false       | Enables/Disables expanding tab characters into spaces
+autoindent    | ai    | Global/File | bool   | true        | Enables/Disables autoindent
+wedruntime    | wrt   | Global      | string | WEDRUNTIME  | Config definition location directory (set in config.mk)
+syntax        | sy    | Global      | bool   | true        | Enables/Disables syntax highlighting
+theme         | th    | Global      | string | "default"   | Set the active theme
+syntaxdeftype | sdt   | Global      | string | "sh"        | Syntax definition type to use (allowed "sh" or "wed")
+shdatadir     | shdd  | Global      | string | ""          | Directory path containing language definition files
+filetype      | ft    | File        | string | ""          | Sets the type of the current file (drives syntaxtype)
+syntaxtype    | st    | File        | string | ""          | Set the syntax definition to use for highlighting
+fileformat    | ff    | File        | string | "unix"      | Sets line endings used by file (allowed "dos" or "unix")
 ```
 
 An example of a `~/.wedrc` could be:
@@ -323,6 +331,11 @@ be identified e.g. any file beginning with `#!/bin/sh` is a Bourne shell
 script.
 
 ##### Syntax Definition
+
+By default wed now uses Source-highlight language definitions to perform
+syntax highlighting. However wed syntax definitions can still be defined
+and used (when wed is built without support for Source-highlight or simply
+when desired) by setting `syntaxdeftype="wed";`.
 
 A syntax definition defines a set of regex patterns and associated token types
 that wed can use to highlight file content. A partial but sufficient example

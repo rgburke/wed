@@ -599,12 +599,17 @@ static SyntaxMatches *setup_syntax(const Session *sess, Buffer *buffer,
     BufferPos syn_start = *draw_pos;
     bf_change_multi_line(buffer, &syn_start, DIRECTION_UP, 20, 0);
 
+    for (size_t k = 0; !bp_on_empty_line(&syn_start) && k < 20; k++) {
+        bf_change_line(buffer, &syn_start, DIRECTION_UP, 0); 
+    }
+
     BufferPos syn_end = *draw_pos;
+    size_t view_end_lines = syn_def->type == SDT_WED ? 20 : 1;
     bf_change_multi_line(buffer, &syn_end, DIRECTION_DOWN,
-                         buffer->win_info.height + 20, 0);
+                         buffer->win_info.height + view_end_lines, 0);
 
     size_t syn_examine_length = syn_end.offset - syn_start.offset;
-    char *syn_examine_text = malloc(syn_examine_length);
+    char *syn_examine_text = malloc(syn_examine_length + 1);
 
     if (syn_examine_text == NULL) {
         return NULL;
@@ -612,6 +617,7 @@ static SyntaxMatches *setup_syntax(const Session *sess, Buffer *buffer,
 
     syn_examine_length = gb_get_range(buffer->data, syn_start.offset, 
                                       syn_examine_text, syn_examine_length);
+    syn_examine_text[syn_examine_length] = '\0';
 
     SyntaxMatches *syn_matches = sy_get_syntax_matches(syn_def,
                                                        syn_examine_text,

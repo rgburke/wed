@@ -26,6 +26,7 @@
 #include "buffer.h"
 #include "command.h"
 #include "config.h"
+#include "build_config.h"
 
 #define MAX_EMPTY_BUFFER_NAME_SIZE 20
 
@@ -36,6 +37,10 @@ static void se_determine_fileformat(Session *, Buffer *);
 static int se_is_valid_config_def(Session *, HashMap *, ConfigType,
                                   const char *def_name);
 static int se_add_buffer_from_stdin(Session *);
+
+#if WED_SOURCE_HIGHLIGHT
+static int se_is_valid_sh_def(Session *, const char *syn_type);
+#endif
 
 Session *se_new(void)
 {
@@ -829,8 +834,44 @@ int se_is_valid_syntaxtype(Session *sess, const char *syn_type)
         return 1;
     }
 
+#if WED_SOURCE_HIGHLIGHT
+    const char *sdt = cf_string(sess->config, CV_SYNTAXDEFTYPE);
+
+    if (strncmp(sdt, "sh", 3) == 0) {
+        return se_is_valid_sh_def(sess, syn_type);
+    }
+#endif
+
     return se_is_valid_config_def(sess, sess->syn_defs, CT_SYNTAX, syn_type);
 }
+
+#if WED_SOURCE_HIGHLIGHT
+static int se_is_valid_sh_def(Session *sess, const char *syn_type)
+{
+    if (hashmap_get(sess->syn_defs, syn_type) != NULL) {
+        return 1;
+    }
+
+    SourceHighlight sh;
+    const char *shdd = cf_string(sess->config, CV_SHDATADIR);
+
+    Status status = sh_init(&sh, shdd, syn_type);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        se_add_error(sess, status);
+        return 0;
+    }
+
+    SyntaxDefinitionInstance instance = {
+        .sh = sh 
+    };
+    SyntaxDefinition *syn_def = sy_new_def(SDT_SOURCE_HIGHLIGHT, instance);
+
+    hashmap_set(sess->syn_defs, syn_type, syn_def);
+
+    return 1;
+}
+#endif
 
 static int se_is_valid_config_def(Session *sess, HashMap *defs, 
                                   ConfigType config_type, const char *def_name)

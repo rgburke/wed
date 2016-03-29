@@ -851,7 +851,10 @@ static void cp_process_syntax_block(Session *sess,
         goto cleanup;
     }
 
-    syn_def = sy_new_def(syn_first);
+    SyntaxDefinitionInstance instance = {
+        .patterns = syn_first
+    };
+    syn_def = sy_new_def(SDT_WED, instance);
 
     if (syn_def == NULL) {
         se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
