@@ -95,10 +95,13 @@ void TokenizerFormatter::format(const std::string &s,
     if (this->token != ST_NORMAL && s.size() > 0) {
         SyntaxMatches *syn_matches = this->tokenizer->get_syn_matches();
 
-        if (syn_matches->match_num < MAX_SYNTAX_MATCH_NUM) {
-            /* TODO if this match is really the continuation of a multiline
-             * token match then extend the previous syntax_match rather than
-             * create a new one */
+        if (is_continuation_of_previous_token(params->start)) {
+            SyntaxMatch *prev_match = &syn_matches->matches[
+                                          syn_matches->match_num - 1
+                                      ];
+
+            prev_match->length += s.size();
+        } else if (syn_matches->match_num < MAX_SYNTAX_MATCH_NUM) {
             SyntaxMatch *syn_match = &syn_matches->matches[
                                          syn_matches->match_num++
                                      ];
@@ -107,6 +110,23 @@ void TokenizerFormatter::format(const std::string &s,
             syn_match->token = this->token;
         }
     }
+}
+
+bool TokenizerFormatter::is_continuation_of_previous_token(int start)
+{
+    SyntaxMatches *syn_matches = this->tokenizer->get_syn_matches();
+
+    if (syn_matches->match_num == 0) {
+        return false;
+    }
+
+    size_t offset = this->tokenizer->get_offset() + start;
+    const SyntaxMatch *prev_match = &syn_matches->matches[
+                                        syn_matches->match_num - 1
+                                    ];
+
+    return prev_match->token == this->token &&
+           prev_match->offset + 1 == offset;
 }
 
 static Tokenizer *construct_tokenizer(const std::string &lang_dir,

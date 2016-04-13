@@ -32,6 +32,7 @@
 #include "undo.h"
 #include "regex_util.h"
 #include "external_command.h"
+#include "syntax.h"
 
 /* Character classification */
 typedef enum {
@@ -57,12 +58,20 @@ typedef struct {
     BufferPos end;
 } Range;
 
-/* Used to store cut/copied text */
+/* Store cut/copied text when using wed-clipboard is not possible */
 typedef struct {
     FileFormat file_format;
     char *str;
     size_t str_len;
 } TextSelection;
+
+typedef struct {
+    SyntaxMatches *syn_matches; /* Cached SyntaxMatches */
+    BufferChangeState change_state; /* Buffer state when syn_matches were
+                                       generated */
+    BufferPos screen_start; /* The value of screen_start when syn_matches
+                               were generated */
+} SyntaxMatchCache;
 
 /* Window info used for screen based operations
  * i.e. changing screen line */
@@ -97,8 +106,13 @@ struct Buffer {
     FileFormat file_format; /* Unix or Windows line endings */
     RegexInstance mask; /* Inserted text can match mask */
     HashMap *marks; /* Buffer marks */
+    SyntaxMatchCache syn_match_cache; /* Cached syntax tokens */
 };
 
+/* The following two stream implementations make it possible to filter buffer
+ * content through an external command */
+
+/* Implements an InputStream allowing reading from buffer as a stream */
 typedef struct {
     InputStream is;
     Buffer *buffer;
@@ -106,6 +120,7 @@ typedef struct {
     BufferPos read_pos;
 } BufferInputStream;
 
+/* Implements an OutputStream allowing the buffer to written to as a stream */
 typedef struct {
     OutputStream os;
     Buffer *buffer;
@@ -116,6 +131,7 @@ typedef struct {
 Buffer *bf_new(const FileInfo *, const HashMap *config);
 Buffer *bf_new_empty(const char *, const HashMap *config);
 void bf_free(Buffer *);
+void bf_free_syntax_match_cache(SyntaxMatchCache *);
 Status bf_clear(Buffer *);
 FileFormat bf_detect_fileformat(const Buffer *);
 Status bf_load_file(Buffer *);

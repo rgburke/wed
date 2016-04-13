@@ -44,10 +44,11 @@ class TokenizerFormatter : public srchilite::Formatter {
     private:
         SyntaxToken token; /* The corresponding wed SyntaxToken */
         Tokenizer *tokenizer; /* Reference to main interface object */
+        bool is_continuation_of_previous_token(int start);
     public:
         TokenizerFormatter(SyntaxToken token, Tokenizer *tokenizer);
-        virtual void format(const std::string &s,
-                            const srchilite::FormatterParams *params);
+        void format(const std::string &s,
+                    const srchilite::FormatterParams *params);
 };
 
 typedef boost::shared_ptr<TokenizerFormatter> TokenizerFormatterPtr;

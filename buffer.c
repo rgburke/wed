@@ -149,8 +149,18 @@ void bf_free(Buffer *buffer)
     bc_free(&buffer->changes);
     free_hashmap_values(buffer->marks, (void (*)(void *))bp_free_mark);
     free_hashmap(buffer->marks);
+    bf_free_syntax_match_cache(&buffer->syn_match_cache);
 
     free(buffer);
+}
+
+void bf_free_syntax_match_cache(SyntaxMatchCache *syn_match_cache)
+{
+    if (syn_match_cache->syn_matches != NULL) {
+        free(syn_match_cache->syn_matches);
+    }
+
+    memset(syn_match_cache, 0, sizeof(SyntaxMatchCache));
 }
 
 Status bf_clear(Buffer *buffer)

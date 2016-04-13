@@ -90,6 +90,10 @@ struct BufferChange {
                       change this is NULL (i.e. the pointers in the union
                       are NULL) as this change is simply a container for
                       its child changes */
+    size_t version; /* Set to 0 and incremented when a sequential change is
+                       grouped to this change. This is used by the
+                       BufferChangeState struct to determine if a buffer has
+                       been modified */
 };
 
 /* This is the top level struct containing undo and redo stacks
@@ -106,6 +110,18 @@ typedef struct {
                                will require inserting/deleting text */
 } BufferChanges;
 
+/* Stores the most recent change on the undo stack. This can be used to take
+ * a snapshot and determine in future if a subsequent change has been made to
+ * a buffer */
+typedef struct {
+    const BufferChange *change; /* This is used only for comparison
+                                   with the most recent change on the
+                                   undo stack and is never dereferenced
+                                   as it could point to freed memory */
+    size_t version; /* The version of the most recent change on the undo
+                       stack */
+} BufferChangeState;
+
 struct Buffer;
 
 void bc_init(BufferChanges *);
@@ -120,5 +136,7 @@ Status bc_start_grouped_changes(BufferChanges *);
 Status bc_end_grouped_changes(BufferChanges *);
 Status bc_undo(BufferChanges *, struct Buffer *);
 Status bc_redo(BufferChanges *, struct Buffer *);
+BufferChangeState bc_get_current_state(const BufferChanges *);
+int bc_has_state_changed(const BufferChanges *, BufferChangeState);
 
 #endif

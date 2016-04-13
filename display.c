@@ -31,6 +31,7 @@
 #define STATUS_TEXT_SIZE 512
 #define MAX_MENU_BUFFER_WIDTH 30
 #define SC_COLOR_PAIR(screen_comp) (COLOR_PAIR((screen_comp) + 1))
+#define SYNTAX_CACHE_LINES 10
 
 /* TODO We don't want to use global static variables anywhere in wed */
 /* Four windows are currently used for the wed display */
@@ -53,6 +54,7 @@ static void draw_status_general_info(Session *sess, size_t file_info_size,
                                      size_t available_space);
 static SyntaxMatches *setup_syntax(const Session *, Buffer *,
                                    const BufferPos *);
+static int can_use_syntax_match_cache(Buffer *, const BufferPos *syn_start);
 static void draw_buffer(const Session *, Buffer *, int line_wrap);
 static size_t draw_line(Buffer *, BufferPos *, int y, int is_selection,
                         Range select_range, int line_wrap, WindowInfo win_info,
@@ -591,20 +593,28 @@ static SyntaxMatches *setup_syntax(const Session *sess, Buffer *buffer,
     }
 
     /* Look ahead and behind from the current visible part of the buffer
-     * by 20 lines when determining syntax matches. This is to try and ensure
+     * by up to 30 lines when determining syntax matches. This aims to ensure
      * constructs that span many lines, such as comments, which can start or
      * end outside of the visible buffer area are matched and highlighted.
      * Of course this isn't always enough for large comments and adds
      * a load overhead */
     BufferPos syn_start = *draw_pos;
-    bf_change_multi_line(buffer, &syn_start, DIRECTION_UP, 20, 0);
+    bf_change_multi_line(buffer, &syn_start, DIRECTION_UP,
+                         SYNTAX_CACHE_LINES, 0);
 
     for (size_t k = 0; !bp_on_empty_line(&syn_start) && k < 20; k++) {
         bf_change_line(buffer, &syn_start, DIRECTION_UP, 0); 
     }
 
+    if (can_use_syntax_match_cache(buffer, draw_pos)) {
+        buffer->syn_match_cache.syn_matches->current_match = 0;
+        return buffer->syn_match_cache.syn_matches;
+    } else if (buffer->syn_match_cache.syn_matches != NULL) {
+        bf_free_syntax_match_cache(&buffer->syn_match_cache); 
+    }
+
     BufferPos syn_end = *draw_pos;
-    size_t view_end_lines = syn_def->type == SDT_WED ? 20 : 1;
+    size_t view_end_lines = syn_def->type == SDT_WED ? 20 : SYNTAX_CACHE_LINES;
     bf_change_multi_line(buffer, &syn_end, DIRECTION_DOWN,
                          buffer->win_info.height + view_end_lines, 0);
 
@@ -625,8 +635,42 @@ static SyntaxMatches *setup_syntax(const Session *sess, Buffer *buffer,
                                                        syn_start.offset);
 
     free(syn_examine_text);
+
+    buffer->syn_match_cache = (SyntaxMatchCache) {
+        .syn_matches = syn_matches,
+        .change_state = bc_get_current_state(&buffer->changes),
+        .screen_start = *draw_pos
+    };
     
     return syn_matches;
+}
+
+static int can_use_syntax_match_cache(Buffer *buffer,
+                                      const BufferPos *draw_pos)
+{
+    const SyntaxMatchCache *syn_match_cache = &buffer->syn_match_cache;
+
+    if (syn_match_cache->syn_matches == NULL ||
+        bc_has_state_changed(&buffer->changes,
+                             syn_match_cache->change_state)) {
+        return 0;
+    }
+
+    Range screen_start_range = {
+        .start = syn_match_cache->screen_start,
+        .end = syn_match_cache->screen_start
+    };
+
+    bf_change_multi_line(buffer, &screen_start_range.start, DIRECTION_UP,
+                         SYNTAX_CACHE_LINES, 0);
+    bf_change_multi_line(buffer, &screen_start_range.end, DIRECTION_DOWN,
+                         SYNTAX_CACHE_LINES, 0);
+
+    if (bf_bp_in_range(&screen_start_range, draw_pos)) {
+        return 1;
+    }
+
+    return 0;
 }
 
 static void draw_buffer(const Session *sess, Buffer *buffer, int line_wrap)
@@ -677,7 +721,6 @@ static void draw_buffer(const Session *sess, Buffer *buffer, int line_wrap)
     }
 
     wattroff(draw_win, SC_COLOR_PAIR(SC_BUFFER_END));
-    free(syn_matches);
     bf_set_is_draw_dirty(buffer, 0);
 }
 

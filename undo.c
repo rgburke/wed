@@ -170,6 +170,7 @@ static Status bc_add_text_change_to_prev(BufferChanges *changes,
             prev_change->str_len = new_str_len;
         }
 
+        changes->undo->version++;
         *added_to_prev_change = 1;
     }
 
@@ -523,5 +524,27 @@ static Status bc_tc_apply(TextChange *text_change, Buffer *buffer, int redo)
     }
 
     return STATUS_SUCCESS;
+}
+
+BufferChangeState bc_get_current_state(const BufferChanges *changes)
+{
+    BufferChangeState change_state = {
+        .change = changes->undo,
+        .version = (changes->undo == NULL ? 0 : changes->undo->version)
+    };
+
+    return change_state;
+}
+
+int bc_has_state_changed(const BufferChanges *changes,
+                         BufferChangeState change_state)
+{
+    if (changes->undo != change_state.change) {
+        return 1;
+    } else if (change_state.change != NULL) {
+        return change_state.version != changes->undo->version;
+    }
+
+    return 0;
 }
 
