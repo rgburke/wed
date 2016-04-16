@@ -1354,9 +1354,26 @@ static Status cm_next_prompt_entry(const CommandArgs *cmd_args)
 
 static Status cm_prompt_input_finished(const CommandArgs *cmd_args)
 {
+    Status status = STATUS_SUCCESS;
+    Session *sess = cmd_args->sess;
+
+    if (pr_get_prompt_type(sess->prompt) == PT_COMMAND &&
+        bf_length(sess->active_buffer) > 0) {
+        BufferPos *pos = &sess->active_buffer->pos;
+        bp_to_buffer_end(pos);
+
+        BufferPos last_char_pos = *pos;
+        bp_prev_char(&last_char_pos);
+        char last_char = bp_get_char(&last_char_pos);
+
+        if (last_char != ';') {
+            status = bf_insert_character(sess->active_buffer, ";", 1);
+        }
+    }
+
     *cmd_args->finished = 1;
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
 static Status cm_session_change_buffer(const CommandArgs *cmd_args)

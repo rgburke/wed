@@ -19,6 +19,7 @@
 %{
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "session.h"
 #include "config.h"
 #include "config_parse_util.h"
@@ -61,8 +62,10 @@ int yylex(Session *, const char *file_path);
 %token<string> TKN_BOOLEAN "boolean"
 %token<string> TKN_REGEX "regex"
 %token<string> TKN_NAME "identifier"
+%token<string> TKN_UNQUOTED_STRING "unquoted string"
 %token TKN_ASSIGN "="
 %token TKN_SEMI_COLON ";"
+%token TKN_NEW_LINE "new line"
 %token TKN_LEFT_BRACKET "{"
 %token TKN_RIGHT_BRACKET "}"
 
@@ -91,11 +94,16 @@ statememt_list: statememt { $$ = $1; }
                 }
               ;
 
-statememt: expression TKN_SEMI_COLON {
+statement_terminator: TKN_SEMI_COLON
+                    | TKN_NEW_LINE
+                    ;
+
+statememt: expression statement_terminator {
                $$ = (ASTNode *)cp_new_statementnode(&@$, $1);
            }
          | statement_block { $$ = (ASTNode *)cp_new_statementnode(&@$, $1); }
-         | error TKN_SEMI_COLON { $$ = NULL; }
+         | statement_terminator { $$ = NULL; }
+         | error statement_terminator { $$ = NULL; }
          ;
 
 statement_block: TKN_NAME TKN_LEFT_BRACKET statememt_list TKN_RIGHT_BRACKET {
@@ -133,6 +141,14 @@ value: TKN_INTEGER {
      | TKN_REGEX   {
            Value value; cp_convert_to_regex_value($1, &value);
            $$ = (ASTNode *)cp_new_valuenode(&@1, value); free($1);
+       }
+     | TKN_UNQUOTED_STRING {
+           Value value = STR_VAL(strdup($1));
+           $$ = (ASTNode *)cp_new_valuenode(&@1, value); free($1);
+       }
+     | TKN_NAME {
+           Value value = STR_VAL(strdup($1));
+           $$ = (ASTNode *)cp_new_valuenode(&@1, value); free($1); 
        }
      ;
 

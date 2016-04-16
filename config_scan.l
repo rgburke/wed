@@ -42,7 +42,8 @@
 %%
 
 #.*$
-[[:space:]]+               
+[[:space:]]+                  { if (memchr(yytext, '\n', yyleng) != NULL) {
+                                    return TKN_NEW_LINE; } }
 (-|\+)?[[:digit:]]+           { yylval.string = strdup(yytext);
                                 return TKN_INTEGER; }
 true|false                    { yylval.string = strdup(yytext);
@@ -57,12 +58,15 @@ true|false                    { yylval.string = strdup(yytext);
 ";"                           { return TKN_SEMI_COLON;    }
 "{"                           { return TKN_LEFT_BRACKET;  }
 "}"                           { return TKN_RIGHT_BRACKET; }
+[^=;{}[:space:][:^print:]]+   { yylval.string = strdup(yytext);
+                                return TKN_UNQUOTED_STRING; }
 .                             { se_add_error(sess,
                                              cp_get_config_error(
                                                 ERR_INVALID_CONFIG_CHARACTERS, 
                                                 &yylloc,
                                                 "Invalid character \"%s\"", 
                                                 yytext)); }
+
 
 %%
 

@@ -234,7 +234,8 @@ at run time by opening the "wed command" prompt and entering in a variable
 assignment expression.
 
 Variable assignment is done using the syntax `variable=value;` with any
-white space ignored. All text after a `#` is ignored as a comment. The
+white space ignored. The semicolon is optional if each assignment is done on a
+single separate line. All text after a `#` is ignored as a comment. The
 different type's are:
 
 ```
@@ -245,6 +246,21 @@ int        | (-|\+)?\d+
 string     | "(\\.|[^\\"])+"
 regex      | \/(\\\/|[^\/])*\/[imsx]*
 ```
+
+If a string contains no spaces, reserved characters or escaped characters
+(e.g. `\n`), i.e. it matches the pattern `[^=;{}[:space:][:^print:]]+`, then
+it can be specified without quotes. For example:
+
+```
+filetype = "perl"
+```
+
+and
+
+```
+filetype = perl
+```
+are equivalent.
 
 The table below lists the variables available in wed and their properties:
 
@@ -269,13 +285,13 @@ fileformat    | ff    | File        | string | "unix"      | Sets line endings u
 An example of a `~/.wedrc` could be:
 
 ```
-wedruntime="/opt/share/wed"; # wed shared files were moved to /opt
-tabwidth=4;                  # Tabs use 4 spaces when displayed
-expandtab=true;              # Tabs are expanded to spaces
-autoindent=true;             # New lines are indented based off previous line
+wedruntime = /opt/share/wed    # wed shared files were moved to /opt
+tabwidth = 4                   # Tabs use 4 spaces when displayed
+expandtab = true               # Tabs are expanded to spaces
+autoindent = true              # New lines are indented based off previous line
 ```
 
-Or equivalently: `wrt="/opt/share/wed";tw=4;et=1;ai=1;`.
+Or equivalently: `wrt=/opt/share/wed;tw=4;et=1;ai=1;`.
 
 To enable tabs again in only the current buffer enter `<C-\>et=0;<Enter>`
 i.e. open up the wed command prompt and set `expandtab=false;`. This is
