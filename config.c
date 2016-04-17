@@ -57,6 +57,7 @@ static Status cf_tabwidth_validator(ConfigEntity, Value);
 static Status cf_filetype_validator(ConfigEntity, Value);
 static Status cf_filetype_on_change_event(ConfigEntity, Value, Value);
 static Status cf_syntaxtype_validator(ConfigEntity, Value);
+static Status cf_syntaxtype_on_change_event(ConfigEntity, Value, Value);
 static Status cf_theme_validator(ConfigEntity, Value);
 static Status cf_theme_on_change_event(ConfigEntity, Value, Value);
 static Status cf_fileformat_validator(ConfigEntity, Value);
@@ -70,7 +71,7 @@ static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
     [CV_WEDRUNTIME] = { "wedruntime", "wrt", CL_SESSION , STR_VAL_STRUCT(WEDRUNTIME), NULL , NULL },
     [CV_FILETYPE] = { "filetype" , "ft" , CL_BUFFER , STR_VAL_STRUCT("") , cf_filetype_validator , cf_filetype_on_change_event },
     [CV_SYNTAX] = { "syntax" , "sy" , CL_SESSION , BOOL_VAL_STRUCT(1) , NULL , NULL },
-    [CV_SYNTAXTYPE] = { "syntaxtype", "st" , CL_BUFFER , STR_VAL_STRUCT("") , cf_syntaxtype_validator, NULL },
+    [CV_SYNTAXTYPE] = { "syntaxtype", "st" , CL_BUFFER , STR_VAL_STRUCT("") , cf_syntaxtype_validator, cf_syntaxtype_on_change_event },
     [CV_THEME] = { "theme" , "th" , CL_SESSION , STR_VAL_STRUCT("default") , cf_theme_validator , cf_theme_on_change_event },
     [CV_EXPANDTAB] = { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0) , NULL , NULL },
     [CV_AUTOINDENT] = { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL },
@@ -563,6 +564,17 @@ static Status cf_syntaxtype_validator(ConfigEntity entity, Value value)
                             "No syntaxtype with name \"%s\" exists",
                             SVAL(value));
     }
+
+    return STATUS_SUCCESS;
+}
+
+static Status cf_syntaxtype_on_change_event(ConfigEntity entity, Value old_val,
+                                            Value new_val)
+{
+    (void)old_val;
+    (void)new_val;
+
+    bf_free_syntax_match_cache(&entity.buffer->syn_match_cache);
 
     return STATUS_SUCCESS;
 }

@@ -801,15 +801,16 @@ void se_determine_syntaxtype(Session *sess, Buffer *buffer)
         return;
     }
 
-    const char *syn_type = cf_string(buffer->config, CV_SYNTAXTYPE);
-
-    if (!is_null_or_empty(syn_type)) {
-        return;
-    }
-
     const char *file_type = cf_string(buffer->config, CV_FILETYPE);
 
     if (is_null_or_empty(file_type)) {
+        return;
+    }
+
+    const char *syn_type = cf_string(buffer->config, CV_SYNTAXTYPE);
+
+    if (!is_null_or_empty(syn_type) &&
+        strcmp(syn_type, file_type) == 0) {
         return;
     }
 
