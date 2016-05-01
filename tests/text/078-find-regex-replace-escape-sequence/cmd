@@ -1,1 +1,1 @@
-<C-h><C-t>(\w+)\t(\d)\.\n(\d)\.\t\t(\w+)<Enter>\3\x2E\t\4\n\2\x2E\t\1<Enter>y<Enter>
+<wed-find-replace><wed-toggle-search-type>(\w+)\t(\d)\.\n(\d)\.\t\t(\w+)<wed-prompt-submit>\3\x2E\t\4\n\2\x2E\t\1<wed-prompt-submit>y<wed-prompt-submit>

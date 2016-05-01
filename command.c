@@ -175,127 +175,225 @@ static const CommandDefinition cm_commands[] = {
     [CMD_SESSION_END]                    = { cm_session_end                   , CMDT_EXIT        }
 };
 
-/* Default wed keybindings */
-static const Operation cm_operations[] = {
-    { "<Up>"         , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_UP)                            }, 1, CMD_BP_CHANGE_LINE                 },
-    { "<Down>"       , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_DOWN)                          }, 1, CMD_BP_CHANGE_LINE                 },
-    { "<Right>"      , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_RIGHT)                         }, 1, CMD_BP_CHANGE_CHAR                 },
-    { "<Left>"       , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_LEFT)                          }, 1, CMD_BP_CHANGE_CHAR                 },
-    { "<Home>"       , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_LINE_START               },
-    { "<M-Home>"     , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_HARD_LINE_START          },
-    { "<End>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_LINE_END                 },
-    { "<M-End>"      , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_HARD_LINE_END            },
-    { "<C-Right>"    , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_NEXT_WORD                },
-    { "<C-Left>"     , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_PREV_WORD                },
-    { "<C-Home>"     , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_BUFFER_START             },
-    { "<C-End>"      , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_TO_BUFFER_END               },
-    { "<PageUp>"     , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_UP)                            }, 1, CMD_BP_CHANGE_PAGE                 },
-    { "<PageDown>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_DOWN)                          }, 1, CMD_BP_CHANGE_PAGE                 },
-    { "<S-Up>"       , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_UP    | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_LINE                 },
-    { "<S-Down>"     , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_DOWN  | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_LINE                 },
-    { "<S-Right>"    , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR                 },
-    { "<S-Left>"     , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_LEFT  | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR                 },
-    { "<S-Home>"     , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_LINE_START               },
-    { "<M-S-Home>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_HARD_LINE_START          },
-    { "<S-End>"      , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_LINE_END                 },
-    { "<M-S-End>"    , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_HARD_LINE_END            },
-    { "<C-S-Right>"  , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_NEXT_WORD                },
-    { "<C-S-Left>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_PREV_WORD                },
-    { "<C-S-Home>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_BUFFER_START             },
-    { "<C-S-End>"    , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_WITH_SELECT)                   }, 1, CMD_BP_TO_BUFFER_END               },
-    { "<S-PageUp>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_UP   | DIRECTION_WITH_SELECT)  }, 1, CMD_BP_CHANGE_PAGE                 },
-    { "<S-PageDown>" , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT)  }, 1, CMD_BP_CHANGE_PAGE                 },
-    { "<C-b>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BP_GOTO_MATCHING_BRACKET       },
-    { "<Space>"      , OM_STANDARD        , { STR_VAL_STRUCT(" ")                                     }, 1, CMD_BUFFER_INSERT_CHAR             },
-    { "<Tab>"        , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_RIGHT)                         }, 1, CMD_BUFFER_INDENT                  },
-    { "<S-Tab>"      , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_LEFT)                          }, 1, CMD_BUFFER_INDENT                  },
-    { "<KPDiv>"      , OM_STANDARD        , { STR_VAL_STRUCT("/")                                     }, 1, CMD_BUFFER_INSERT_CHAR             },
-    { "<KPMult>"     , OM_STANDARD        , { STR_VAL_STRUCT("*")                                     }, 1, CMD_BUFFER_INSERT_CHAR             },
-    { "<KPMinus>"    , OM_STANDARD        , { STR_VAL_STRUCT("-")                                     }, 1, CMD_BUFFER_INSERT_CHAR             },
-    { "<KPPlus>"     , OM_STANDARD        , { STR_VAL_STRUCT("+")                                     }, 1, CMD_BUFFER_INSERT_CHAR             },
-    { "<Delete>"     , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_DELETE_CHAR             },
-    { "<Backspace>"  , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_BACKSPACE               },
-    { "<C-Delete>"   , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_DELETE_WORD             },
-    { "<M-Backspace>", OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_DELETE_PREV_WORD        },
-    { "<Enter>"      , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_INSERT_LINE             },
-    { "<C-a>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_SELECT_ALL_TEXT         },
-    { "<C-c>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_COPY_SELECTED_TEXT      },
-    { "<C-x>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_CUT_SELECTED_TEXT       },
-    { "<C-v>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_PASTE_TEXT              },
-    { "<C-z>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_UNDO                    },
-    { "<C-y>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_REDO                    },
-    { "<C-S-Up>"     , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_UP)                            }, 1, CMD_BUFFER_VERT_MOVE_LINES         },
-    { "<C-S-Down>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_DOWN)                          }, 1, CMD_BUFFER_VERT_MOVE_LINES         },
-    { "<C-d>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_DUPLICATE_SELECTION     },
-    { "<C-j>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_JOIN_LINES              },
-    { "<C-s>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_SAVE_FILE               },
-    { "<M-C-s>"      , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_SAVE_AS                 },
-    { "<C-f>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_FIND                    },
-    { "<F3>"         , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_FIND_NEXT               },
-    { "<F15>"        , OM_STANDARD        , { INT_VAL_STRUCT(1)                                       }, 1, CMD_BUFFER_FIND_NEXT               },
-    { "<C-h>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_REPLACE                 },
-    { "<C-r>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_REPLACE                 },
-    { "<C-g>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_GOTO_LINE               },
-    { "<C-o>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_OPEN_FILE              },
-    { "<C-n>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_ADD_EMPTY_BUFFER       },
-    { "<M-C-Right>"  , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_RIGHT)                         }, 1, CMD_SESSION_CHANGE_TAB             },
-    { "<M-Right>"    , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_RIGHT)                         }, 1, CMD_SESSION_CHANGE_TAB             },
-    { "<M-C-Left>"   , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_LEFT)                          }, 1, CMD_SESSION_CHANGE_TAB             },
-    { "<M-Left>"     , OM_STANDARD        , { INT_VAL_STRUCT(DIRECTION_LEFT)                          }, 1, CMD_SESSION_CHANGE_TAB             },
-    { "<C-^>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_SAVE_ALL               },
-    { "<C-w>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_CLOSE_BUFFER           },
-    { "<C-\\>"       , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_RUN_COMMAND            },
-    { "<C-_>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_CHANGE_BUFFER          },
-    { "<M-z>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SUSPEND                        },
-    { "<M-c>"        , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_END                    },
-    { "<Escape>"     , OM_STANDARD        , { INT_VAL_STRUCT(0)                                       }, 1, CMD_SESSION_END                    },
-    { "<C-t>"        , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_TOGGLE_SEARCH_TYPE      },
-    { "<C-s>"        , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_TOGGLE_SEARCH_CASE      },
-    { "<C-d>"        , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_BUFFER_TOGGLE_SEARCH_DIRECTION },
-    { "<Up>"         , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_PREVIOUS_PROMPT_ENTRY          },
-    { "<Down>"       , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_NEXT_PROMPT_ENTRY              },
-    { "<Enter>"      , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_PROMPT_INPUT_FINISHED          },
-    { "<Escape>"     , OM_PROMPT          , { INT_VAL_STRUCT(0)                                       }, 1, CMD_CANCEL_PROMPT                  },
-    { "<Tab>"        , OM_PROMPT_COMPLETER, { INT_VAL_STRUCT(0)                                       }, 1, CMD_RUN_PROMPT_COMPLETION          },
-    { "<S-Tab>"      , OM_PROMPT_COMPLETER, { INT_VAL_STRUCT(0)                                       }, 1, CMD_RUN_PROMPT_COMPLETION          }
+static const OperationDefinition cm_operations[] = {
+    [OP_MOVE_PREV_LINE] = { "<wed-move-prev-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BP_CHANGE_LINE },
+    [OP_MOVE_NEXT_LINE] = { "<wed-move-next-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BP_CHANGE_LINE },
+    [OP_MOVE_NEXT_CHAR] = { "<wed-move-next-char>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_BP_CHANGE_CHAR },
+    [OP_MOVE_PREV_CHAR] = { "<wed-move-prev-char>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_BP_CHANGE_CHAR },
+    [OP_MOVE_START_OF_SCREEN_LINE] = { "<wed-move-start-of-screen-line>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_LINE_START },
+    [OP_MOVE_START_OF_LINE] = { "<wed-move-start-of-line>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_HARD_LINE_START },
+    [OP_MOVE_END_OF_SCREEN_LINE] = { "<wed-move-end-of-screen-line>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_LINE_END },
+    [OP_MOVE_END_OF_LINE] = { "<wed-move-end-of-line>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_HARD_LINE_END },
+    [OP_MOVE_NEXT_WORD] = { "<wed-move-next-word>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_NEXT_WORD },
+    [OP_MOVE_PREV_WORD] = { "<wed-move-prev-word>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_PREV_WORD },
+    [OP_MOVE_BUFFER_START] = { "<wed-move-buffer-start>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_BUFFER_START },
+    [OP_MOVE_BUFFER_END] = { "<wed-move-buffer-end>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_BUFFER_END },
+    [OP_MOVE_PREV_PAGE] = { "<wed-move-prev-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BP_CHANGE_PAGE },
+    [OP_MOVE_NEXT_PAGE] = { "<wed-move-next-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BP_CHANGE_PAGE },
+    [OP_MOVE_SELECT_PREV_LINE] = { "<wed-move-select-prev-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_LINE },
+    [OP_MOVE_SELECT_NEXT_LINE] = { "<wed-move-select-next-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_LINE },
+    [OP_MOVE_SELECT_NEXT_CHAR] = { "<wed-move-select-next-char>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR },
+    [OP_MOVE_SELECT_PREV_CHAR] = { "<wed-move-select-prev-char>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_LEFT | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR },
+    [OP_MOVE_SELECT_START_OF_SCREEN_LINE] = { "<wed-move-select-start-of-screen-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_LINE_START },
+    [OP_MOVE_SELECT_START_OF_LINE] = { "<wed-move-select-start-of-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_HARD_LINE_START },
+    [OP_MOVE_SELECT_END_OF_SCREEN_LINE] = { "<wed-move-select-end-of-screen-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_LINE_END },
+    [OP_MOVE_SELECT_END_OF_LINE] = { "<wed-move-select-end-of-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_HARD_LINE_END },
+    [OP_MOVE_SELECT_NEXT_WORD] = { "<wed-move-select-next-word>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_NEXT_WORD },
+    [OP_MOVE_SELECT_PREV_WORD] = { "<wed-move-select-prev-word>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_PREV_WORD },
+    [OP_MOVE_SELECT_BUFFER_START] = { "<wed-move-select-buffer-start>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_START },
+    [OP_MOVE_SELECT_BUFFER_END] = { "<wed-move-select-buffer-end>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_END },
+    [OP_MOVE_SELECT_PREV_PAGE] = { "<wed-move-select-prev-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_PAGE },
+    [OP_MOVE_SELECT_NEXT_PAGE] = { "<wed-move-select-next-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_PAGE },
+    [OP_MOVE_MATCHING_BRACKET] = { "<wed-move-matching-bracket>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_GOTO_MATCHING_BRACKET },
+    [OP_INDENT] = { "<wed-indent>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_BUFFER_INDENT },
+    [OP_UNINDENT] = { "<wed-unindent>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_BUFFER_INDENT },
+    [OP_DELETE] = { "<wed-delete>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_DELETE_CHAR },
+    [OP_BACKSPACE] = { "<wed-backspace>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_BACKSPACE },
+    [OP_DELETE_NEXT_WORD] = { "<wed-delete-next-word>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_DELETE_WORD },
+    [OP_DELETE_PREV_WORD] = { "<wed-delete-prev-word>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_DELETE_PREV_WORD },
+    [OP_INSERT_NEWLINE] = { "<wed-insert-newline>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_INSERT_LINE },
+    [OP_INSERT_SPACE] = { "<wed-insert-space>", OM_STANDARD, { STR_VAL_STRUCT(" ") }, 1, CMD_BUFFER_INSERT_CHAR },
+    [OP_INSERT_KPDIV] = { "<wed-insert-kpdiv>", OM_STANDARD, { STR_VAL_STRUCT("/") }, 1, CMD_BUFFER_INSERT_CHAR },
+    [OP_INSERT_KPMULT] = { "<wed-insert-kpmult>", OM_STANDARD, { STR_VAL_STRUCT("*") }, 1, CMD_BUFFER_INSERT_CHAR },
+    [OP_INSERT_KPMINUS] = { "<wed-insert-kpminus>", OM_STANDARD, { STR_VAL_STRUCT("-") }, 1, CMD_BUFFER_INSERT_CHAR },
+    [OP_INSERT_KPPLUS] = { "<wed-insert-kpplus>", OM_STANDARD, { STR_VAL_STRUCT("+") }, 1, CMD_BUFFER_INSERT_CHAR },
+    [OP_SELECT_ALL] = { "<wed-select-all>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_SELECT_ALL_TEXT },
+    [OP_COPY] = { "<wed-copy>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_COPY_SELECTED_TEXT },
+    [OP_CUT] = { "<wed-cut>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_CUT_SELECTED_TEXT },
+    [OP_PASTE] = { "<wed-paste>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_PASTE_TEXT },
+    [OP_UNDO] = { "<wed-undo>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_UNDO },
+    [OP_REDO] = { "<wed-redo>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_REDO },
+    [OP_MOVE_LINES_UP] = { "<wed-move-lines-up>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BUFFER_VERT_MOVE_LINES },
+    [OP_MOVE_LINES_DOWN] = { "<wed-move-lines-down>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BUFFER_VERT_MOVE_LINES },
+    [OP_DUPLICATE] = { "<wed-duplicate>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_DUPLICATE_SELECTION },
+    [OP_JOIN_LINES] = { "<wed-join-lines>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_JOIN_LINES },
+    [OP_SAVE] = { "<wed-save>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_SAVE_FILE },
+    [OP_SAVE_AS] = { "<wed-save-as>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_SAVE_AS },
+    [OP_FIND] = { "<wed-find>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_FIND },
+    [OP_FIND_NEXT] = { "<wed-find-next>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_FIND_NEXT },
+    [OP_FIND_PREV] = { "<wed-find-prev>", OM_STANDARD, { INT_VAL_STRUCT(1) }, 1, CMD_BUFFER_FIND_NEXT },
+    [OP_FIND_REPLACE] = { "<wed-find-replace>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_REPLACE },
+    [OP_GOTO_LINE] = { "<wed-goto-line>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_GOTO_LINE },
+    [OP_OPEN] = { "<wed-open>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_SESSION_OPEN_FILE },
+    [OP_NEW] = { "<wed-new>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_SESSION_ADD_EMPTY_BUFFER },
+    [OP_NEXT_BUFFER] = { "<wed-next-buffer>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_SESSION_CHANGE_TAB },
+    [OP_PREV_BUFFER] = { "<wed-prev-buffer>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_SESSION_CHANGE_TAB },
+    [OP_SAVE_ALL] = { "<wed-save-all>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_SESSION_SAVE_ALL },
+    [OP_CLOSE] = { "<wed-close>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_SESSION_CLOSE_BUFFER },
+    [OP_CMD] = { "<wed-cmd>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_SESSION_RUN_COMMAND },
+    [OP_CHANGE_BUFFER] = { "<wed-change-buffer>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_SESSION_CHANGE_BUFFER },
+    [OP_SUSPEND] = { "<wed-suspend>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_SUSPEND },
+    [OP_EXIT] = { "<wed-exit>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_SESSION_END },
+    [OP_TOGGLE_SEARCH_TYPE] = { "<wed-toggle-search-type>", OM_PROMPT, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_TOGGLE_SEARCH_TYPE },
+    [OP_TOGGLE_SEARCH_CASE_SENSITIVITY] = { "<wed-toggle-search-case-sensitivity>", OM_PROMPT, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_TOGGLE_SEARCH_CASE },
+    [OP_TOGGLE_SEARCH_DIRECTION] = { "<wed-toggle-search-direction>", OM_PROMPT, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_TOGGLE_SEARCH_DIRECTION },
+    [OP_PROMPT_PREV_ENTRY] = { "<wed-prompt-prev-entry>", OM_PROMPT, { INT_VAL_STRUCT(0) }, 1, CMD_PREVIOUS_PROMPT_ENTRY },
+    [OP_PROMPT_NEXT_ENTRY] = { "<wed-prompt-next-entry>", OM_PROMPT, { INT_VAL_STRUCT(0) }, 1, CMD_NEXT_PROMPT_ENTRY },
+    [OP_PROMPT_SUBMIT] = { "<wed-prompt-submit>", OM_PROMPT, { INT_VAL_STRUCT(0) }, 1, CMD_PROMPT_INPUT_FINISHED },
+    [OP_PROMPT_CANCEL] = { "<wed-prompt-cancel>", OM_PROMPT, { INT_VAL_STRUCT(0) }, 1, CMD_CANCEL_PROMPT },
+    [OP_PROMPT_COMPLETE] = { "<wed-prompt-complete>", OM_PROMPT_COMPLETER, { INT_VAL_STRUCT(0) }, 1, CMD_RUN_PROMPT_COMPLETION },
+    [OP_PROMPT_COMPLETE_PREV] = { "<wed-prompt-complete-prev>", OM_PROMPT_COMPLETER, { INT_VAL_STRUCT(0) }, 1, CMD_RUN_PROMPT_COMPLETION }
 };
 
-/* Map keypresses to operations. User input can be used to look
+/* Default wed keybindings */
+static const KeyMapping cm_keymappings[] = {
+    { "<Up>",          OP_MOVE_PREV_LINE                   },
+    { "<Down>",        OP_MOVE_NEXT_LINE                   },
+    { "<Right>",       OP_MOVE_NEXT_CHAR                   },
+    { "<Left>",        OP_MOVE_PREV_CHAR                   },
+    { "<Home>",        OP_MOVE_START_OF_SCREEN_LINE        },
+    { "<M-Home>",      OP_MOVE_START_OF_LINE               },
+    { "<End>",         OP_MOVE_END_OF_SCREEN_LINE          },
+    { "<M-End>",       OP_MOVE_END_OF_LINE                 },
+    { "<C-Right>",     OP_MOVE_NEXT_WORD                   },
+    { "<C-Left>",      OP_MOVE_PREV_WORD                   },
+    { "<C-Home>",      OP_MOVE_BUFFER_START                },
+    { "<C-End>",       OP_MOVE_BUFFER_END                  },
+    { "<PageUp>",      OP_MOVE_PREV_PAGE                   },
+    { "<PageDown>",    OP_MOVE_NEXT_PAGE                   },
+    { "<S-Up>",        OP_MOVE_SELECT_PREV_LINE            },
+    { "<S-Down>",      OP_MOVE_SELECT_NEXT_LINE            },
+    { "<S-Right>",     OP_MOVE_SELECT_NEXT_CHAR            },
+    { "<S-Left>",      OP_MOVE_SELECT_PREV_CHAR            },
+    { "<S-Home>",      OP_MOVE_SELECT_START_OF_SCREEN_LINE },
+    { "<M-S-Home>",    OP_MOVE_SELECT_START_OF_LINE        },
+    { "<S-End>",       OP_MOVE_SELECT_END_OF_SCREEN_LINE   },
+    { "<M-S-End>",     OP_MOVE_SELECT_END_OF_LINE          },
+    { "<C-S-Right>",   OP_MOVE_SELECT_NEXT_WORD            },
+    { "<C-S-Left>",    OP_MOVE_SELECT_PREV_WORD            },
+    { "<C-S-Home>",    OP_MOVE_SELECT_BUFFER_START         },
+    { "<C-S-End>",     OP_MOVE_SELECT_BUFFER_END           },
+    { "<S-PageUp>",    OP_MOVE_SELECT_PREV_PAGE            },
+    { "<S-PageDown>",  OP_MOVE_SELECT_NEXT_PAGE            },
+    { "<C-b>",         OP_MOVE_MATCHING_BRACKET            },
+    { "<Tab>",         OP_INDENT                           },
+    { "<S-Tab>",       OP_UNINDENT                         },
+    { "<Delete>",      OP_DELETE                           },
+    { "<Backspace>",   OP_BACKSPACE                        },
+    { "<C-Delete>",    OP_DELETE_NEXT_WORD                 },
+    { "<M-Backspace>", OP_DELETE_PREV_WORD                 },
+    { "<Enter>",       OP_INSERT_NEWLINE                   },
+    { "<Space>",       OP_INSERT_SPACE                     },
+    { "<KPDiv>",       OP_INSERT_KPDIV                     },
+    { "<KPMult>",      OP_INSERT_KPMULT                    },
+    { "<KPMinus>",     OP_INSERT_KPMINUS                   },
+    { "<KPPlus>",      OP_INSERT_KPPLUS                    },
+    { "<C-a>",         OP_SELECT_ALL                       },
+    { "<C-c>",         OP_COPY                             },
+    { "<C-x>",         OP_CUT                              },
+    { "<C-v>",         OP_PASTE                            },
+    { "<C-z>",         OP_UNDO                             },
+    { "<C-y>",         OP_REDO                             },
+    { "<C-S-Up>",      OP_MOVE_LINES_UP                    },
+    { "<C-S-Down>",    OP_MOVE_LINES_DOWN                  },
+    { "<C-d>",         OP_DUPLICATE                        },
+    { "<C-j>",         OP_JOIN_LINES                       },
+    { "<C-s>",         OP_SAVE                             },
+    { "<M-C-s>",       OP_SAVE_AS                          },
+    { "<C-f>",         OP_FIND                             },
+    { "<F3>",          OP_FIND_NEXT                        },
+    { "<F15>",         OP_FIND_PREV                        },
+    { "<C-h>",         OP_FIND_REPLACE                     },
+    { "<C-r>",         OP_FIND_REPLACE                     },
+    { "<C-g>",         OP_GOTO_LINE                        },
+    { "<C-o>",         OP_OPEN                             },
+    { "<C-n>",         OP_NEW                              },
+    { "<M-C-Right>",   OP_NEXT_BUFFER                      },
+    { "<M-Right>",     OP_NEXT_BUFFER                      },
+    { "<M-C-Left>",    OP_PREV_BUFFER                      },
+    { "<M-Left>",      OP_PREV_BUFFER                      },
+    { "<C-^>",         OP_SAVE_ALL                         },
+    { "<C-w>",         OP_CLOSE                            },
+    { "<C-\\>",        OP_CMD                              },
+    { "<C-_>",         OP_CHANGE_BUFFER                    },
+    { "<M-z>",         OP_SUSPEND                          },
+    { "<Escape>",      OP_EXIT                             },
+    { "<C-t>",         OP_TOGGLE_SEARCH_TYPE               },
+    { "<C-s>",         OP_TOGGLE_SEARCH_CASE_SENSITIVITY   },
+    { "<C-d>",         OP_TOGGLE_SEARCH_DIRECTION          },
+    { "<Up>",          OP_PROMPT_PREV_ENTRY                },
+    { "<Down>",        OP_PROMPT_NEXT_ENTRY                },
+    { "<Enter>",       OP_PROMPT_SUBMIT                    },
+    { "<Escape>",      OP_PROMPT_CANCEL                    },
+    { "<Tab>",         OP_PROMPT_COMPLETE                  },
+    { "<S-Tab>",       OP_PROMPT_COMPLETE_PREV             }
+};
+
+/* Map key presses to operations. User input can be used to look
  * up an operation in a keymap so that it can be invoked */
-int cm_populate_keymap(HashMap *keymap, OperationMode op_mode)
+int cm_init_keymap(KeyMap *keymap)
 {
-    static const size_t operation_num = ARRAY_SIZE(cm_operations, Operation);
-    Operation *operation;
+    memset(keymap, 0, sizeof(KeyMap));
 
-    for (size_t k = 0; k < operation_num; k++) {
-        if (!(cm_operations[k].op_mode & op_mode)) {
-            continue;
-        }
+    const size_t keymapping_num = ARRAY_SIZE(cm_keymappings, KeyMapping);
 
-        operation = malloc(sizeof(Operation));
+    for (size_t k = 0; k < OM_ENTRY_NUM; k++) {
+        keymap->maps[k] = new_hashmap();
 
-        if (operation == NULL) {
-            return 0;
-        }
-
-        memcpy(operation, &cm_operations[k], sizeof(Operation));
-
-        if (!hashmap_set(keymap, operation->key, operation)) {
+        if (keymap->maps[k] == NULL) {
             return 0;
         }
     }
 
+    const KeyMapping *keymapping;
+    OperationDefinition *operation;
+    HashMap *map;
+
+    for (size_t k = 0; k < keymapping_num; k++) {
+        keymapping = &cm_keymappings[k];
+        operation = (OperationDefinition *)&cm_operations[keymapping->op];
+        map = keymap->maps[operation->op_mode];
+
+        if (!hashmap_set(map, keymapping->key, operation)) {
+            return 0;
+        }
+    }
+
+    const size_t operation_num = ARRAY_SIZE(cm_operations, OperationDefinition);
+
+    for (size_t k = 0; k < operation_num; k++) {
+        operation = (OperationDefinition *)&cm_operations[k];        
+        map = keymap->maps[operation->op_mode];
+
+        if (!hashmap_set(map, operation->name, operation)) {
+            return 0;
+        }
+    }
+
+    keymap->active_op_modes[OM_STANDARD] = 1;
+
     return 1;
 }
 
-void cm_clear_keymap_entries(HashMap *keymap)
+void cm_free_keymap(KeyMap *keymap)
 {
     if (keymap == NULL) {
         return;
     } 
 
-    free_hashmap_values(keymap, NULL);
-    hashmap_clear(keymap);
+    for (size_t k = 0; k < OM_ENTRY_NUM; k++) {
+        free_hashmap(keymap->maps[k]);
+    }
 }
 
 Status cm_do_operation(Session *sess, const char *key, int *finished)
@@ -303,13 +401,18 @@ Status cm_do_operation(Session *sess, const char *key, int *finished)
     assert(!is_null_or_empty(key));
     assert(finished != NULL);
 
-    /* When in prompt modes certain keybindings are overriden
-     * e.g. <Enter> is submit, <Escape> is cancel prompt,
-     * see cm_operations above */
-    const Operation *operation = hashmap_get(sess->keymap_overrides, key);
+    const OperationDefinition *operation = NULL;
+    const KeyMap *keymap = &sess->keymap;
+    const HashMap *map;
 
-    if (operation == NULL) {
-        operation = hashmap_get(sess->keymap, key);
+    for (int k = OM_ENTRY_NUM - 1; k > -1; k--) {
+        if (keymap->active_op_modes[k]) {
+            map = keymap->maps[k];
+
+            if ((operation = hashmap_get(map, key)) != NULL) {
+                break;
+            }
+        }
     }
 
     if (operation != NULL) {
@@ -331,6 +434,18 @@ Status cm_do_operation(Session *sess, const char *key, int *finished)
         !se_command_type_excluded(sess, CMDT_BUFFER_MOD)) {
         /* Just a normal letter character so insert it into buffer */
         return bf_insert_character(sess->active_buffer, key, 1);
+    } else if (strncmp(key, "<wed-", 5) == 0 && operation == NULL) {
+        /* An invalid operation was specified */
+        for (int k = OM_ENTRY_NUM - 1; k > -1; k--) {
+            if (hashmap_get(keymap->maps[k], key) != NULL) {
+                return st_get_error(ERR_INVALID_OPERATION_KEY_STRING,
+                                    "Operation \"%s\" cannot be "
+                                    "used in this context", key);
+            }
+        }
+        
+        return st_get_error(ERR_INVALID_OPERATION_KEY_STRING,
+                            "Invalid operation %s", key);
     }
 
     return STATUS_SUCCESS;
@@ -1562,19 +1677,10 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
                                   const char *prompt_text, List *history,
                                   int show_last_cmd)
 {
-    OperationMode op_mode = OM_PROMPT;
-
-    if (pc_has_prompt_completer(prompt_type)) {
-        op_mode |= OM_PROMPT_COMPLETER;
-    }
-
-    if (!cm_populate_keymap(sess->keymap_overrides, op_mode)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to enble prompt keys");
-    }
-
-    RETURN_IF_FAIL(se_make_prompt_active(sess, prompt_type, prompt_text, 
-                                         history, show_last_cmd));
+    RETURN_IF_FAIL(se_make_prompt_active(sess, prompt_type,
+                                         prompt_text, history,
+                                         pc_has_prompt_completer(prompt_type),
+                                         show_last_cmd));
 
     CommandType disabled_cmd_types = CMDT_CMD_INPUT | CMDT_SESS_MOD;
     se_exclude_command_type(sess, disabled_cmd_types);
@@ -1588,7 +1694,6 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
 
     se_enable_command_type(sess, disabled_cmd_types);
     se_end_prompt(sess);
-    cm_clear_keymap_entries(sess->keymap_overrides);
     bf_set_is_draw_dirty(sess->active_buffer, 1);
 
     return STATUS_SUCCESS;

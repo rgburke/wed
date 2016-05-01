@@ -1,1 +1,1 @@
-<C-h><C-t>text-\d[^\.]<Enter>! <Enter>a<Enter>
+<wed-find-replace><wed-toggle-search-type>text-\d[^\.]<wed-prompt-submit>! <wed-prompt-submit>a<wed-prompt-submit>

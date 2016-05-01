@@ -21,9 +21,10 @@
 
 #include "shared.h"
 #include "status.h"
-#include "session.h"
 #include "value.h"
+#include "hashmap.h"
 
+struct Session;
 
 #define MAX_CMD_ARG_NUM 5
 
@@ -86,9 +87,91 @@ typedef enum {
     CMD_SESSION_END,
 } Command;
 
+/* Operations are instances of commands i.e. they define a command with
+ * arguments */
+typedef enum {
+    OP_MOVE_PREV_LINE,
+    OP_MOVE_NEXT_LINE,
+    OP_MOVE_NEXT_CHAR,
+    OP_MOVE_PREV_CHAR,
+    OP_MOVE_START_OF_SCREEN_LINE,
+    OP_MOVE_START_OF_LINE,
+    OP_MOVE_END_OF_SCREEN_LINE,
+    OP_MOVE_END_OF_LINE,
+    OP_MOVE_NEXT_WORD,
+    OP_MOVE_PREV_WORD,
+    OP_MOVE_BUFFER_START,
+    OP_MOVE_BUFFER_END,
+    OP_MOVE_PREV_PAGE,
+    OP_MOVE_NEXT_PAGE,
+    OP_MOVE_SELECT_PREV_LINE,
+    OP_MOVE_SELECT_NEXT_LINE,
+    OP_MOVE_SELECT_NEXT_CHAR,
+    OP_MOVE_SELECT_PREV_CHAR,
+    OP_MOVE_SELECT_START_OF_SCREEN_LINE,
+    OP_MOVE_SELECT_START_OF_LINE,
+    OP_MOVE_SELECT_END_OF_SCREEN_LINE,
+    OP_MOVE_SELECT_END_OF_LINE,
+    OP_MOVE_SELECT_NEXT_WORD,
+    OP_MOVE_SELECT_PREV_WORD,
+    OP_MOVE_SELECT_BUFFER_START,
+    OP_MOVE_SELECT_BUFFER_END,
+    OP_MOVE_SELECT_PREV_PAGE,
+    OP_MOVE_SELECT_NEXT_PAGE,
+    OP_MOVE_MATCHING_BRACKET,
+    OP_INDENT,
+    OP_UNINDENT,
+    OP_DELETE,
+    OP_BACKSPACE,
+    OP_DELETE_NEXT_WORD,
+    OP_DELETE_PREV_WORD,
+    OP_INSERT_NEWLINE,
+    OP_INSERT_SPACE,
+    OP_INSERT_KPDIV,
+    OP_INSERT_KPMULT,
+    OP_INSERT_KPMINUS,
+    OP_INSERT_KPPLUS,
+    OP_SELECT_ALL,
+    OP_COPY,
+    OP_CUT,
+    OP_PASTE,
+    OP_UNDO,
+    OP_REDO,
+    OP_MOVE_LINES_UP,
+    OP_MOVE_LINES_DOWN,
+    OP_DUPLICATE,
+    OP_JOIN_LINES,
+    OP_SAVE,
+    OP_SAVE_AS,
+    OP_FIND,
+    OP_FIND_NEXT,
+    OP_FIND_PREV,
+    OP_FIND_REPLACE,
+    OP_GOTO_LINE,
+    OP_OPEN,
+    OP_NEW,
+    OP_NEXT_BUFFER,
+    OP_PREV_BUFFER,
+    OP_SAVE_ALL,
+    OP_CLOSE,
+    OP_CMD,
+    OP_CHANGE_BUFFER,
+    OP_SUSPEND,
+    OP_EXIT,
+    OP_TOGGLE_SEARCH_TYPE,
+    OP_TOGGLE_SEARCH_CASE_SENSITIVITY,
+    OP_TOGGLE_SEARCH_DIRECTION,
+    OP_PROMPT_PREV_ENTRY,
+    OP_PROMPT_NEXT_ENTRY,
+    OP_PROMPT_SUBMIT,
+    OP_PROMPT_CANCEL,
+    OP_PROMPT_COMPLETE,
+    OP_PROMPT_COMPLETE_PREV
+} Operation;
+
 /* Container structure for Command arguments */
 typedef struct {
-    Session *sess; /* Commands can change global state */
+    struct Session *sess; /* Commands can change global state */
     Value args[MAX_CMD_ARG_NUM]; /* Array of int|string|bool values */
     size_t arg_num; /* Number of values in args actually set */
     const char *key; /* The key press that invoked this Command */
@@ -104,28 +187,40 @@ typedef struct {
                              what this command does */
 } CommandDefinition;
 
-/* Input is either to a buffer or a prompt.
- * The OperationMode is used to make this distinction */
+/* Modes in which key bindings can be defined */
 typedef enum {
-    OM_STANDARD = 1, /* Normal buffer is open */
-    OM_PROMPT = 1 << 1, /* Prompt is open */
-    OM_PROMPT_COMPLETER = 1 << 2 /* Prompt with auto complete functionality
-                                    is open */
+    OM_STANDARD, /* Normal buffer is open */
+    OM_PROMPT, /* Prompt is open */
+    OM_PROMPT_COMPLETER, /* Prompt with auto complete functionality is open */
+    OM_ENTRY_NUM
 } OperationMode;
 
-/* An operation maps a keypress in an operation mode to a set of 
- * arguments and a Command. This is how weds default keybindings 
- * and operations are specified */
+/* Stores all key bindings */
 typedef struct {
-    const char *key; /* The key press that is mapped */
-    OperationMode op_mode; /* Which mode this mapping is active in */
+    int active_op_modes[OM_ENTRY_NUM]; /* Track which modes are active */
+    HashMap *maps[OM_ENTRY_NUM]; /* Key bindings for each mode */
+} KeyMap;
+
+/* Maps a key press to an operation. A collection of KeyMapping's defines
+ * a set of key bindings */
+typedef struct {
+    const char *key; /* Key string */
+    Operation op; /* Operation */
+} KeyMapping;
+
+/* An operation specifies a command, arguments to the command and an operation
+ * mode in which it is valid. They define actions which key's can be mapped
+ * to */
+typedef struct {
+    const char *name; /* Operation name */
+    OperationMode op_mode; /* Operation mode in which this is valid */
     Value args[MAX_CMD_ARG_NUM]; /* Arguments to Command */
     size_t arg_num; /* Argument number */
     Command command; /* The Command to be called */
-} Operation;
+} OperationDefinition;
 
-int cm_populate_keymap(HashMap *keymap, OperationMode);
-void cm_clear_keymap_entries(HashMap *keymap);
-Status cm_do_operation(Session *, const char *key, int *finished);
+int cm_init_keymap(KeyMap *);
+void cm_free_keymap(KeyMap *);
+Status cm_do_operation(struct Session *, const char *key, int *finished);
 
 #endif

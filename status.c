@@ -75,7 +75,8 @@ static const char *st_default_error_messages[] = {
     [ERR_INVALID_MARK]                        = "Invalid mark",
     [ERR_DUPLICATE_MARK]                      = "Duplicate mark",
     [ERR_CLIPBOARD_ERROR]                     = "Clipboard error",
-    [ERR_INVALID_SYNTAXDEFTYPE]               = "Invalid syntax definition type"
+    [ERR_INVALID_SYNTAXDEFTYPE]               = "Invalid syntax definition type",
+    [ERR_INVALID_OPERATION_KEY_STRING]        = "Invalid operation key string"
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

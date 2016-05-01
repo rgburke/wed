@@ -1,1 +1,1 @@
-<End><C-f><C-t><C-d>text-\d<Enter>!
+<wed-move-end-of-screen-line><wed-find><wed-toggle-search-type><wed-toggle-search-direction>text-\d<wed-prompt-submit>!

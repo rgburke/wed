@@ -100,7 +100,8 @@ typedef enum {
     ERR_INVALID_MARK,
     ERR_DUPLICATE_MARK,
     ERR_CLIPBOARD_ERROR,
-    ERR_INVALID_SYNTAXDEFTYPE
+    ERR_INVALID_SYNTAXDEFTYPE,
+    ERR_INVALID_OPERATION_KEY_STRING
 } ErrorCode;
 
 /* Structure used to represent success or failure */

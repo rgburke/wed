@@ -92,15 +92,7 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
         return 0;
     }
 
-    if ((sess->keymap = new_hashmap()) == NULL) {
-        return 0;
-    }
-
-    if ((sess->keymap_overrides = new_hashmap()) == NULL) {
-        return 0;
-    }
-
-    if (!cm_populate_keymap(sess->keymap, OM_STANDARD)) {
+    if (!cm_init_keymap(&sess->keymap)) {
         return 0;
     }
 
@@ -204,10 +196,7 @@ void se_free(Session *sess)
     }
 
     ip_free(&sess->input_handler);
-    cm_clear_keymap_entries(sess->keymap);
-    cm_clear_keymap_entries(sess->keymap_overrides);
-    free_hashmap(sess->keymap);
-    free_hashmap(sess->keymap_overrides);
+    cm_free_keymap(&sess->keymap);
     cf_free_config(sess->config);
     pr_free(sess->prompt, 1);
     bf_free(sess->error_buffer);
@@ -394,10 +383,16 @@ int se_remove_buffer(Session *sess, Buffer *to_remove)
 
 Status se_make_prompt_active(Session *sess, PromptType prompt_type, 
                              const char *prompt_text, List *history,
-                             int show_last_cmd)
+                             int has_prompt_completer, int show_last_cmd)
 {
     RETURN_IF_FAIL(pr_reset_prompt(sess->prompt, prompt_type, prompt_text, 
                                    history, show_last_cmd));
+
+    sess->keymap.active_op_modes[OM_PROMPT] = 1;
+
+    if (has_prompt_completer) {
+        sess->keymap.active_op_modes[OM_PROMPT_COMPLETER] = 1;
+    }
 
     Buffer *prompt_buffer = pr_get_prompt_buffer(sess->prompt);
     prompt_buffer->next = sess->active_buffer;
@@ -419,6 +414,9 @@ int se_end_prompt(Session *sess)
     assert(prompt_buffer != NULL);
 
     sess->active_buffer = prompt_buffer->next;
+
+    sess->keymap.active_op_modes[OM_PROMPT] = 0;
+    sess->keymap.active_op_modes[OM_PROMPT_COMPLETER] = 0;
 
     return 1;
 }

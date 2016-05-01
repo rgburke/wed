@@ -1,1 +1,1 @@
-<C-f><C-s>text<Enter>!
+<wed-find><wed-toggle-search-case-sensitivity>text<wed-prompt-submit>!

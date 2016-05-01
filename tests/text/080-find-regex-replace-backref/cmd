@@ -1,1 +1,1 @@
-<C-h><C-t>^This\sis\stest-(\w)-(\d)\.$<Enter>\2. \1 test<Enter>a<Enter>
+<wed-find-replace><wed-toggle-search-type>^This\sis\stest-(\w)-(\d)\.$<wed-prompt-submit>\2. \1 test<wed-prompt-submit>a<wed-prompt-submit>

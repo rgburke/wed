@@ -1,1 +1,1 @@
-<C-f><C-t><C-d>text-\d<Enter><F3><F15>!
+<wed-find><wed-toggle-search-type><wed-toggle-search-direction>text-\d<wed-prompt-submit><wed-find-next><wed-find-prev>!

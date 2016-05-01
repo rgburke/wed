@@ -1,1 +1,1 @@
-<Down><C-h><C-t>text-\d<Enter>!<Enter>y<Enter>n<Enter>y<Enter><Escape>
+<wed-move-next-line><wed-find-replace><wed-toggle-search-type>text-\d<wed-prompt-submit>!<wed-prompt-submit>y<wed-prompt-submit>n<wed-prompt-submit>y<wed-prompt-submit><wed-prompt-cancel>

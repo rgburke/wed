@@ -22,6 +22,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <ctype.h>
 #include <ncurses.h>
 #include "input.h"
 #include "session.h"
@@ -42,6 +43,7 @@ static void ip_handle_keypress(Session *, TermKeyKey *key, char *keystr,
                                int *redraw_due);
 static void ip_handle_error(Session *);
 static int ip_is_special_key(const TermKeyKey *);
+static int is_wed_operation(const char *key, const char **next);
 
 static volatile int ip_window_resize_required = 0;
 static volatile int ip_continue_signal = 0;
@@ -330,6 +332,13 @@ void ip_process_keystr_input(Session *sess)
 
     while (*input_handler->iter && !finished) {
         if (*input_handler->iter == '<' &&
+            is_wed_operation(input_handler->iter, &next)) {
+            size_t keystr_length = next - input_handler->iter;
+            assert(keystr_length < MAX_KEY_STR_SIZE);
+            memcpy(keystr, input_handler->iter, keystr_length); 
+            keystr[keystr_length] = '\0';
+            input_handler->iter = next;
+        } else if (*input_handler->iter == '<' &&
             (next = termkey_strpkey(termkey, input_handler->iter + 1,
                                     &key, TERMKEY_FORMAT_VIM)
             ) != NULL && ip_is_special_key(&key) && *next == '>') {
@@ -378,4 +387,33 @@ static int ip_is_special_key(const TermKeyKey *key)
     }
     
     return key->modifiers & (TERMKEY_KEYMOD_CTRL | TERMKEY_KEYMOD_ALT);
+}
+
+static int is_wed_operation(const char *key, const char **next)
+{
+    const char *prefix = "<wed-";
+    const size_t prefix_length = strlen(prefix);
+    const char *iter = key;
+    size_t key_size = 0;
+
+    while (*iter++ && key_size < prefix_length) {
+        key_size++;
+    }
+
+    if (key_size < prefix_length ||
+        strncmp(prefix, key, prefix_length) != 0) {
+        return 0;
+    }
+
+    while (*iter && (isalpha(*iter) || *iter == '-')) {
+        iter++;
+    } 
+
+    if (*iter != '>') {
+        return 0;
+    }
+
+    *next = ++iter;
+
+    return 1;
 }
