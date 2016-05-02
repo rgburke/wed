@@ -126,7 +126,7 @@ Status cl_paste(Clipboard *clipboard, Buffer *buffer)
  * instead? */
 Status cl_cut(Clipboard *clipboard, Buffer *buffer)
 {
-    Status status;
+    Status status = STATUS_SUCCESS;
     Range range;
 
     if (!bf_get_range(buffer, &range)) {

@@ -159,6 +159,7 @@ Status rp_replace_current_match(Buffer *buffer, const char *rep_text,
                                 size_t rep_length)
 {
     BufferSearch *search = &buffer->search;
+    Status status = STATUS_SUCCESS;
 
     assert(search->last_match_pos.line_no > 0);
     assert(rep_text != NULL);
@@ -166,16 +167,16 @@ Status rp_replace_current_match(Buffer *buffer, const char *rep_text,
     /* Check a match has actually been found i.e.
      * line_no should be greater than zero */
     if (search->last_match_pos.line_no == 0) {
-        return STATUS_SUCCESS;
+        return status;
     } 
-
-    Status status;
 
     if (search->search_type == BST_TEXT) {
         status = rp_ts_replace(buffer, rep_text, rep_length); 
     } else if (search->search_type == BST_REGEX) {
         status = rp_rs_replace(buffer, rep_text, rep_length); 
-    } 
+    } else {
+        assert(!"Invalid search type");
+    }
 
     return status;
 }

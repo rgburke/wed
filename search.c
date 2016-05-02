@@ -124,7 +124,7 @@ Status bs_find_next(BufferSearch *search, const BufferPos *current_pos,
 
     BufferPos pos = *current_pos;
     size_t match_point;
-    Status status;
+    Status status = STATUS_SUCCESS;
 
     if (search->advance_from_last_match == 1 &&
         bp_compare(&pos, &search->last_match_pos) == 0) {
