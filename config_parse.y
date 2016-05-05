@@ -70,7 +70,13 @@ int yylex(Session *, const char *file_path);
 %token TKN_RIGHT_BRACKET "}"
 
 /* All nonterminal symbols have type ASTNode * */
-%type<node> value variable expression statememt statememt_list statement_block
+%type<node> value
+%type<node> value_list
+%type<node> identifier
+%type<node> expression
+%type<node> statememt
+%type<node> statememt_list
+%type<node> statement_block
 
 /* Explicitly state start symbol */
 %start program
@@ -113,18 +119,31 @@ statement_block: TKN_NAME TKN_LEFT_BRACKET statememt_list TKN_RIGHT_BRACKET {
                | error TKN_RIGHT_BRACKET { $$ = NULL; } 
                ;
 
-expression: variable TKN_ASSIGN value {
+expression: identifier TKN_ASSIGN value {
                 $$ = (ASTNode *)cp_new_expressionnode(&@$, NT_ASSIGNMENT,
                                                       $1, $3);
             }
-          | variable {
-                $$ = (ASTNode *)cp_new_expressionnode(&@$, NT_REFERENCE,
-                                                      $1, NULL);
+          | identifier value_list {
+                $$ = (ASTNode *)cp_new_expressionnode(&@$, NT_FUNCTION_CALL,
+                                                      $1, $2);  
             }
           ;
 
-variable: TKN_NAME { $$ = (ASTNode *)cp_new_variablenode(&@1, $1); free($1); }
-        ;
+identifier: TKN_NAME { 
+                $$ = (ASTNode *)cp_new_identifiernode(&@1, $1); free($1);
+            }
+          ;
+
+value_list: value { $$ = (ASTNode *)cp_new_valuelistnode(&@1, $1); }
+          | value_list value {
+                if ($1 == NULL) {
+                    $$ = (ASTNode *)cp_new_valuelistnode(&@1, $2);
+                } else {
+                    cp_add_value_to_list($1, $2);
+                    $$ = $1;
+                }
+            }
+          ;
 
 value: TKN_INTEGER {
            Value value; cp_convert_to_int_value($1, &value);

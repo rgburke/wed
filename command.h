@@ -180,12 +180,46 @@ typedef struct {
 
 typedef Status (*CommandHandler)(const CommandArgs *);
 
+/* Categorisation of commands */
+typedef enum {
+    CMDT_BUFFER_MOVE = 1,
+    CMDT_BUFFER_MOD  = 1 << 1,
+    CMDT_CMD_INPUT   = 1 << 2,
+    CMDT_EXIT        = 1 << 3,
+    CMDT_SESS_MOD    = 1 << 4,
+    CMDT_CMD_MOD     = 1 << 5,
+    CMDT_SUSPEND     = 1 << 6
+} CommandType;
+
+/* Describes the arguments a command expects */
+typedef struct {
+    int is_var_args; /* True if a variable number of arguments are accepted.
+                        When true other members of this struct aren't used */
+    size_t arg_num; /* The number of arguments this command expects */
+    ValueType arg_types[MAX_CMD_ARG_NUM]; /* Value types of the expected 
+                                             arguments */
+} CommandSignature;
+
+#define CMDSIG_STRUCT(is_var_args,arg_num,...) { \
+                (is_var_args), \
+                (arg_num), \
+                { __VA_ARGS__ } \
+            }
+
+#define CMDSIG_VAR_ARGS CMDSIG_STRUCT(1,0,VAL_TYPE_INT)
+#define CMDSIG_NO_ARGS CMDSIG_STRUCT(0,0,VAL_TYPE_INT)
+#define CMDSIG(arg_num,...) CMDSIG_STRUCT(0,(arg_num),__VA_ARGS__)
+
 /* Command descriptor */
 typedef struct {
+    const char *function_name; /* Config function name */
     CommandHandler command_handler; /* function reference */
-    CommandType cmd_type; /* High level categorisation of 
-                             what this command does */
+    CommandSignature command_signature; /* Arg info */
+    CommandType command_type; /* High level categorisation of 
+                                 what this command does */
 } CommandDefinition;
+
+#define CMD_NO_ARGS { INT_VAL_STRUCT(0) }
 
 /* Modes in which key bindings can be defined */
 typedef enum {

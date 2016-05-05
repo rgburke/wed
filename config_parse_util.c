@@ -83,22 +83,44 @@ ValueNode *cp_new_valuenode(const ParseLocation *location, Value value)
     return val_node;
 }
 
-VariableNode *cp_new_variablenode(const ParseLocation *location,
-                                  const char *var_name)
+ValueListNode *cp_new_valuelistnode(const ParseLocation *location, ASTNode *val)
 {
-    VariableNode *var_node = malloc(sizeof(VariableNode));
-    RETURN_IF_NULL(var_node);
+    assert(val != NULL);
+    assert(val->node_type == NT_VALUE);
 
-    var_node->type.node_type = NT_VARIABLE;
-    var_node->type.location = *location;
-    var_node->name = strdup(var_name);
+    ValueListNode *val_list_node = malloc(sizeof(ValueListNode));
+    RETURN_IF_NULL(val_list_node);
 
-    if (var_node->name == NULL) {
-        free(var_node);
+    val_list_node->values = list_new();
+
+    if (val_list_node->values == NULL) {
+        free(val_list_node);
         return NULL;
     }
 
-    return var_node;
+    val_list_node->type.node_type = NT_VALUE_LIST;
+    val_list_node->type.location = *location;
+    list_add(val_list_node->values, val);
+
+    return val_list_node;
+}
+
+IdentifierNode *cp_new_identifiernode(const ParseLocation *location,
+                                      const char *name)
+{
+    IdentifierNode *id_node = malloc(sizeof(IdentifierNode));
+    RETURN_IF_NULL(id_node);
+
+    id_node->type.node_type = NT_IDENTIFIER;
+    id_node->type.location = *location;
+    id_node->name = strdup(name);
+
+    if (id_node->name == NULL) {
+        free(id_node);
+        return NULL;
+    }
+
+    return id_node;
 }
 
 ExpressionNode *cp_new_expressionnode(const ParseLocation *location,
@@ -425,6 +447,23 @@ int cp_add_statement_to_list(ASTNode *statememt_list, ASTNode *statememt)
     return 1;
 }
 
+int cp_add_value_to_list(ASTNode *val_list, ASTNode *val)
+{
+    assert(val_list != NULL);
+
+    if (val_list == NULL || val == NULL) {
+        return 0; 
+    }
+
+    assert(val_list->node_type == NT_VALUE_LIST);
+    assert(val->node_type == NT_VALUE);
+
+    ValueListNode *val_list_node = (ValueListNode *)val_list;
+    ValueNode *val_node = (ValueNode *)val;
+    
+    return list_add(val_list_node->values, val_node);
+}
+
 int cp_eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
 {
     if (node == NULL) {
@@ -446,7 +485,7 @@ int cp_eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
         case NT_ASSIGNMENT:
             {
                 ExpressionNode *exp_node = (ExpressionNode *)node;
-                VariableNode *var_node = (VariableNode *)exp_node->left;
+                IdentifierNode *id_node = (IdentifierNode *)exp_node->left;
                 ValueNode *val_node = (ValueNode *)exp_node->right;
 
                 /* When at CL_BUFFER allow setting purely CL_SESSION
@@ -454,30 +493,13 @@ int cp_eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
                  * set session level vars such as theme in wed's command
                  * prompt which is at the CL_BUFFER level */
                 ConfigLevel tmp_config_level =
-                                cp_determine_config_level(var_node->name,
+                                cp_determine_config_level(id_node->name,
                                                           config_level);
 
                 Status status = cf_set_named_var(
                                     CE_VAL(sess, sess->active_buffer),
                                     tmp_config_level,
-                                    var_node->name, val_node->value);
-
-                se_add_error(sess, cp_convert_to_config_error(status,
-                                                              &node->location));
-
-                break;
-            }
-        case NT_REFERENCE:
-            {
-                ExpressionNode *exp_node = (ExpressionNode *)node;
-                VariableNode *var_node = (VariableNode *)exp_node->left;
-
-                ConfigLevel tmp_config_level =
-                                cp_determine_config_level(var_node->name,
-                                                          config_level);
-
-                Status status = cf_print_var(CE_VAL(sess, sess->active_buffer),
-                                             tmp_config_level, var_node->name);
+                                    id_node->name, val_node->value);
 
                 se_add_error(sess, cp_convert_to_config_error(status,
                                                               &node->location));
@@ -511,14 +533,26 @@ void cp_free_ast(ASTNode *node)
                 va_free_value(val_node->value);
                 break;
             }
-        case NT_VARIABLE:
+        case NT_VALUE_LIST:
             {
-                VariableNode *var_node = (VariableNode *)node;
-                free(var_node->name);
+                ValueListNode *val_list_node = (ValueListNode *)node;
+                List *values = val_list_node->values;
+                
+                for (size_t k = 0; k < list_size(values); k++) {
+                    cp_free_ast(list_get(values, k)); 
+                }
+
+                list_free(values);
+                break;
+            }
+        case NT_IDENTIFIER:
+            {
+                IdentifierNode *id_node = (IdentifierNode *)node;
+                free(id_node->name);
                 break;
             }
         case NT_ASSIGNMENT:
-        case NT_REFERENCE:
+        case NT_FUNCTION_CALL:
             {
                 ExpressionNode *exp_node = (ExpressionNode *)node;
                 cp_free_ast(exp_node->left);
@@ -1100,17 +1134,17 @@ static int cp_process_assignment(Session *sess, StatementNode *stm_node,
     }
 
     ExpressionNode *exp_node = (ExpressionNode *)stm_node->node;
-    VariableNode *var_node = (VariableNode *)exp_node->left;
+    IdentifierNode *id_node = (IdentifierNode *)exp_node->left;
     ValueNode *val_node = (ValueNode *)exp_node->right;
 
-    if (var_node == NULL || val_node == NULL) {
+    if (id_node == NULL || val_node == NULL) {
         return 0;
     }
 
     size_t found_var_idx = expected_vars_num;
 
     for (size_t k = 0; k < expected_vars_num; k++) {
-        if (strcmp(var_node->name, expected_vars[k].var_name) == 0) {
+        if (strcmp(id_node->name, expected_vars[k].var_name) == 0) {
             found_var_idx = k;
             break; 
         }
@@ -1118,9 +1152,9 @@ static int cp_process_assignment(Session *sess, StatementNode *stm_node,
 
     if (found_var_idx == expected_vars_num) {
         se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
-                                               &var_node->type.location,
+                                               &id_node->type.location,
                                                "Invalid variable: %s",
-                                               var_node->name));
+                                               id_node->name));
         return 0;
     }
 
@@ -1130,16 +1164,16 @@ static int cp_process_assignment(Session *sess, StatementNode *stm_node,
         const char *value_type = va_value_type_string(var_asn->value_type);
 
         se_add_error(sess, cp_get_config_error(ERR_INVALID_CONFIG_ENTRY,
-                                               &var_node->type.location,
+                                               &id_node->type.location,
                                                "Invalid type, variable %s "
                                                "must have type %s",
-                                               var_node->name,
+                                               id_node->name,
                                                value_type));
         return 0;
     }
 
     *var_asn->value = val_node->value;
-    var_asn->location = &var_node->type.location;
+    var_asn->location = &id_node->type.location;
     var_asn->value_set = 1;
 
     return 1;

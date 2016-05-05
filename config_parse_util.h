@@ -58,9 +58,10 @@ typedef struct {
  * Below are the nodes types */
 typedef enum {
     NT_VALUE,
-    NT_VARIABLE,
+    NT_VALUE_LIST,
+    NT_IDENTIFIER,
     NT_ASSIGNMENT,
-    NT_REFERENCE,
+    NT_FUNCTION_CALL,
     NT_STATEMENT,
     NT_STATEMENT_BLOCK
 } ASTNodeType;
@@ -82,11 +83,16 @@ typedef struct {
 
 typedef struct {
     ASTNode type;
+    List *values;
+} ValueListNode;
+
+typedef struct {
+    ASTNode type;
     char *name; /* Variable name */
-} VariableNode;
+} IdentifierNode;
 
 /* Used for variable assignment where
- * left is a VariableNode and right is
+ * left is a IdentifierNode and right is
  * a ValueNode */
 typedef struct {
     ASTNode type;
@@ -116,7 +122,8 @@ typedef struct {
  * contain statements */
 
 ValueNode *cp_new_valuenode(const ParseLocation *, Value);
-VariableNode *cp_new_variablenode(const ParseLocation *, const char *var_name);
+ValueListNode *cp_new_valuelistnode(const ParseLocation *, ASTNode *val);
+IdentifierNode *cp_new_identifiernode(const ParseLocation *, const char *name);
 ExpressionNode *cp_new_expressionnode(const ParseLocation *, ASTNodeType,
                                       ASTNode *left, ASTNode *right);
 StatementNode *cp_new_statementnode(const ParseLocation *, ASTNode *);
@@ -128,6 +135,7 @@ int cp_convert_to_int_value(const char *svalue, Value *);
 int cp_convert_to_string_value(const char *svalue, Value *);
 int cp_convert_to_regex_value(const char *rvalue, Value *);
 int cp_add_statement_to_list(ASTNode *statememt_list, ASTNode *statememt);
+int cp_add_value_to_list(ASTNode *val_list, ASTNode *val);
 int cp_eval_ast(Session *, ConfigLevel, ASTNode *);
 void cp_free_ast(ASTNode *);
 void cp_update_parser_location(const char *yytext, const char *file_name);
