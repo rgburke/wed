@@ -85,6 +85,7 @@ typedef enum {
     CMD_SESSION_CHANGE_BUFFER,
     CMD_SUSPEND,
     CMD_SESSION_END,
+    CMD_SESSION_ECHO
 } Command;
 
 /* Operations are instances of commands i.e. they define a command with
@@ -256,5 +257,7 @@ typedef struct {
 int cm_init_keymap(KeyMap *);
 void cm_free_keymap(KeyMap *);
 Status cm_do_operation(struct Session *, const char *key, int *finished);
+Status cm_do_command(Command cmd, CommandArgs *cmd_args);
+int cm_get_command(const char *function_name, Command *cmd);
 
 #endif

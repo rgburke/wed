@@ -127,6 +127,11 @@ expression: identifier TKN_ASSIGN value {
                 $$ = (ASTNode *)cp_new_expressionnode(&@$, NT_FUNCTION_CALL,
                                                       $1, $2);  
             }
+          | identifier {
+                ASTNode *vl_node = (ASTNode *)cp_new_valuelistnode(&@1, NULL);
+                $$ = (ASTNode *)cp_new_expressionnode(&@$, NT_FUNCTION_CALL,
+                                                      $1, vl_node);
+            }
           ;
 
 identifier: TKN_NAME { 

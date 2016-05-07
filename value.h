@@ -67,6 +67,7 @@ typedef struct {
 
 #define BVAL(value) IVAL(value)
 #define IVAL(value) (value).val.ival
+#define FVAL(value) (value).val.fval
 #define SVAL(value) (value).val.sval
 #define RVAL(value) (value).val.rval
 

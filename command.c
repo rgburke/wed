@@ -119,6 +119,7 @@ static QuestionRespose cm_question_prompt(Session *, PromptType,
                                           QuestionRespose default_answer);
 static Status cm_cancel_prompt(const CommandArgs *);
 static Status cm_run_prompt_completion(const CommandArgs *);
+static Status cm_session_echo(const CommandArgs *);
 
 /* Allow the following to exceed 80 columns.
  * This format is easier to read and maipulate in visual block mode in vim */
@@ -173,7 +174,9 @@ static const CommandDefinition cm_commands[] = {
     [CMD_SESSION_RUN_COMMAND]            = { NULL, cm_session_run_command           , CMDSIG_NO_ARGS         , CMDT_CMD_INPUT   },
     [CMD_SESSION_CHANGE_BUFFER]          = { NULL, cm_session_change_buffer         , CMDSIG_NO_ARGS         , CMDT_CMD_INPUT   },
     [CMD_SUSPEND]                        = { NULL, cm_suspend                       , CMDSIG_NO_ARGS         , CMDT_SUSPEND     },
-    [CMD_SESSION_END]                    = { NULL, cm_session_end                   , CMDSIG_NO_ARGS         , CMDT_EXIT        }
+    [CMD_SESSION_END]                    = { NULL, cm_session_end                   , CMDSIG_NO_ARGS         , CMDT_EXIT        },
+    /* Commands that by default are not mapped to key bindings */
+    [CMD_SESSION_ECHO]                   = { "echo", cm_session_echo                , CMDSIG_VAR_ARGS        , CMDT_SESS_MOD    }
 };
 
 static const OperationDefinition cm_operations[] = {
@@ -450,6 +453,12 @@ Status cm_do_operation(Session *sess, const char *key, int *finished)
     return STATUS_SUCCESS;
 }
 
+Status cm_do_command(Command cmd, CommandArgs *cmd_args)
+{
+    const CommandDefinition *cmd_def = &cm_commands[cmd]; 
+    return cm_run_command(cmd_def, cmd_args);
+}
+
 static Status cm_run_command(const CommandDefinition *cmd,
                              CommandArgs *cmd_args)
 {
@@ -483,6 +492,27 @@ static Status cm_run_command(const CommandDefinition *cmd,
     }
 
     return cmd->command_handler(cmd_args);
+}
+
+int cm_get_command(const char *function_name, Command *cmd)
+{
+    if (is_null_or_empty(function_name) || cmd == NULL) {
+        return 0;
+    }
+
+    static const size_t cmd_num = ARRAY_SIZE(cm_commands, CommandDefinition);
+
+    /* TODO Load function names into a hash map for efficient lookup */
+
+    for (size_t k = 0; k < cmd_num; k++) {
+        if (cm_commands[k].function_name != NULL &&
+            strcmp(function_name, cm_commands[k].function_name) == 0) {
+            *cmd = k;
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 static Status cm_bp_change_line(const CommandArgs *cmd_args)
@@ -1777,3 +1807,30 @@ static Status cm_run_prompt_completion(const CommandArgs *cmd_args)
     return status;
 }
 
+static Status cm_session_echo(const CommandArgs *cmd_args)
+{
+    Session *sess = cmd_args->sess;
+    Status status = STATUS_SUCCESS;
+    char *str_val;
+
+    for (size_t k = 0; k < cmd_args->arg_num; k++) {
+        str_val = va_to_string(cmd_args->args[k]);
+
+        if (cf_str_to_var(str_val, NULL)) {
+            ConfigLevel config_level = cp_determine_config_level(str_val,
+                                                                 CL_BUFFER);
+            status = cf_print_var(CE_VAL(sess, sess->active_buffer),
+                                  config_level, str_val);
+
+            if (!STATUS_IS_SUCCESS(status)) {
+                break;
+            }
+        } else {
+            se_add_msg(sess, str_val); 
+        }
+
+        free(str_val);
+    }
+
+    return status;
+}

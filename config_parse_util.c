@@ -69,7 +69,8 @@ static int cp_validate_block_vars(Session *, VariableAssignment *,
                                   size_t expected_vars_num,
                                   const ParseLocation *,
                                   const char *block_name, int non_null_empty);
-static ConfigLevel cp_determine_config_level(const char *var_name, ConfigLevel);
+static Status cp_do_function_call(Session *, const char *function_name,
+                                  List *values);
 
 ValueNode *cp_new_valuenode(const ParseLocation *location, Value value)
 {
@@ -85,13 +86,13 @@ ValueNode *cp_new_valuenode(const ParseLocation *location, Value value)
 
 ValueListNode *cp_new_valuelistnode(const ParseLocation *location, ASTNode *val)
 {
-    assert(val != NULL);
-    assert(val->node_type == NT_VALUE);
+    assert(val == NULL || val->node_type == NT_VALUE);
 
     ValueListNode *val_list_node = malloc(sizeof(ValueListNode));
     RETURN_IF_NULL(val_list_node);
 
-    val_list_node->values = list_new();
+    size_t list_size = (val == NULL ? 0 : MAX_CMD_ARG_NUM);
+    val_list_node->values = list_new_prealloc(list_size);
 
     if (val_list_node->values == NULL) {
         free(val_list_node);
@@ -100,7 +101,10 @@ ValueListNode *cp_new_valuelistnode(const ParseLocation *location, ASTNode *val)
 
     val_list_node->type.node_type = NT_VALUE_LIST;
     val_list_node->type.location = *location;
-    list_add(val_list_node->values, val);
+
+    if (val != NULL) {
+        list_add(val_list_node->values, val);
+    }
 
     return val_list_node;
 }
@@ -503,6 +507,17 @@ int cp_eval_ast(Session *sess, ConfigLevel config_level, ASTNode *node)
 
                 se_add_error(sess, cp_convert_to_config_error(status,
                                                               &node->location));
+
+                break;
+            }
+        case NT_FUNCTION_CALL:
+            {
+                ExpressionNode *exp_node = (ExpressionNode *)node;
+                IdentifierNode *id_node = (IdentifierNode *)exp_node->left;
+                ValueListNode *val_list_node = (ValueListNode *)exp_node->right;
+
+                se_add_error(sess, cp_do_function_call(sess, id_node->name,
+                                                       val_list_node->values));
 
                 break;
             }
@@ -1227,8 +1242,8 @@ static int cp_validate_block_vars(Session *sess,
 
 /* Allow CL_SESSION level only vars to be set at CL_BUFFER
  * as there is no ambiguity over the ConfigLevel */
-static ConfigLevel cp_determine_config_level(const char *var_name,
-                                             ConfigLevel config_level)
+ConfigLevel cp_determine_config_level(const char *var_name,
+                                      ConfigLevel config_level)
 {
     ConfigVariable config_variable;
 
@@ -1239,4 +1254,31 @@ static ConfigLevel cp_determine_config_level(const char *var_name,
     }
 
     return config_level;
+}
+
+
+static Status cp_do_function_call(Session *sess, const char *function_name,
+                                  List *values)
+{
+    Command cmd;
+
+    if (!cm_get_command(function_name, &cmd)) {
+        return st_get_error(ERR_INVALID_COMMAND, "Invalid function \"%s\"",
+                            function_name);
+    }
+
+    CommandArgs cmd_args;
+    memset(&cmd_args, 0, sizeof(CommandArgs));
+
+    cmd_args.sess = sess;
+    cmd_args.arg_num = MIN(list_size(values), MAX_CMD_ARG_NUM);
+
+    ValueNode *val_node;
+
+    for (size_t k = 0; k < cmd_args.arg_num; k++) {
+        val_node = list_get(values, k);    
+        cmd_args.args[k] = val_node->value; 
+    }
+
+    return cm_do_command(cmd, &cmd_args);
 }

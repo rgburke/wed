@@ -24,7 +24,7 @@
 #include "util.h"
 #include "status.h"
 
-#define VALUE_STRING_CONVERT_SIZE 100
+#define VALUE_STR_CONVERT_SIZE 100
 
 const char *va_get_value_type(Value value)
 {
@@ -84,17 +84,26 @@ char *va_to_string(Value value)
         case VAL_TYPE_BOOL:
             return strdup(IVAL(value) ? "true" : "false");
         case VAL_TYPE_INT:
-        case VAL_TYPE_FLOAT:
             {
-                char *num_str = malloc(VALUE_STRING_CONVERT_SIZE);
+                char *num_str = malloc(VALUE_STR_CONVERT_SIZE);
 
                 if (num_str == NULL) {
                     return NULL;
                 }
 
-                const char *format = (value.type == VAL_TYPE_INT ? "%d" : "%f");
+                snprintf(num_str, VALUE_STR_CONVERT_SIZE, "%ld", IVAL(value));
 
-                snprintf(num_str, VALUE_STRING_CONVERT_SIZE, format, value.val);
+                return num_str;
+            }
+        case VAL_TYPE_FLOAT:
+            {
+                char *num_str = malloc(VALUE_STR_CONVERT_SIZE);
+
+                if (num_str == NULL) {
+                    return NULL;
+                }
+
+                snprintf(num_str, VALUE_STR_CONVERT_SIZE, "%f", FVAL(value));
 
                 return num_str;
             }

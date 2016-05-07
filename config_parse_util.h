@@ -149,5 +149,6 @@ Status cp_parse_config_string(Session *, ConfigLevel, const char *str);
 void cp_start_scan_file(List *, FILE *);
 void cp_start_scan_string(List *buffer_stack, const char *str);
 void cp_finish_scan(List *buffer_stack);
+ConfigLevel cp_determine_config_level(const char *var_name, ConfigLevel);
 
 #endif
