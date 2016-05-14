@@ -27,13 +27,6 @@
 int yylex(Session *, const char *file_path);
 %}
 
-/* Includes placed in config_parse.h */
-%code requires { 
-#include "session.h"
-#include "config.h"
-#include "config_parse_util.h"
-}
-
 /* yyparse arguments */
 %parse-param { Session *sess }
 %parse-param { ConfigLevel config_level }
@@ -53,8 +46,10 @@ int yylex(Session *, const char *file_path);
 }
 
 /* Free discarded tokens */
-%destructor { free($$); } <string>
-%destructor { cp_free_ast($$); } <node>
+%destructor { free($$); } TKN_INTEGER TKN_STRING TKN_BOOLEAN TKN_REGEX
+                          TKN_NAME TKN_UNQUOTED_STRING
+%destructor { cp_free_ast($$); } value value_list identifier expression
+                                 statememt statememt_list statement_block
 
 /* Terminal symbols */
 %token<string> TKN_INTEGER "integer"
