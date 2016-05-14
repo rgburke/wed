@@ -22,6 +22,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/time.h>
 #include <ctype.h>
 #include <ncurses.h>
 #include "input.h"
@@ -31,6 +32,11 @@
 #include "command.h"
 #include "status.h"
 #include "util.h"
+
+#ifdef __MACH__
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
 
 /* Limit the rate at which the screen is updated. At least
  * MIN_DRAW_INTERVAL_NS nano seconds must pass between
@@ -43,11 +49,12 @@ static void ip_handle_keypress(Session *, TermKeyKey *key, char *keystr,
                                int *redraw_due);
 static void ip_handle_error(Session *);
 static int ip_is_special_key(const TermKeyKey *);
-static int is_wed_operation(const char *key, const char **next);
+static int ip_is_wed_operation(const char *key, const char **next);
 
 static volatile int ip_window_resize_required = 0;
 static volatile int ip_continue_signal = 0;
 static volatile int ip_sigterm_signal = 0;
+static void ip_get_monotonic_time(struct timespec *);
 
 static void ip_sigwinch_handler(int signal)
 {
@@ -201,7 +208,7 @@ void ip_process_input(Session *sess)
     sigemptyset(&old_set);
     /* Use monotonic clock as we're only interested in
      * measuring time intervals that have passed */
-    clock_gettime(CLOCK_MONOTONIC, &last_draw);
+    ip_get_monotonic_time(&last_draw);
     fd_set fds;
 
     while (!finished) {
@@ -288,11 +295,11 @@ static void ip_handle_keypress(Session *sess, TermKeyKey *key, char *keystr,
     se_save_key(sess, keystr);
 
     if (!*finished) {
-        clock_gettime(CLOCK_MONOTONIC, &now);
+        ip_get_monotonic_time(&now);
 
         if (now.tv_nsec - last_draw->tv_nsec >= MIN_DRAW_INTERVAL_NS) {
             update_display(sess);
-            clock_gettime(CLOCK_MONOTONIC, last_draw);
+            ip_get_monotonic_time(last_draw);
         } else {
             /* A redraw is due but wait longer to see if the user enters
              * more input before refreshing screen. This allows us to deal
@@ -332,7 +339,7 @@ void ip_process_keystr_input(Session *sess)
 
     while (*input_handler->iter && !finished) {
         if (*input_handler->iter == '<' &&
-            is_wed_operation(input_handler->iter, &next)) {
+            ip_is_wed_operation(input_handler->iter, &next)) {
             size_t keystr_length = next - input_handler->iter;
             assert(keystr_length < MAX_KEY_STR_SIZE);
             memcpy(keystr, input_handler->iter, keystr_length); 
@@ -389,7 +396,7 @@ static int ip_is_special_key(const TermKeyKey *key)
     return key->modifiers & (TERMKEY_KEYMOD_CTRL | TERMKEY_KEYMOD_ALT);
 }
 
-static int is_wed_operation(const char *key, const char **next)
+static int ip_is_wed_operation(const char *key, const char **next)
 {
     const char *prefix = "<wed-";
     const size_t prefix_length = strlen(prefix);
@@ -416,4 +423,21 @@ static int is_wed_operation(const char *key, const char **next)
     *next = ++iter;
 
     return 1;
+}
+
+static void ip_get_monotonic_time(struct timespec *time)
+{
+#ifdef __MACH__
+    clock_serv_t clock;
+    mach_timespec_t mach;
+
+    host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &clock);
+    clock_get_time(clock, &mach);
+    mach_port_deallocate(mach_task_self(), clock);
+
+    time->tv_sec = mach.tv_sec;
+    time->tv_nsec = mach.tv_nsec;
+#else
+    clock_gettime(CLOCK_MONOTONIC, time);
+#endif
 }
