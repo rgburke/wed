@@ -16,14 +16,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-/* For memrchr */
-#define _GNU_SOURCE
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include "gap_buffer.h"
+#include "util.h"
 
 static void gb_move_gap_to_point(GapBuffer *);
 static int gb_increase_gap_if_required(GapBuffer *, size_t new_size);

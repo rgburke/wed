@@ -172,3 +172,19 @@ char *replace(const char *str, const char *to_replace, const char *replacement)
     return new_str;
 }
 
+void *memrchr(const void *str, int val, size_t bytes)
+{
+    const unsigned char *iter = ((const unsigned char *)str) + (bytes - 1);
+    const unsigned char c = (unsigned char)val;
+    
+    while (bytes--) {
+        if (*iter == c) {
+            return (void *)iter;
+        }
+
+        iter--;
+    }
+
+    return NULL;
+}
+

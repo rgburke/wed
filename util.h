@@ -36,5 +36,6 @@ char *concat_all(size_t str_num, ...);
 int is_null_or_empty(const char *str);
 size_t occurrences(const char *str, const char *sub_str);
 char *replace(const char *str, const char *to_replace, const char *replacement);
+void *memrchr(const void *str, int val, size_t bytes);
 
 #endif
