@@ -12,6 +12,14 @@ matrix:
   allow_failures:
     - os: osx
 
+before_install:
+  - if [ "$TRAVIS_OS_NAME" = 'osx' ]; then
+      brew update;
+      brew install pcre;
+      brew install source-highlight;
+      brew install coreutils;
+    fi;
+
 addons:
   apt:
     packages:
