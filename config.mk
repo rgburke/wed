@@ -59,17 +59,25 @@ else ifeq ($(.DEFAULT_GOAL),)
 endif
 
 CFLAGS_BASE=-Wall -Wextra -pedantic -MMD -MP
-LDFLAGS=-lncursesw -lpcre -lrt
+LDFLAGS=-lpcre
 
 OS=$(shell uname)
 
 ifeq ($(OS),Linux)
 	CFLAGS_BASE+=-D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
+	LDFLAGS+=-lncursesw -lrt
 else ifeq ($(OS),FreeBSD)
 	CFLAGS_BASE+=-I/usr/local/include
-	LDFLAGS+=-L/usr/local/lib
+	LDFLAGS+=-lncursesw -lrt -L/usr/local/lib
 else ifeq ($(findstring CYGWIN,$(OS)),CYGWIN)
 	CFLAGS_BASE+=-U__STRICT_ANSI__
+	LDFLAGS+=-lncursesw -lrt
+else ifeq ($(OS),Darwin)
+	LDFLAGS+=-lncurses
+endif
+
+ifeq ($(WED_SOURCE_HIGHLIGHT),1)
+	LDFLAGS+=-lsource-highlight -lboost_regex -lstdc++
 endif
 
 ifeq ($(WED_DEV),1)
@@ -81,6 +89,3 @@ endif
 CFLAGS=-std=c99 $(CFLAGS_BASE)
 CXXFLAGS=-std=c++98 $(CFLAGS_BASE)
 
-ifeq ($(WED_SOURCE_HIGHLIGHT),1)
-	LDFLAGS+=-lsource-highlight -lboost_regex -lstdc++
-endif
