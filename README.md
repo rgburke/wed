@@ -70,6 +70,10 @@ warnings using the latest packages available on the following systems:
 Wed should build and run on any \*nix system, although changes may be required
 to `config.mk` in order to do so.
 
+Wed is also available as a package on the following systems:
+
+ - [Arch Linux](https://aur.archlinux.org/packages/wed-git)
+
 For a quick overview of functionality read the [Key Bindings](#key-bindings)
 and [Config Variables](#config-variables) sections below.
 
