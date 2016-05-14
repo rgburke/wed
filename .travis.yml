@@ -1,8 +1,16 @@
 language: c
 
+os:
+  - linux
+  - osx
+
 compiler:
   - gcc
   - clang
+
+matrix:
+  allow_failures:
+    - os: osx
 
 addons:
   apt:
