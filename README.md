@@ -73,6 +73,7 @@ to `config.mk` in order to do so.
 Wed is also available as a package on the following systems:
 
  - [Arch Linux](https://aur.archlinux.org/packages/wed-git)
+ - [CRUX](https://github.com/6c37/crux-ports-git/tree/3.2/wed)
 
 For a quick overview of functionality read the [Key Bindings](#key-bindings)
 and [Config Variables](#config-variables) sections below.
