@@ -78,7 +78,7 @@ void rs_free(RegexSearch *search)
         return;
     }
 
-#if WED_PCRE_VERSION_GE_8_20
+#if WED_PCRE_VERSION_GE_8_20 && !defined(__MACH__)
     pcre_free_study(search->study);
 #endif
     pcre_free(search->regex);
