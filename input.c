@@ -16,9 +16,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <errno.h>
 #include <sys/select.h>
 #include <signal.h>
-#include <errno.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>

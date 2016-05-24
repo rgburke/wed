@@ -1,0 +1,507 @@
+#!/bin/sh
+
+#
+# Copyright (C) 2016 Richard Burke
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#
+
+cf_fatal() {
+    echo "`tput setaf 1 2>/dev/null`$@`tput sgr0 2>/dev/null`" >&2
+    cf_cleanup
+    exit 1
+}
+
+cf_cmd_exists() {
+    type "$1" >/dev/null 2>&1
+    return $?
+}
+
+cf_try_cmd() {
+    if eval "test -n \"\$$1\""; then
+        return 0
+    fi
+
+
+    if cf_cmd_exists "$2"; then
+        eval "$1=$2"
+        return $?
+    fi
+
+    return 1
+}
+
+cf_try_cmds() {
+    VAR="$1"
+    shift
+
+    for CMD in "$@"; do
+        if cf_try_cmd "$VAR" "$CMD"; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+cf_determine_os() {
+    if ! cf_cmd_exists uname; then
+        cf_fatal 'This script requires uname to run'
+    fi
+
+    if ! OS=`uname`; then
+        cf_fatal 'Unable to run uname'
+    fi
+}
+
+cf_create_temp_files() {
+    if ! cf_cmd_exists mktemp; then
+        cf_fatal 'This script requires mktemp to run'
+    fi
+
+    if ! TMP_C=`mktemp /tmp/wedconfigureXXXXXXXXXX.c`; then
+        cf_fatal 'Unable to create temporary file'
+    fi
+
+    if ! TMP_O=`mktemp /tmp/wedconfigureXXXXXXXXXX.o`; then
+        cf_fatal 'Unable to create temporary file'
+    fi
+}
+
+cf_check_for_c_compiler() {
+    printf 'Checking if a C compiler exists... '
+
+    if cf_try_cmds CC cc gcc clang; then
+        printf "$CC\n"
+    else
+        printf "no\n"
+        cf_fatal 'Unable to find a C compiler. Is gcc or clang installed?'
+    fi
+}
+
+cf_check_for_cxx_compiler() {
+    printf 'Checking if a C++ compiler exists... '
+
+    if cf_try_cmds CXX g++ clang++; then
+        printf "$CXX\n"
+    else
+        printf "no\n"
+        cf_fatal 'Unable to find a C++ compiler. Is g++ or clang++ installed?'
+    fi
+}
+
+cf_compile() {
+    COMP="$1"
+    TEST_CFLAGS="$2"
+    TEST_LDFLAGS="$3"
+
+    OUTPUT=`$COMP $TEST_CFLAGS -o "$TMP_O" "$TMP_C" $TEST_LDFLAGS 2>&1`
+    return $?
+}
+
+cf_compile_basic() {
+    cat >"$TMP_C" <<EOF
+int main(int argc, char *argv[]) {
+    return 0;
+}
+EOF
+
+    cf_compile "$@"
+}
+
+cf_check_compiler_works() {
+    TYPE="$1"
+    COMP="$2"
+
+    printf "Checking if $TYPE compiler works... "
+
+    if cf_compile_basic "$COMP"; then
+        printf "yes\n"
+    else
+        printf "no\n"
+        cf_fatal "Unable to create executable:\n$OUTPUT"
+    fi
+}
+
+cf_check_flag() {
+    TYPE="$1"
+    COMP="$2"
+    FLAG="$3"
+
+    printf "Checking if $TYPE compiler accepts flag $FLAG... "
+
+    if cf_compile_basic "$COMP" "$FLAG"; then
+        printf "yes\n"
+    else
+        printf "no\n"
+        cf_fatal "$FLAG is required to build wed"
+    fi
+}
+
+cf_check_c_cflags() {
+    for f in '-std=c99' '-O2'; do
+        cf_check_flag 'C' "$CC" "$f"
+        CFLAGS_BASE="$CFLAGS_BASE $f"
+    done
+}
+
+cf_check_cpp_cflags() {
+    for f in '-std=c++98' '-O2'; do
+        cf_check_flag 'C++' "$CXX" "$f"
+        CXXFLAGS_BASE="$CXXFLAGS_BASE $f"
+    done
+}
+
+cf_check_if_have_pkg_config() {
+    printf 'Checking if pkg-config is present...'
+
+    if cf_cmd_exists pkg-config; then
+        HAS_PKG_CONFIG=1
+        printf "yes\n"
+    else
+        HAS_PKG_CONFIG=0
+        printf "no\n"
+    fi
+}
+
+cf_check_if_lib_is_present() {
+    FLAG_VAR="$1"
+    COMP="$2"
+    LIB="$3"
+    eval "FLAG_VAL=\"\$$FLAG_VAR\""
+
+    printf "Checking if lib $LIB is present... "
+
+    if [ $HAS_PKG_CONFIG -eq 1 ]; then
+        LIB_CFLAGS=`pkg-config --cflags "$LIB" 2>/dev/null`
+        LIB_LDFLAGS=`pkg-config --libs "$LIB" 2>/dev/null`
+    fi
+
+    if [ $? -ne 0 ] || [ $HAS_PKG_CONFIG -eq 0 ]; then
+        LIB_CFLAGS=
+        LIB_LDFLAGS="-l$LIB"
+    fi
+
+    if cf_compile "$COMP" "$FLAG_VAL $LIB_CFLAGS -O0" "$LDFLAGS_BASE $LIB_LDFLAGS"; then
+        if [ -n "$LIB_CFLAGS" ]; then
+            eval "$FLAG_VAR=\"$FLAG_VAL $LIB_CFLAGS\""
+        fi
+
+        if [ -n "$LIB_LDFLAGS" ]; then
+            LDFLAGS_BASE="$LDFLAGS_BASE $LIB_LDFLAGS"
+        fi
+
+        printf "yes\n"
+        return 0
+    fi
+
+    printf "no\n"
+
+    return 1
+}
+
+cf_check_if_have_ncurses() {
+    cat >"$TMP_C" <<EOF
+#include <curses.h>
+int main(int argc, char *argv[]) {
+    initscr();
+    return 0;
+}
+EOF
+
+    for lib in ncursesw ncurses curses; do
+        if cf_check_if_lib_is_present CFLAGS_BASE "$CC" "$lib"; then
+            return 0
+        fi
+    done
+
+    cf_fatal 'The ncurses library is required to build wed'
+}
+
+cf_check_if_have_pcre() {
+    cat >"$TMP_C" <<EOF
+#include <pcre.h>
+int main(int argc, char *argv[]) {
+    pcre_version();
+    return 0;
+}
+EOF
+
+    if cf_check_if_lib_is_present CFLAGS_BASE "$CC" pcre; then
+        return 0
+    fi
+
+    cf_fatal 'The PCRE library is required to build wed'
+}
+
+cf_check_if_have_rt() {
+    if [ "$OS" = 'Darwin' ]; then
+        return 0
+    fi
+
+    cat >"$TMP_C" <<EOF
+#include <time.h>
+int main(int argc, char *argv[]) {
+    struct timespec time;
+    clock_gettime(CLOCK_MONOTONIC, &time);
+    return 0;
+}
+EOF
+
+    if cf_check_if_lib_is_present CFLAGS_BASE "$CC" rt; then
+        return 0
+    fi
+
+    cf_fatal 'The librt library is required to build wed'
+}
+
+cf_check_if_have_boost_regex() {
+    cat >"$TMP_C" <<EOF
+#include <boost/regex.hpp>
+int main(int argc, char *argv[]) {
+    boost::regex r(".*");
+    return 0;
+}
+EOF
+
+    if cf_check_if_lib_is_present CXXFLAGS_BASE "$CXX" boost_regex; then
+        return 0
+    fi
+
+    cf_fatal 'The Boost Regex library is required to build wed'
+}
+
+cf_check_if_have_source_highlight() {
+    cat >"$TMP_C" <<EOF
+#include "srchilite/sourcehighlight.h"
+int main(int argc, char *argv[]) {
+    srchilite::SourceHighlight sourceHighlight("esc.outlang");
+    return 0;
+}
+EOF
+
+    if cf_check_if_lib_is_present CXXFLAGS_BASE "$CXX" source-highlight; then
+        return 0
+    fi
+
+    cf_fatal 'The GNU Source-highlight library is required to build wed'
+}
+
+cf_check_if_have_bison() {
+    printf 'Checking if bison is present... '
+
+    if cf_cmd_exists "$BISON"; then
+        printf 'yes\n'
+    else
+        printf 'no\n'
+        cf_fatal 'The GNU Bison parser generator is required to build wed'
+    fi
+}
+
+cf_check_if_have_flex() {
+    printf 'Checking if flex is present... '
+
+    if cf_cmd_exists "$FLEX"; then
+        printf 'yes\n'
+    else
+        printf 'no\n'
+        cf_fatal 'The Flex lexer is required to build wed'
+    fi
+}
+
+cf_add_os_specific_flags() {
+    case "$OS" in
+        Linux)
+            CFLAGS_BASE="$CFLAGS_BASE -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700"
+            ;;
+        *BSD)
+            CFLAGS_BASE="$CFLAGS_BASE -I/usr/local/include"
+            CXXFLAGS_BASE="$CFLAGS_BASE -I/usr/local/include"
+            LDFLAGS_BASE="$LDFLAGS_BASE -L/usr/local/lib"
+            ;;
+        CYGWIN*)
+            CFLAGS_BASE="$CFLAGS_BASE -U__STRICT_ANSI__"
+            ;;
+    esac
+}
+
+cf_add_general_flags() {
+    CFLAGS_BASE="$CFLAGS_BASE -DNDEBUG"
+
+    if [ $WED_SOURCE_HIGHLIGHT -eq 1 ]; then
+        LDFLAGS_BASE="$LDFLAGS_BASE -lstdc++"
+    fi
+}
+
+cf_determine_pcre_version() {
+    printf 'Checking if PCRE version is at least 8.20... '
+
+    WED_PCRE_VERSION_GE_8_20=`pcre-config --version 2>/dev/null | awk -F'.' \
+        'BEGIN { output = 0; } \
+         NR == 1 && ($1 > 8 || ($1 == 8 && $2 >= 20)) { output = 1; } \
+         END { print output; }' 2>/dev/null`
+
+    if [ $WED_PCRE_VERSION_GE_8_20 -eq 1 ]; then
+        printf 'yes\n'
+    else
+        printf 'no\n'
+    fi
+}
+
+cf_write_config() {
+    OUTFILE='config.mk'
+
+    cat >"$OUTFILE" <<EOF
+CC=$CC
+CXX=$CXX
+CFLAGS=$CFLAGS_BASE $CFLAGS
+CXXFLAGS=$CXXFLAGS_BASE $CXXFLAGS
+LDFLAGS=$LDFLAGS_BASE $LDFLAGS
+PREFIX=$PREFIX
+WEDRUNTIME=\$(PREFIX)/share/wed
+FLEX=$FLEX
+BISON=$BISON
+WED_PCRE_VERSION_GE_8_20=$WED_PCRE_VERSION_GE_8_20
+WED_SOURCE_HIGHLIGHT=$WED_SOURCE_HIGHLIGHT
+EOF
+
+    printf "$OUTFILE generated\n"
+
+    MAKE_CMD='make'
+
+    if [ "${OS#*BSD}" != "$OS" ]; then
+        MAKE_CMD='gmake'
+    fi
+
+    printf "Run \"$MAKE_CMD && sudo $MAKE_CMD install\" to build and install wed\n"
+}
+
+cf_init() {
+    TMP_C=
+    TMP_O=
+    CFLAGS_BASE=
+    CXXFLAGS_BASE=
+    LDFLAGS_BASE=
+    PREFIX=/usr/local
+    FLEX=flex
+    BISON=bison
+    WED_SOURCE_HIGHLIGHT=1
+
+    cf_determine_os
+    cf_create_temp_files
+}
+
+cf_parse_args() {
+    for opt in "$@"; do
+        case "$opt" in
+            -h|--help)
+                cf_usage
+                cf_cleanup
+                exit 0
+                ;;
+            --prefix=*)
+                PREFIX=${opt#*=}
+                ;;
+            --disable-source-highlight)
+                WED_SOURCE_HIGHLIGHT=0
+                ;;
+            CC=*)
+                CC="${opt#*=}"
+                ;;
+            CXX=*)
+                CXX="${opt#*=}"
+                ;;
+            CFLAGS=*)
+                CFLAGS="${opt#*=}"
+                ;;
+            CXXFLAGS=*)
+                CXXFLAGS="${opt#*=}"
+                ;;
+            LDFLAGS=*)
+                LDFLAGS="${opt#*=}"
+                ;;
+            FLEX=*)
+                FLEX="${opt#*=}"
+                ;;
+            BISON=*)
+                BISON="${opt#*=}"
+                ;;
+            PREFIX=*)
+                PREFIX="${opt#*=}"
+                ;;
+            *)
+                cf_fatal "Invalid argument: $opt"
+                ;;
+        esac
+    done
+}
+
+cf_cleanup() {
+    rm "$TMP_C" 2>/dev/null
+    rm "$TMP_O" 2>/dev/null
+}
+
+cf_usage() {
+    echo "
+configure [OPTIONS] [VARIABLE=VALUE]...
+
+OPTIONS:
+-h,--help                       Print this message
+--prefix=PATH                   Installation prefix (Default: $PREFIX)
+--disable-source-highlight      Disable syntax highlighting using
+                                GNU Source-highlight
+
+VARIABLES:
+CC
+CXX
+CFLAGS
+CXXFLAGS
+LDFLAGS
+FLEX
+BISON
+PREFIX
+"
+}
+
+main() {
+    cf_init
+    cf_parse_args "$@"
+    cf_check_for_c_compiler
+    cf_check_compiler_works 'C' "$CC"
+    cf_check_c_cflags
+    cf_check_if_have_pkg_config
+    cf_add_os_specific_flags
+    cf_check_if_have_ncurses
+    cf_check_if_have_pcre
+    cf_check_if_have_rt
+
+    if [ $WED_SOURCE_HIGHLIGHT -eq 1 ]; then
+        cf_check_for_cxx_compiler
+        cf_check_compiler_works 'C++' "$CXX"
+        cf_check_cpp_cflags
+        cf_check_if_have_boost_regex
+        cf_check_if_have_source_highlight
+    fi
+
+    cf_check_if_have_bison
+    cf_check_if_have_flex
+    cf_add_general_flags
+    cf_determine_pcre_version
+    cf_write_config
+    cf_cleanup
+}
+
+main "$@"
+

@@ -17,3 +17,4 @@ config_parse.h
 config_scan.c
 build_config.h
 test.output
+config.mk

@@ -45,27 +45,34 @@ following libraries are also required:
 To build and install wed (defaults to `/usr/local/`) simply run:
 
 ```
+./configure
 make
 sudo make install
 ```
 
-To customise the build and installation edit `config.mk` or pass in the
-relevant arguments. For example to build wed using clang and then install to
-`/opt` run:
+To customise the build and installation edit `config.mk` (after running
+`./configure`) or pass in the relevant arguments to the `configure` script.
+For example to build wed using clang with GNU Source-highlight disabled and
+then subsequently installed to `/opt` run:
 
 ```
-make CC=clang CXX=clang++ PREFIX=/opt
-sudo make install PREFIX=/opt
+./configure --disable-source-highlight CC=clang PREFIX=/opt
+make
+sudo make install
 ```
+
+Run `./configure --help` to view all options.
 
 To uninstall wed run `sudo make uninstall`.
 
-As of 7060788 (9/Feb/2016) wed builds successfully without any compilation
-warnings using the latest packages available on the following systems:
+As of 24/May/2016 wed builds successfully using the latest packages available
+on the following systems:
 
  - Ubuntu 15.10 and 12.04.5 LTS
- - FreeBSD 10.2
- - Cygwin 2.4.1
+ - FreeBSD 10.3
+ - Cygwin 2.5.1
+ - Arch Linux
+ - OSX
 
 Wed should build and run on any \*nix system, although changes may be required
 to `config.mk` in order to do so.
