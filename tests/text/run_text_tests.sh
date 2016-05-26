@@ -23,8 +23,12 @@ set -o pipefail
 # expands non-matching globs to zero arguments 
 shopt -s nullglob
 
+ok() {
+    echo "$(tput setaf 2 2>/dev/null)$@$(tput sgr0 2>/dev/null)"
+}
+
 warn() {
-    echo "$@" >&2
+    echo "$(tput setaf 1 2>/dev/null)$@$(tput sgr0 2>/dev/null)" >&2
 }
 
 fatal() {
@@ -100,5 +104,5 @@ if [ $TEST_SUCCESS_NUM -lt $TEST_NUM ]; then
     )"
 fi
 
-echo "All $TEST_NUM text tests passed"
+ok "All $TEST_NUM text tests passed"
 

@@ -13,7 +13,7 @@ STATIC_SOURCES=wed.c display.c buffer.c util.c input.c session.c \
 	text_search.c regex_search.c search.c replace.c undo.c       \
 	file_type.c regex_util.c syntax.c theme.c prompt.c           \
 	prompt_completer.c search_util.c external_command.c          \
-	clipboard.c
+	clipboard.c radix_tree.c
 STATIC_CXX_SOURCES=source_highlight.cc
 GENERATED_SOURCES=config_parse.c config_scan.c
 SOURCES=$(STATIC_SOURCES) $(GENERATED_SOURCES)
