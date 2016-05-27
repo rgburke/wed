@@ -22,7 +22,7 @@
 #include "shared.h"
 #include "status.h"
 #include "value.h"
-#include "hashmap.h"
+#include "radix_tree.h"
 
 struct Session;
 
@@ -233,7 +233,7 @@ typedef enum {
 /* Stores all key bindings */
 typedef struct {
     int active_op_modes[OM_ENTRY_NUM]; /* Track which modes are active */
-    HashMap *maps[OM_ENTRY_NUM]; /* Key bindings for each mode */
+    RadixTree *maps[OM_ENTRY_NUM]; /* Key bindings for each mode */
 } KeyMap;
 
 /* Maps a key press to an operation. A collection of KeyMapping's defines

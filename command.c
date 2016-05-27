@@ -30,7 +30,6 @@
 #include "display.h"
 #include "buffer.h"
 #include "value.h"
-#include "hashmap.h"
 #include "util.h"
 #include "input.h"
 #include "config.h"
@@ -352,7 +351,7 @@ int cm_init_keymap(KeyMap *keymap)
     const size_t keymapping_num = ARRAY_SIZE(cm_keymappings, KeyMapping);
 
     for (size_t k = 0; k < OM_ENTRY_NUM; k++) {
-        keymap->maps[k] = new_hashmap();
+        keymap->maps[k] = rt_new();
 
         if (keymap->maps[k] == NULL) {
             return 0;
@@ -361,14 +360,15 @@ int cm_init_keymap(KeyMap *keymap)
 
     const KeyMapping *keymapping;
     OperationDefinition *operation;
-    HashMap *map;
+    RadixTree *map;
 
     for (size_t k = 0; k < keymapping_num; k++) {
         keymapping = &cm_keymappings[k];
         operation = (OperationDefinition *)&cm_operations[keymapping->op];
         map = keymap->maps[operation->op_mode];
 
-        if (!hashmap_set(map, keymapping->key, operation)) {
+        if (!rt_insert(map, keymapping->key, strlen(keymapping->key),
+                       operation)) {
             return 0;
         }
     }
@@ -379,7 +379,8 @@ int cm_init_keymap(KeyMap *keymap)
         operation = (OperationDefinition *)&cm_operations[k];        
         map = keymap->maps[operation->op_mode];
 
-        if (!hashmap_set(map, operation->name, operation)) {
+        if (!rt_insert(map, operation->name, strlen(operation->name),
+                       operation)) {
             return 0;
         }
     }
@@ -396,7 +397,7 @@ void cm_free_keymap(KeyMap *keymap)
     } 
 
     for (size_t k = 0; k < OM_ENTRY_NUM; k++) {
-        free_hashmap(keymap->maps[k]);
+        rt_free(keymap->maps[k]);
     }
 }
 
@@ -407,13 +408,13 @@ Status cm_do_operation(Session *sess, const char *key, int *finished)
 
     const OperationDefinition *operation = NULL;
     const KeyMap *keymap = &sess->keymap;
-    const HashMap *map;
+    const RadixTree *map;
 
     for (int k = OM_ENTRY_NUM - 1; k > -1; k--) {
         if (keymap->active_op_modes[k]) {
             map = keymap->maps[k];
 
-            if ((operation = hashmap_get(map, key)) != NULL) {
+            if (rt_find(map, key, strlen(key), (void **)&operation, NULL)) {
                 break;
             }
         }
@@ -439,7 +440,9 @@ Status cm_do_operation(Session *sess, const char *key, int *finished)
     } else if (strncmp(key, "<wed-", 5) == 0 && operation == NULL) {
         /* An invalid operation was specified */
         for (int k = OM_ENTRY_NUM - 1; k > -1; k--) {
-            if (hashmap_get(keymap->maps[k], key) != NULL) {
+            map = keymap->maps[k];
+
+            if (rt_find(map, key, strlen(key), NULL, NULL)) {
                 return st_get_error(ERR_INVALID_OPERATION_KEY_STRING,
                                     "Operation \"%s\" cannot be "
                                     "used in this context", key);
