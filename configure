@@ -378,11 +378,17 @@ WED_SOURCE_HIGHLIGHT=$WED_SOURCE_HIGHLIGHT
 EOF
 
     printf "$OUTFILE generated\n"
+}
 
+cf_check_if_have_make() {
     MAKE_CMD='make'
 
     if [ "${OS#*BSD}" != "$OS" ]; then
         MAKE_CMD='gmake'
+    fi
+
+    if ! cf_cmd_exists "$MAKE_CMD"; then
+        cf_fatal "$MAKE_CMD is required to build wed"
     fi
 
     printf "Run \"$MAKE_CMD && sudo $MAKE_CMD install\" to build and install wed\n"
@@ -500,6 +506,7 @@ main() {
     cf_add_general_flags
     cf_determine_pcre_version
     cf_write_config
+    cf_check_if_have_make
     cf_cleanup
 }
 
