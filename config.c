@@ -31,7 +31,6 @@
 #include "buffer.h"
 #include "config_parse_util.h"
 #include "config_parse.h"
-#include "display.h"
 #include "build_config.h"
 
 #define CFG_FILE_NAME "wedrc"
@@ -574,7 +573,7 @@ static Status cf_syntaxtype_on_change_event(ConfigEntity entity, Value old_val,
     (void)old_val;
     (void)new_val;
 
-    bf_free_syntax_match_cache(&entity.buffer->syn_match_cache);
+    bf_free_syntax_match_cache(entity.buffer);
 
     return STATUS_SUCCESS;
 }
@@ -596,8 +595,7 @@ static Status cf_theme_on_change_event(ConfigEntity entity, Value old_val,
     (void)old_val;
     (void)new_val;
 
-    const Theme *theme = se_get_active_theme(entity.sess);
-    init_color_pairs(theme);    
+    entity.sess->ui->update_theme(entity.sess->ui);
 
     return STATUS_SUCCESS;
 }

@@ -27,6 +27,7 @@
 #include "command.h"
 #include "config.h"
 #include "build_config.h"
+#include "tui.h"
 
 #define MAX_EMPTY_BUFFER_NAME_SIZE 20
 
@@ -55,6 +56,10 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
             int buffer_num)
 {
     sess->wed_opt = *wed_opt;
+
+    if ((sess->ui = ti_new(sess)) == NULL) {
+        return 0;
+    }
 
     if (!ip_init(&sess->input_handler)) {
         return 0;
@@ -214,6 +219,7 @@ void se_free(Session *sess)
     free_hashmap(sess->themes);
     list_free(sess->cfg_buffer_stack);
     cl_free(&sess->clipboard);
+    sess->ui->free(sess->ui);
 
     free(sess);
 }

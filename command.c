@@ -27,7 +27,6 @@
 #include "status.h"
 #include "command.h"
 #include "session.h"
-#include "display.h"
 #include "buffer.h"
 #include "value.h"
 #include "util.h"
@@ -1181,7 +1180,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
                 bp_advance_to_offset(&buffer->select_start,
                                      buffer->pos.offset + 
                                      bs_match_length(search));
-                update_display(sess);
+                sess->ui->update(sess->ui);
 
                 response = cm_question_prompt(sess, PT_REPLACE,
                                               "Replace (Yes|no|all):",
@@ -1412,7 +1411,7 @@ static Status cm_session_save_all(const CommandArgs *cmd_args)
     while (buffer != NULL) {
         if (buffer->is_dirty) {
             se_set_active_buffer(sess, buffer_index);
-            update_display(sess);
+            sess->ui->update(sess->ui);
             
             status = cm_buffer_save_file(cmd_args);
             
@@ -1672,8 +1671,8 @@ static Status cm_determine_buffer(Session *sess, const char *input,
 
 static Status cm_suspend(const CommandArgs *cmd_args)
 {
-    (void)cmd_args;
-    suspend_display();
+    Session *sess = cmd_args->sess;
+    sess->ui->suspend(sess->ui);
     kill(0, SIGTSTP);
 
     return STATUS_SUCCESS;
@@ -1752,7 +1751,7 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
     CommandType disabled_cmd_types = CMDT_CMD_INPUT | CMDT_SESS_MOD;
     se_exclude_command_type(sess, disabled_cmd_types);
 
-    update_display(sess);
+    sess->ui->update(sess->ui);
     /* We now start processing input for the prompt.
      * Execution blocks here until the prompt ends */
     ip_process_input(sess);

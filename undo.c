@@ -47,7 +47,7 @@ void bc_init(BufferChanges *changes)
 {
     assert(changes != NULL);
     memset(changes, 0, sizeof(BufferChanges));
-    changes->accept_new_changes = 1;
+    bc_enable(changes);
 }
 
 void bc_free(BufferChanges *changes)
@@ -198,7 +198,7 @@ static Status bc_add_text_change(BufferChanges *changes,
     assert(pos != NULL);
     assert(str_len > 0);
      
-    if (str_len == 0 || !changes->accept_new_changes) {
+    if (str_len == 0 || !bc_enabled(changes)) {
         return STATUS_SUCCESS;
     }
 
@@ -397,9 +397,9 @@ Status bc_undo(BufferChanges *changes, Buffer *buffer)
     /* Stop accepting new changes while we perform the undo
      * as the act of performing the undo creates new
      * changes */
-    changes->accept_new_changes = 0;
+    bc_disable(changes);
     Status status = bc_apply(buffer_change, buffer, 0);
-    changes->accept_new_changes = 1;
+    bc_enable(changes);
 
     if (!STATUS_IS_SUCCESS(status)) {
         return status;
@@ -422,9 +422,9 @@ Status bc_redo(BufferChanges *changes, Buffer *buffer)
 
     BufferChange *buffer_change = changes->redo;
 
-    changes->accept_new_changes = 0;
+    bc_disable(changes);
     Status status = bc_apply(buffer_change, buffer, 1);
-    changes->accept_new_changes = 1;
+    bc_enable(changes);
 
     if (!STATUS_IS_SUCCESS(status)) {
         return status;
@@ -524,6 +524,23 @@ static Status bc_tc_apply(TextChange *text_change, Buffer *buffer, int redo)
     }
 
     return STATUS_SUCCESS;
+}
+
+int bc_enabled(const BufferChanges *changes)
+{
+    return changes->accept_new_changes;
+}
+
+void bc_enable(BufferChanges *changes)
+{
+    assert(!changes->accept_new_changes);
+    changes->accept_new_changes = 1;
+}
+
+void bc_disable(BufferChanges *changes)
+{
+    assert(changes->accept_new_changes);
+    changes->accept_new_changes = 0;
 }
 
 BufferChangeState bc_get_current_state(const BufferChanges *changes)

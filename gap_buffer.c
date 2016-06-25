@@ -365,6 +365,14 @@ int gb_replace(GapBuffer *buffer, size_t byte_num, const char *str,
     return 1;
 }
 
+void gb_clear(GapBuffer *buffer)
+{
+    buffer->point = 0;
+    buffer->gap_start = 0;
+    buffer->gap_end = buffer->allocated;
+    buffer->lines = 0;
+}
+
 size_t gb_get_point(const GapBuffer *buffer)
 {
     if (buffer->point > buffer->gap_end) {

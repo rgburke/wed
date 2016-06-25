@@ -13,13 +13,14 @@ static void gap_buffer_movement(GapBuffer *);
 static void gap_buffer_retrieval(GapBuffer *, const char *, size_t);
 static void gap_buffer_delete(GapBuffer *);
 static void gap_buffer_replace(GapBuffer *);
+static void gap_buffer_clear(GapBuffer *);
 
 int main(int argc, char *argv[])
 {
     (void)argc;
     (void)argv;
 
-    plan(70);
+    plan(74);
 
     GapBuffer *buffer = gb_new(GAP_INCREMENT);
 
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
     gap_buffer_retrieval(buffer, str, str_len);
     gap_buffer_delete(buffer);
     gap_buffer_replace(buffer);
+    gap_buffer_clear(buffer);
 
     return exit_status();
 }
@@ -166,4 +168,14 @@ static void gap_buffer_replace(GapBuffer *buffer)
 
     ok(gb_get_range(buffer, 0, buf_end, buffer_len) == buffer_len, "Retrieved text range from buffer");
     ok(strncmp(buf_start, buf_end, buffer_len) == 0, "Text range retrieved matches starting text");
+}
+
+static void gap_buffer_clear(GapBuffer *buffer)
+{
+    msg("Clear:");
+    gb_clear(buffer);
+    ok(gb_length(buffer) == 0, "Buffer is empty");
+    ok(gb_get_point(buffer) == 0, "Point is at buffer start");
+    ok(gb_lines(buffer) == 0, "No lines in buffer");
+    ok(gb_gap_size(buffer) == buffer->allocated, "Gap size is all allocated space");
 }

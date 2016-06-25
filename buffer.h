@@ -33,6 +33,7 @@
 #include "regex_util.h"
 #include "external_command.h"
 #include "syntax.h"
+#include "buffer_view.h"
 
 /* Character classification */
 typedef enum {
@@ -65,38 +66,15 @@ typedef struct {
     size_t str_len;
 } TextSelection;
 
-typedef struct {
-    SyntaxMatches *syn_matches; /* Cached SyntaxMatches */
-    BufferChangeState change_state; /* Buffer state when syn_matches were
-                                       generated */
-    BufferPos screen_start; /* The value of screen_start when syn_matches
-                               were generated */
-} SyntaxMatchCache;
-
-/* Window info used for screen based operations
- * i.e. changing screen line */
-typedef struct {
-    size_t height;
-    size_t width;
-    size_t start_y;
-    size_t start_x;
-    size_t line_no_width;
-    size_t horizontal_scroll;
-    DrawWindow draw_window;
-} WindowInfo;
-
 typedef struct Buffer Buffer;
 
 /* The in memory representation of a file */
 struct Buffer {
     FileInfo file_info; /* stat like info */
     BufferPos pos; /* The cursor position */
-    BufferPos screen_start; /* The first screen line (can start 
-                               on wrapped line) to start drawing from */
     BufferPos select_start; /* Starting position of selected text */
     Buffer *next; /* Next buffer in this session */
     size_t line_col_offset; /* Global cursor line offset */
-    WindowInfo win_info; /* Window dimension info */
     HashMap *config; /* Stores config variables */
     int is_dirty; /* Any modification performed on buffer since last write */
     int is_draw_dirty; /* Any modification performed since last draw */
@@ -106,7 +84,7 @@ struct Buffer {
     FileFormat file_format; /* Unix or Windows line endings */
     RegexInstance mask; /* Inserted text can match mask */
     HashMap *marks; /* Buffer marks */
-    SyntaxMatchCache syn_match_cache; /* Cached syntax tokens */
+    BufferView *bv;
 };
 
 /* The following two stream implementations make it possible to filter buffer
@@ -131,8 +109,9 @@ typedef struct {
 Buffer *bf_new(const FileInfo *, const HashMap *config);
 Buffer *bf_new_empty(const char *, const HashMap *config);
 void bf_free(Buffer *);
-void bf_free_syntax_match_cache(SyntaxMatchCache *);
+void bf_free_syntax_match_cache(Buffer *);
 Status bf_clear(Buffer *);
+Status bf_reset(Buffer *);
 FileFormat bf_detect_fileformat(const Buffer *);
 Status bf_load_file(Buffer *);
 Status bf_write_file(Buffer *, const char *file_path);
@@ -141,10 +120,12 @@ char *bf_join_lines_string(const Buffer *, const char *seperator);
 int bf_is_empty(const Buffer *);
 size_t bf_lines(const Buffer *);
 size_t bf_length(const Buffer *);
+int bf_is_view_initialised(const Buffer *);
 int bf_is_draw_dirty(const Buffer *);
 void bf_set_is_draw_dirty(Buffer *, int);
 int bf_get_range(Buffer *, Range *);
 int bf_bp_in_range(const Range *, const BufferPos *);
+int bf_offset_in_range(const Range *, size_t offset);
 Status bf_get_buffer_input_stream(BufferInputStream *, Buffer *, const Range *);
 Status bf_get_buffer_output_stream(BufferOutputStream *, Buffer *,
                                    const BufferPos *write_pos,
@@ -178,6 +159,7 @@ Status bf_to_prev_word(Buffer *, int is_select);
 Status bf_to_buffer_start(Buffer *, int is_select);
 Status bf_to_buffer_end(Buffer *, int is_select);
 Status bf_change_page(Buffer *, Direction);
+Status bf_add_new_mark(Buffer *, BufferPos *, MarkProperties);
 Status bf_insert_character(Buffer *, const char *character, int advance_cursor);
 Status bf_insert_string(Buffer *, const char *string, 
                         size_t string_length, int advance_cursor);
@@ -196,6 +178,7 @@ void bf_free_textselection(TextSelection *);
 Status bf_delete_word(Buffer *);
 Status bf_delete_prev_word(Buffer *);
 Status bf_set_text(Buffer *, const char *text);
+Status bf_reset_with_text(Buffer *, const char *text);
 Status bf_set_mask(Buffer *, const Regex *);
 int bf_has_mask(const Buffer *);
 void bf_remove_mask(Buffer *);

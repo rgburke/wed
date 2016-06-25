@@ -22,11 +22,9 @@
 #include <locale.h>
 #include <getopt.h>
 #include "wed.h"
-#include "display.h"
 #include "util.h"
 #include "session.h"
 #include "buffer.h"
-#include "display.h"
 #include "input.h"
 #include "file.h"
 #include "config.h"
@@ -193,8 +191,7 @@ static void we_init_test_mode(Session *sess)
         fatal("A key string argument must be passed in test mode");
     }
 
-    init_display_test();
-    init_all_window_info(sess);
+    sess->ui->init(sess->ui);
 }
 
 int main(int argc, char *argv[])

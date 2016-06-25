@@ -599,10 +599,6 @@ before looking at the [Future Tasks](#future-tasks) section.
   - Highlight line or line number cursor is on.
   - Set session or buffer level variable using ":" syntax. i.e. `s:ln=0;` to
     turn off line numbers at global level.
-  - Add functions to wed config language to implement new functionality and
-    further expose existing functionality. This allows commands to be run by
-    name without mapping them to keys. These functions can map to existing
-    commands e.g. `retab`.
   - Remap keys in config. Users should have the ability to define non-recursive
     mappings.
   - Add ability to filter file through external commands e.g. sort
@@ -624,11 +620,6 @@ before looking at the [Future Tasks](#future-tasks) section.
   - Add file\_content regex variable to filetype definition. This variable
     allows a filetype match to be determined by applying the file\_content
     regex against the file content.
-  - Autogenerate syntax definitions from existing config in other projects.
-    Instead of reinventing wheel use existing work in this area. This would be
-    implemented in a separate script.
-  - Autogenerate filetype definitions from existing config in other projects 
-    (could be done in one go with task above).
   - Create directory hierarchy for files which don't exist when writing them to
     disk e.g. for `wed /my/made/up/path.txt` running `<C-s>` should work.
   - Add add context aware info bar under command prompt in a similar fashion 
@@ -648,34 +639,6 @@ Most would require a large amount of work to implement. Some of the tasks
 outlined below are still in the design phase and somewhat high level. Ideally
 the [Immediate Tasks](#immediate-tasks) should be tackled first, as they will
 bring the most benefit for end users and can be done relatively quickly.
-
-#### GUI Refactor
-
-All display logic is currently contained in `display.c`. This functionality
-effectively reads from the `Session` and `Buffer` structs and writes directly
-to the screen (using ncurses). The downside of this approch is no other GUI
-type (e.g. X11) can be used as ncurses is integral to the code. It also leads
-to complicated code, as any processing (e.g. syntax highlighting) has to be
-done at the same time as drawing, which should be avoided.
-
-Ideally this process should be abstracted out by storing the data to display
-in intermediate structures. For example, a `BufferView` structure could contain
-a linked list of lines each of which contains a linked list of characters.
-Draw properties, such as line numbers and character column width, could be
-calculated and included in the `Line` and `Character` structures. As a further
-example, character coloring info could be stored with each character. In this
-way a whole separate stage of processing can take place on the `BufferView`
-struct which is completely separate to the process of drawing it to screen.
-This modular approach is more desirable and helps simplifiy the code.
-
-A `BufferView` struct could then be drawn to any type of GUI (terminal or
-X11 window). At this point the drawing logic simply has to read the
-`BufferView` struct and write it to the screen (of course further optional
-processing is possible). That is, there can exist ncurses and X11 based GUI
-implementations, which could be selected at either compile or runtime.
-
-Even if an X11 implementation is never realised, cleaning up and modularising
-the drawing code is a necessary step.
 
 #### Plugin Architecture
 

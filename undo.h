@@ -136,6 +136,9 @@ Status bc_start_grouped_changes(BufferChanges *);
 Status bc_end_grouped_changes(BufferChanges *);
 Status bc_undo(BufferChanges *, struct Buffer *);
 Status bc_redo(BufferChanges *, struct Buffer *);
+int bc_enabled(const BufferChanges *);
+void bc_disable(BufferChanges *);
+void bc_enable(BufferChanges *);
 BufferChangeState bc_get_current_state(const BufferChanges *);
 int bc_has_state_changed(const BufferChanges *, BufferChangeState);
 

@@ -16,8 +16,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef CLIPBOARD_H
-#define CLIPBOARD_H
+#ifndef WED_CLIPBOARD_H
+#define WED_CLIPBOARD_H
 
 #include "buffer.h"
 

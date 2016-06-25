@@ -31,6 +31,7 @@
 #include "input.h"
 #include "clipboard.h"
 #include "command.h"
+#include "ui.h"
 
 #define MAX_KEY_STR_SIZE 50
 
@@ -68,6 +69,7 @@ struct Session {
     char prev_key[MAX_KEY_STR_SIZE]; /* Previous keypress */
     WedOpt wed_opt; /* Command line option values */
     InputHandler input_handler; /* Use to process key press input */
+    UI *ui;
 };
 
 typedef struct Session Session;

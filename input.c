@@ -27,7 +27,6 @@
 #include <ncurses.h>
 #include "input.h"
 #include "session.h"
-#include "display.h"
 #include "buffer.h"
 #include "command.h"
 #include "status.h"
@@ -160,15 +159,14 @@ void ip_edit(Session *sess)
 {
     ip_setup_signal_handlers();
 
-    init_display(se_get_active_theme(sess));
-    init_all_window_info(sess);
+    sess->ui->init(sess->ui);
 
     if (sess->input_handler.input_type == IT_KEYSTR) {
         ip_process_keystr_input(sess);
         ip_set_fd_input(&sess->input_handler);
 
         if (se_session_finished(sess)) {
-            end_display();
+            sess->ui->end(sess->ui);
             return;
         }
     }
@@ -177,11 +175,11 @@ void ip_edit(Session *sess)
      * or initialising the session then display
      * them first */
     ip_handle_error(sess);
-    update_display(sess);
+    sess->ui->update(sess->ui);
 
     ip_process_input(sess);
 
-    end_display();
+    sess->ui->end(sess->ui);
 }
 
 void ip_process_input(Session *sess)
@@ -223,15 +221,15 @@ void ip_process_input(Session *sess)
             if (errno == EINTR) {
                 /* A signal was caught */
                 if (ip_window_resize_required) {
-                    resize_display(sess);
+                    sess->ui->resize(sess->ui);
                     ip_window_resize_required = 0;
                     continue;
                 } else if (ip_continue_signal) {
-                    resize_display(sess);
+                    sess->ui->resize(sess->ui);
                     ip_continue_signal = 0;
                     continue;
                 } else if (ip_sigterm_signal) {
-                    end_display();
+                    sess->ui->end(sess->ui);
                     termkey_destroy(sess->input_handler.termkey);
                     exit(ip_sigterm_signal);
                 }
@@ -246,7 +244,7 @@ void ip_process_input(Session *sess)
             } else if (redraw_due) {
                 /* A redraw is due and there has been no further input from
                  * the user so update the display */
-                update_display(sess);
+                sess->ui->update(sess->ui);
                 redraw_due = 0;
             }
 
@@ -298,7 +296,7 @@ static void ip_handle_keypress(Session *sess, TermKeyKey *key, char *keystr,
         ip_get_monotonic_time(&now);
 
         if (now.tv_nsec - last_draw->tv_nsec >= MIN_DRAW_INTERVAL_NS) {
-            update_display(sess);
+            sess->ui->update(sess->ui);
             ip_get_monotonic_time(last_draw);
         } else {
             /* A redraw is due but wait longer to see if the user enters
@@ -317,7 +315,7 @@ static void ip_handle_error(Session *sess)
     }
 
     TermKeyKey key;
-    draw_errors(sess);
+    sess->ui->error(sess->ui);
     /* Wait for user to press any key */
     termkey_waitkey(sess->input_handler.termkey, &key);
     se_clear_errors(sess);

@@ -28,7 +28,6 @@
 #include "buffer.h"
 #include "util.h"
 #include "status.h"
-#include "display.h"
 #include "file.h"
 #include "config.h"
 #include "encoding.h"
@@ -36,7 +35,6 @@
 #define FILE_BUF_SIZE 1024
 #define DETECT_FF_LINE_NUM 5
 
-static Status reset_buffer(Buffer *);
 static Status bf_add_new_line_at_buffer_end(Buffer *);
 static Status bf_input_stream_read(InputStream *, char buf[], size_t buf_len,
                                    size_t *bytes_read);
@@ -54,7 +52,6 @@ static Status bf_change_screen_line(Buffer *, BufferPos *,
 static Status bf_advance_bp_to_line_offset(Buffer *, BufferPos *,
                                            int is_select);
 static void bf_update_line_col_offset(Buffer *, const BufferPos *);
-static Status bf_add_new_mark(Buffer *, BufferPos *, MarkProperties);
 static Status bf_add_mark(Buffer *, Mark *);
 static Mark *bf_get_mark(const Buffer *, const BufferPos *);
 static int bf_remove_pos_mark(Buffer *, const BufferPos *, int free);
@@ -104,19 +101,21 @@ Buffer *bf_new(const FileInfo *file_info, const HashMap *config)
     buffer->file_info = *file_info;
     buffer->file_format = FF_UNIX;
     bp_init(&buffer->pos, buffer->data, &buffer->file_format, buffer->config);
-    bp_init(&buffer->screen_start, buffer->data,
-            &buffer->file_format, buffer->config);
     bp_init(&buffer->select_start, buffer->data,
             &buffer->file_format, buffer->config);
     bf_select_reset(buffer);
-    init_window_info(&buffer->win_info);
     bs_init_default_opt(&buffer->search);
     bc_init(&buffer->changes);
 
-    if (!STATUS_IS_SUCCESS(bf_add_new_mark(buffer, &buffer->screen_start,
-                                           MP_NO_ADJUST_ON_BUFFER_POS))) {
+    if ((buffer->bv = bv_new(24, 80, &buffer->pos)) == NULL) {
         bf_free(buffer);
         return NULL;
+    }
+
+    if (!STATUS_IS_SUCCESS(bf_add_new_mark(buffer, &buffer->bv->screen_start,
+                                           MP_NO_ADJUST_ON_BUFFER_POS))) {
+        bf_free(buffer);
+        return 0;
     }
 
     return buffer;
@@ -149,52 +148,35 @@ void bf_free(Buffer *buffer)
     bc_free(&buffer->changes);
     free_hashmap_values(buffer->marks, (void (*)(void *))bp_free_mark);
     free_hashmap(buffer->marks);
-    bf_free_syntax_match_cache(&buffer->syn_match_cache);
+    bv_free(buffer->bv);
 
     free(buffer);
 }
 
-void bf_free_syntax_match_cache(SyntaxMatchCache *syn_match_cache)
+void bf_free_syntax_match_cache(Buffer *buffer)
 {
-    if (syn_match_cache->syn_matches != NULL) {
-        free(syn_match_cache->syn_matches);
-    }
-
-    memset(syn_match_cache, 0, sizeof(SyntaxMatchCache));
+    bv_free_syntax_match_cache(buffer->bv);
 }
 
 Status bf_clear(Buffer *buffer)
 {
-    GapBuffer *data = buffer->data;
-
-    RETURN_IF_FAIL(reset_buffer(buffer));
-
-    gb_free(data);
-
-    return STATUS_SUCCESS;
+    BufferPos *pos = &buffer->pos;
+    bf_select_reset(buffer);
+    bp_to_buffer_start(pos);
+    return bf_delete(buffer, bf_length(buffer));
 }
 
-static Status reset_buffer(Buffer *buffer)
+Status bf_reset(Buffer *buffer)
 {
-    buffer->data = gb_new(GAP_INCREMENT);
+    bc_disable(&buffer->changes); 
+    Status status = bf_clear(buffer);
+    bc_enable(&buffer->changes);
+    RETURN_IF_FAIL(status);
 
-    if (buffer->data == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to reset buffer");
-    }
-
-    bp_init(&buffer->pos, buffer->data, &buffer->file_format, buffer->config);
-    bp_init(&buffer->screen_start, buffer->data,
-            &buffer->file_format, buffer->config);
-    bp_init(&buffer->select_start, buffer->data,
-            &buffer->file_format, buffer->config);
-    bf_select_reset(buffer);
-    bf_update_line_col_offset(buffer, &buffer->pos);
     bc_free(&buffer->changes);
     bc_init(&buffer->changes);
-    bf_set_is_draw_dirty(buffer, 1);
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
 /* Look at the first couple of lines to determine 
@@ -455,6 +437,11 @@ size_t bf_length(const Buffer *buffer)
     return gb_length(buffer->data);
 }
 
+int bf_is_view_initialised(const Buffer *buffer)
+{
+    return buffer->bv != NULL;
+}
+
 int bf_is_draw_dirty(const Buffer *buffer)
 {
     return buffer->is_draw_dirty;
@@ -489,6 +476,11 @@ int bf_bp_in_range(const Range *range, const BufferPos *pos)
     }
 
     return 1;
+}
+
+int bf_offset_in_range(const Range *range, size_t offset)
+{
+    return (offset >= range->start.offset && offset < range->end.offset);
 }
 
 static Status bf_input_stream_read(InputStream *is, char buf[], size_t buf_len,
@@ -657,7 +649,7 @@ const char *bf_new_line_str(FileFormat file_format)
 int bf_bp_at_screen_line_start(const Buffer *buffer, const BufferPos *pos)
 {
     if (cf_bool(buffer->config, CV_LINEWRAP)) {
-        size_t screen_col_no = (pos->col_no - 1) % buffer->win_info.width;
+        size_t screen_col_no = (pos->col_no - 1) % buffer->bv->cols;
 
         if (screen_col_no == 0) {
             return 1;
@@ -667,7 +659,7 @@ int bf_bp_at_screen_line_start(const Buffer *buffer, const BufferPos *pos)
         bp_prev_char(&prev_char);
 
         size_t prev_screen_col_no = 
-            (prev_char.col_no - 1) % buffer->win_info.width;
+            (prev_char.col_no - 1) % buffer->bv->cols;
 
         if (prev_screen_col_no == 0) {
             return 0;
@@ -685,7 +677,7 @@ int bf_bp_at_screen_line_start(const Buffer *buffer, const BufferPos *pos)
 int bf_bp_at_screen_line_end(const Buffer *buffer, const BufferPos *pos)
 {
     if (cf_bool(buffer->config, CV_LINEWRAP)) {
-        size_t screen_col_no = pos->col_no % buffer->win_info.width; 
+        size_t screen_col_no = pos->col_no % buffer->bv->cols;
 
         if (screen_col_no == 0) {
             return 1;
@@ -694,7 +686,7 @@ int bf_bp_at_screen_line_end(const Buffer *buffer, const BufferPos *pos)
         BufferPos next_char = *pos;
         bp_next_char(&next_char);
 
-        size_t next_screen_col_no = next_char.col_no % buffer->win_info.width;
+        size_t next_screen_col_no = next_char.col_no % buffer->bv->cols;
 
         if (next_screen_col_no == 0) {
             return 0;
@@ -837,7 +829,7 @@ static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos,
                                               &pos_direction);
     }
 
-    size_t start_col = screen_col_no(buffer, pos);
+    size_t start_col = bv_screen_col_no(buffer, pos);
 
     if (direction == DIRECTION_UP) {
         if (!bf_bp_at_screen_line_start(buffer, pos)) {
@@ -848,7 +840,7 @@ static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos,
         RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
 
         while (!bf_bp_at_screen_line_start(buffer, pos) &&
-               screen_col_no(buffer, pos) > start_col) {
+               bv_screen_col_no(buffer, pos) > start_col) {
             RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
         }
     } else {
@@ -860,7 +852,7 @@ static Status bf_change_screen_line(Buffer *buffer, BufferPos *pos,
 
         while (!bp_at_line_end(pos) &&
                !bf_bp_at_screen_line_end(buffer, pos) &&
-               screen_col_no(buffer, pos) < start_col) {
+               bv_screen_col_no(buffer, pos) < start_col) {
             RETURN_IF_FAIL(bf_change_char(buffer, pos, pos_direction, 0));
         }
     }
@@ -876,7 +868,7 @@ static Status bf_advance_bp_to_line_offset(Buffer *buffer, BufferPos *pos,
                                            int is_select)
 {
     size_t global_col_offset = buffer->line_col_offset;
-    size_t current_col_offset = screen_col_no(buffer, pos) - 1;
+    size_t current_col_offset = bv_screen_col_no(buffer, pos) - 1;
     Direction direction = DIRECTION_RIGHT;
 
     if (is_select) {
@@ -993,12 +985,8 @@ Status bf_change_multi_char(Buffer *buffer, BufferPos *pos, Direction direction,
 static void bf_update_line_col_offset(Buffer *buffer, const BufferPos *pos)
 {
     if (cf_bool(buffer->config, CV_LINEWRAP)) {
-        /* Windowinfo may not be initialised when the error buffer is populated,
-         * but line_col_offset isn't needed in this case anyway, as it's only
-         * one line */
-        if (buffer->win_info.width > 0) {
-            buffer->line_col_offset = 
-                (pos->col_no - 1) % buffer->win_info.width;
+        if (buffer->bv != NULL) {
+            buffer->line_col_offset = (pos->col_no - 1) % buffer->bv->cols;
         }
     } else {
         buffer->line_col_offset = pos->col_no - 1;
@@ -1215,13 +1203,14 @@ Status bf_change_page(Buffer *buffer, Direction direction)
     bf_default_movement_selection_handler(buffer, is_select, &direction);
 
     Status status = bf_change_multi_line(buffer, pos, direction,
-                                         buffer->win_info.height - 1, 1);
+                                         buffer->bv->rows - 1, 1);
 
     RETURN_IF_FAIL(status);
 
-    if (buffer->screen_start.line_no != buffer->pos.line_no) {
-        buffer->screen_start = buffer->pos;
-        RETURN_IF_FAIL(bf_bp_to_screen_line_start(buffer, &buffer->screen_start,
+    if (buffer->bv->screen_start.line_no != buffer->pos.line_no) {
+        buffer->bv->screen_start = buffer->pos;
+        RETURN_IF_FAIL(bf_bp_to_screen_line_start(buffer,
+                                                  &buffer->bv->screen_start,
                                                   0, 0));
         bf_set_is_draw_dirty(buffer, 1);
     }
@@ -1229,7 +1218,7 @@ Status bf_change_page(Buffer *buffer, Direction direction)
     return STATUS_SUCCESS;
 }
 
-static Status bf_add_new_mark(Buffer *buffer, BufferPos *pos,
+Status bf_add_new_mark(Buffer *buffer, BufferPos *pos,
                               MarkProperties prop)
 {
     Mark *mark = bp_new_mark(pos, prop);
@@ -1590,14 +1579,19 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
 
     assert(gb_length(buffer->data) - pos->offset >= byte_num);
 
-    char *deleted_str = malloc(byte_num);
+    char *deleted_str = NULL;
+    int undo_enabled = bc_enabled(&buffer->changes);
 
-    if (deleted_str == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
-                            "Unable to save deletion");
+    if (undo_enabled) {
+        deleted_str = malloc(byte_num);
+
+        if (deleted_str == NULL) {
+            return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
+                    "Unable to save deletion");
+        }
+
+        gb_get_range(buffer->data, pos->offset, deleted_str, byte_num);
     }
-
-    gb_get_range(buffer->data, pos->offset, deleted_str, byte_num);
 
     size_t lines_before = gb_lines(pos->data);
     gb_set_point(buffer->data, pos->offset);
@@ -1613,10 +1607,14 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
     bf_update_marks(buffer, &buffer->pos, TCT_DELETE, byte_num,
                     lines_before - lines_after);
 
-    Status status = bc_add_text_delete(&buffer->changes, deleted_str,
-                                       byte_num, pos); 
+    Status status = STATUS_SUCCESS;
 
-    free(deleted_str);
+    if (undo_enabled) {
+        status = bc_add_text_delete(&buffer->changes, deleted_str,
+                                    byte_num, pos); 
+
+        free(deleted_str);
+    }
 
     bf_update_line_col_offset(buffer, pos);
 
@@ -1865,10 +1863,20 @@ Status bf_delete_prev_word(Buffer *buffer)
     return STATUS_SUCCESS;
 }
 
-/* TODO Not Undoable */
 Status bf_set_text(Buffer *buffer, const char *text)
 {
     RETURN_IF_FAIL(bf_clear(buffer));
+
+    if (text != NULL) {
+        return bf_insert_string(buffer, text, strlen(text), 1);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+Status bf_reset_with_text(Buffer *buffer, const char *text)
+{
+    RETURN_IF_FAIL(bf_reset(buffer));
 
     if (text != NULL) {
         return bf_insert_string(buffer, text, strlen(text), 1);

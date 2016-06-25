@@ -103,7 +103,8 @@ typedef enum {
     ERR_DUPLICATE_MARK,
     ERR_CLIPBOARD_ERROR,
     ERR_INVALID_SYNTAXDEFTYPE,
-    ERR_INVALID_OPERATION_KEY_STRING
+    ERR_INVALID_OPERATION_KEY_STRING,
+    ERR_UNABLE_TO_RESIZE_DISPLAY
 } ErrorCode;
 
 /* Structure used to represent success or failure */

@@ -47,6 +47,7 @@ int gb_insert(GapBuffer *, const char *str, size_t str_len);
 int gb_add(GapBuffer *, const char *str, size_t str_len);
 int gb_delete(GapBuffer *, size_t byte_num);
 int gb_replace(GapBuffer *, size_t byte_num, const char *str, size_t str_len);
+void gb_clear(GapBuffer *);
 size_t gb_get_point(const GapBuffer *);
 int gb_set_point(GapBuffer *, size_t point);
 char gb_get(const GapBuffer *);

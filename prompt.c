@@ -86,7 +86,7 @@ Status pr_reset_prompt(Prompt *prompt, PromptType prompt_type,
         }
     }
 
-    RETURN_IF_FAIL(bf_set_text(prompt->prompt_buffer, prompt_content));
+    RETURN_IF_FAIL(bf_reset_with_text(prompt->prompt_buffer, prompt_content));
 
     return bf_select_all_text(prompt->prompt_buffer);
 }
@@ -187,7 +187,7 @@ Status pr_previous_entry(Prompt *prompt)
     if (prompt->history_index > 0) {
         const char *prompt_content = list_get(prompt->history, 
                                               --prompt->history_index);
-        return bf_set_text(prompt->prompt_buffer, prompt_content);
+        return bf_reset_with_text(prompt->prompt_buffer, prompt_content);
     }
 
     return STATUS_SUCCESS;
@@ -210,7 +210,7 @@ Status pr_next_entry(Prompt *prompt)
             prompt_content = list_get(prompt->history, prompt->history_index);
         }
 
-        return bf_set_text(prompt->prompt_buffer, prompt_content);
+        return bf_reset_with_text(prompt->prompt_buffer, prompt_content);
     }
 
     return STATUS_SUCCESS;
@@ -273,7 +273,7 @@ Status pr_show_suggestion(Prompt *prompt, size_t suggestion_index)
     
     const PromptSuggestion *suggestion = list_get(prompt->suggestions,
                                                   suggestion_index);
-    RETURN_IF_FAIL(bf_set_text(prompt->prompt_buffer, suggestion->text));
+    RETURN_IF_FAIL(bf_reset_with_text(prompt->prompt_buffer, suggestion->text));
     prompt->suggestion_index = suggestion_index;
 
     return STATUS_SUCCESS;

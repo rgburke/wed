@@ -7,13 +7,13 @@ WED_VERSION=$(shell git describe --tags --abbrev=0 2>/dev/null || \
 			  echo '$(WED_VERSION_DEFAULT)')
 WED_BUILD_DATETIME=$(shell date '+%Y-%m-%d %H:%M:%S %Z')
 
-STATIC_SOURCES=wed.c display.c buffer.c util.c input.c session.c \
+STATIC_SOURCES=wed.c buffer.c util.c input.c session.c \
 	status.c command.c file.c value.c list.c hashmap.c config.c  \
 	encoding.c config_parse_util.c gap_buffer.c buffer_pos.c     \
 	text_search.c regex_search.c search.c replace.c undo.c       \
 	file_type.c regex_util.c syntax.c theme.c prompt.c           \
 	prompt_completer.c search_util.c external_command.c          \
-	clipboard.c radix_tree.c
+	clipboard.c radix_tree.c buffer_view.c tui.c tabbed_view.c
 STATIC_CXX_SOURCES=source_highlight.cc
 GENERATED_SOURCES=config_parse.c config_scan.c
 SOURCES=$(STATIC_SOURCES) $(GENERATED_SOURCES)
