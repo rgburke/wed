@@ -35,12 +35,13 @@ static SyntaxMatches *bv_get_syntax_matches(const Session *, Buffer *,
                                             const BufferPos *draw_pos);
 static int bv_can_use_syntax_match_cache(Buffer *, const BufferPos *draw_pos);
 
-static void bv_set_cell(Cell *, size_t offset, size_t col_width,
+static void bv_set_cell(Cell *, size_t offset, size_t col_no, size_t col_width,
                         CellAttribute, const char *fmt, ...);
 static void bv_populate_buffer_data(const Buffer *);
 static void bv_clear_view(BufferView *);
 static void bv_populate_syntax_data(const Session *, Buffer *);
 static void bv_populate_selection_data(Buffer *);
+static void bv_populate_colorcolumn_data(Buffer *);
 static void bv_populate_cursor_data(Buffer *);
 
 BufferView *bv_new(size_t rows, size_t cols, const BufferPos *screen_start)
@@ -117,6 +118,7 @@ void bv_update_view(const Session *sess, Buffer *buffer)
     }
 
     bv_populate_selection_data(buffer);
+    bv_populate_colorcolumn_data(buffer);
     bv_populate_cursor_data(buffer);
 }
 
@@ -393,8 +395,9 @@ void bv_free_syntax_match_cache(BufferView *bv)
     bv->syn_match_cache.syn_matches = NULL;
 }
 
-static void bv_set_cell(Cell *cell, size_t offset, size_t col_width,
-                        CellAttribute attr, const char *fmt, ...)
+static void bv_set_cell(Cell *cell, size_t offset, size_t col_no,
+                        size_t col_width, CellAttribute attr,
+                        const char *fmt, ...)
 {
     va_list arg_ptr;
     va_start(arg_ptr, fmt);
@@ -403,6 +406,7 @@ static void bv_set_cell(Cell *cell, size_t offset, size_t col_width,
 
     cell->text_len = MIN(cell->text_len, CELL_TEXT_LENGTH - 1);
     cell->offset = offset;
+    cell->col_no = col_no;
     cell->col_width = col_width;
 
     if (attr != CA_NONE) {
@@ -453,8 +457,8 @@ static void bv_populate_buffer_data(const Buffer *buffer)
 
             if (!char_info.is_valid) {
                 /* Unicode replacement character */
-                bv_set_cell(cell, draw_pos.offset, 1, CA_NONE,
-                            "%s", "\xEF\xBF\xBD");
+                bv_set_cell(cell, draw_pos.offset, draw_pos.col_no,
+                            1, CA_NONE, "%s", "\xEF\xBF\xBD");
                 col++;
             } else if (!char_info.is_printable) {
                 char nonprint_draw[] = "^ ";
@@ -468,34 +472,37 @@ static void bv_populate_buffer_data(const Buffer *buffer)
                 if (!line_wrap && draw_pos.col_no < bv->horizontal_scroll &&
                     (char_info.screen_length + draw_pos.col_no) >
                     bv->horizontal_scroll) {
-                    bv_set_cell(cell, draw_pos.offset, 1, CA_NONE,
-                                "%c", nonprint_draw[1]);
+                    bv_set_cell(cell, draw_pos.offset, draw_pos.col_no + 1,
+                                1, CA_NONE, "%c", nonprint_draw[1]);
                 } else {
-                    bv_set_cell(cell, draw_pos.offset, 1, CA_NONE,
-                                "%c", nonprint_draw[0]);
+                    bv_set_cell(cell, draw_pos.offset, draw_pos.col_no,
+                                1, CA_NONE, "%c", nonprint_draw[0]);
 
                     if (col == (bv->cols - 1)) {
                         if (line_wrap && row != bv->rows - 1) {
                             line = &bv->lines[++row];
                             cell = &line->cells[(col = 0)];
-                            bv_set_cell(cell, draw_pos.offset, 1, CA_NONE,
+                            bv_set_cell(cell, draw_pos.offset,
+                                        draw_pos.col_no + 1, 1, CA_NONE,
                                         "%c", nonprint_draw[1]);
                         }
                     } else {
                         cell = &line->cells[++col];
-                        bv_set_cell(cell, draw_pos.offset, 1, CA_NONE,
-                                    "%c", nonprint_draw[1]);
+                        bv_set_cell(cell, draw_pos.offset, draw_pos.col_no + 1,
+                                    1, CA_NONE, "%c", nonprint_draw[1]);
                     }
                 }
 
                 col++;
             } else if (*character == '\t') {
                 size_t screen_length = char_info.screen_length;
+                size_t col_no = draw_pos.col_no;
 
                 if (!line_wrap && draw_pos.col_no < bv->horizontal_scroll &&
                     (char_info.screen_length + draw_pos.col_no) >
                     bv->horizontal_scroll) {
                     screen_length -= (bv->horizontal_scroll - draw_pos.col_no);
+                    col_no += (bv->horizontal_scroll - draw_pos.col_no);
                 }
 
                 while (screen_length > 0) {
@@ -503,8 +510,8 @@ static void bv_populate_buffer_data(const Buffer *buffer)
                    
                     while (line_remaining > 0) {
                         cell = &line->cells[col++];
-                        bv_set_cell(cell, draw_pos.offset, 1, CA_NONE,
-                                    "%c", ' ');
+                        bv_set_cell(cell, draw_pos.offset, col_no++,
+                                    1, CA_NONE, "%c", ' ');
                         screen_length--;
                         line_remaining--;
                     }
@@ -526,15 +533,17 @@ static void bv_populate_buffer_data(const Buffer *buffer)
                     bv->horizontal_scroll) {
                     size_t screen_length = char_info.screen_length -
                         (bv->horizontal_scroll - draw_pos.col_no);
+                    size_t col_no = draw_pos.col_no + 
+                        (bv->horizontal_scroll - draw_pos.col_no);
 
                     while (col < bv->cols && col < screen_length) {
                         cell = &line->cells[col++];
                         /* Unicode horizontal ellipsis character */
-                        bv_set_cell(cell, -1, 1, CA_WRAP,
+                        bv_set_cell(cell, -1, col_no++, 1, CA_WRAP,
                                     "%s", "\xE2\x80\xA6");
                     }
                 } else if (line_remaining < char_info.screen_length) {
-                    bv_set_cell(cell, -1, 1, CA_WRAP | CA_LINE_END,
+                    bv_set_cell(cell, -1, 0, 1, CA_WRAP,
                                 "%s", "\xE2\x80\xA6");
 
                     if ((!line_wrap || row == (bv->rows - 1)) &&
@@ -558,6 +567,7 @@ static void bv_populate_buffer_data(const Buffer *buffer)
                     cell->col_width = char_info.screen_length;
                     cell->text_len = char_info.byte_length;
                     cell->offset = draw_pos.offset;
+                    cell->col_no = draw_pos.col_no;
                     col += char_info.screen_length;
                 }
             }
@@ -567,8 +577,18 @@ static void bv_populate_buffer_data(const Buffer *buffer)
         }
 
         if (bp_at_line_end(&draw_pos) && col < bv->cols) {
-            cell = &line->cells[col];
-            bv_set_cell(cell, draw_pos.offset, 1, CA_LINE_END, "%c", ' ');
+            size_t col_no = MAX(draw_pos.col_no, bv->horizontal_scroll);
+
+            if (draw_pos.col_no >= col_no) {
+                cell = &line->cells[col++];
+                bv_set_cell(cell, draw_pos.offset, col_no++,
+                            1, CA_NONE, "%c", ' ');
+            }
+
+            while (col < bv->cols) {
+                cell = &line->cells[col++];
+                bv_set_cell(cell, -1, col_no++, 1, CA_NONE, "%c", ' ');
+            }
 
             if (draw_pos.offset == buffer_len) {
                 draw_pos.offset++;
@@ -576,10 +596,8 @@ static void bv_populate_buffer_data(const Buffer *buffer)
                 bp_next_line(&draw_pos);
             }
         } else if (!line_wrap && col > 0 && col <= bv->cols) {
-            cell = &line->cells[--col];
-            cell->attr |= CA_LINE_END;
-
             if (!bp_next_line(&draw_pos)) {
+                row++;
                 break;
             }
         }
@@ -593,7 +611,7 @@ static void bv_populate_buffer_data(const Buffer *buffer)
     while (row < bv->rows) {
         line = &bv->lines[row++];
         cell = &line->cells[0];
-        bv_set_cell(cell, -1, 1, CA_BUFFER_END | CA_LINE_END, "%c", '~');
+        bv_set_cell(cell, -1, 0, 1, CA_BUFFER_END, "%c", '~');
     }
 
     bv->resized = 0;
@@ -631,7 +649,7 @@ static void bv_populate_syntax_data(const Session *sess, Buffer *buffer)
         for (size_t col = 0; col < bv->cols; col++) {
             cell = &line->cells[col]; 
 
-            if (cell->text_len == 0) {
+            if (cell->text_len == 0 || cell->offset == (size_t)-1) {
                 continue;
             }
 
@@ -668,6 +686,32 @@ static void bv_populate_selection_data(Buffer *buffer)
 
             if (bf_offset_in_range(&select_range, cell->offset)) {
                 cell->attr |= CA_SELECTION;
+            }
+        }
+    }
+}
+
+static void bv_populate_colorcolumn_data(Buffer *buffer)
+{
+    const size_t color_column = cf_int(buffer->config, CV_COLORCOLUMN);
+
+    if (color_column == 0) {
+        return;
+    }
+
+    BufferView *bv = buffer->bv;
+    Line *line;
+    Cell *cell;
+
+    for (size_t row = 0; row < bv->rows_drawn; row++) {
+        line = &bv->lines[row];
+
+        for (size_t col = 0; col < bv->cols; col++) {
+            cell = &line->cells[col]; 
+
+            if (cell->col_no == color_column) {
+                cell->attr |= CA_COLORCOLUMN;
+                break;
             }
         }
     }

@@ -284,6 +284,7 @@ lineno        | ln    | Global/File | bool   | true        | Enables/Disables li
 tabwidth      | tw    | Global/File | int    | 8           | Sets tab character screen width (allowed 1 - 8)
 expandtab     | et    | Global/File | bool   | false       | Enables/Disables expanding tab characters into spaces
 autoindent    | ai    | Global/File | bool   | true        | Enables/Disables autoindent
+colorcolumn   | cc    | Global/File | int    | 0           | Sets column number to be highlighted
 wedruntime    | wrt   | Global      | string | WEDRUNTIME  | Config definition location directory (set in config.mk)
 syntax        | sy    | Global      | bool   | true        | Enables/Disables syntax highlighting
 theme         | th    | Global      | string | "default"   | Set the active theme

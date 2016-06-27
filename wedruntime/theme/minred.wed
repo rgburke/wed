@@ -36,4 +36,10 @@ theme {
         fgcolor = "red";
         bgcolor = "none";
     }
+
+    group {
+        name = "colorcolumn";
+        fgcolor = "none";
+        bgcolor = "red";
+    }
 }

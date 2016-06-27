@@ -62,6 +62,7 @@ static Status cf_theme_on_change_event(ConfigEntity, Value, Value);
 static Status cf_fileformat_validator(ConfigEntity, Value);
 static Status cf_fileformat_on_change_event(ConfigEntity, Value, Value);
 static Status cf_sdt_validator(ConfigEntity, Value);
+static Status cf_colorcolumn_validator(ConfigEntity, Value);
 
 static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
     [CV_LINEWRAP] = { "linewrap" , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL },
@@ -76,7 +77,8 @@ static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
     [CV_AUTOINDENT] = { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL },
     [CV_FILEFORMAT] = { "fileformat", "ff" , CL_BUFFER , STR_VAL_STRUCT("unix") , cf_fileformat_validator, cf_fileformat_on_change_event },
     [CV_SYNTAXDEFTYPE] = { "syntaxdeftype", "sdt", CL_SESSION, STR_VAL_STRUCT(CFG_DEFAULT_SDT), cf_sdt_validator, NULL },
-    [CV_SHDATADIR] = { "shdatadir", "shdd", CL_SESSION, STR_VAL_STRUCT(""), NULL, NULL }
+    [CV_SHDATADIR] = { "shdatadir", "shdd", CL_SESSION, STR_VAL_STRUCT(""), NULL, NULL },
+    [CV_COLORCOLUMN] = { "colorcolumn", "cc", CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(0), cf_colorcolumn_validator, NULL }
 };
 
 static const size_t cf_var_num = ARRAY_SIZE(cf_default_config,
@@ -645,3 +647,16 @@ static Status cf_sdt_validator(ConfigEntity entity,
     return st_get_error(ERR_INVALID_SYNTAXDEFTYPE,
                         "Invalid syntax definition type \"%s\"", SVAL(value));
 }
+
+static Status cf_colorcolumn_validator(ConfigEntity entity, Value value)
+{
+    (void)entity;
+
+    if (IVAL(value) < 0) {
+        return st_get_error(ERR_INVALID_COLORCOLUMN,
+                            "colorcolumn must be greater than or equal to 0");
+    }
+
+    return STATUS_SUCCESS;
+}
+

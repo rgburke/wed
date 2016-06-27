@@ -77,7 +77,8 @@ static const char *st_default_error_messages[] = {
     [ERR_CLIPBOARD_ERROR]                     = "Clipboard error",
     [ERR_INVALID_SYNTAXDEFTYPE]               = "Invalid syntax definition type",
     [ERR_INVALID_OPERATION_KEY_STRING]        = "Invalid operation key string",
-    [ERR_UNABLE_TO_RESIZE_DISPLAY]            = "Unable to resize display"
+    [ERR_UNABLE_TO_RESIZE_DISPLAY]            = "Unable to resize display",
+    [ERR_INVALID_COLORCOLUMN]                 = "Invalid colorcolumn value"
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

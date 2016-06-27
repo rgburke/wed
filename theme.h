@@ -30,6 +30,7 @@ typedef enum {
     SC_STATUS_BAR,
     SC_ERROR_MESSAGE,
     SC_BUFFER_END,
+    SC_COLORCOLUMN,
     SC_ENTRY_NUM
 } ScreenComponent;
 

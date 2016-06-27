@@ -39,9 +39,9 @@ typedef enum {
     CA_CURSOR = 1, /* Cursor location */
     CA_SELECTION = 1 << 1, /* Part of a selection */
     CA_BUFFER_END = 1 << 2, /* Lines after buffer content */
-    CA_LINE_END = 1 << 3, /* End of a line (not screen line) */
-    CA_ERROR = 1 << 4, /* Error message */
-    CA_WRAP = 1 << 5 /* Displays a wrap character */
+    CA_ERROR = 1 << 3, /* Error message */
+    CA_WRAP = 1 << 4, /* Displays a wrap character */
+    CA_COLORCOLUMN = 1 << 5 /* Is on colorcolumn */
 } CellAttribute;
 
 /* Structure representing each cell in a window */
@@ -51,6 +51,7 @@ typedef struct {
     size_t col_width; /* Number of columns this character requires to be
                          displayed */
     size_t offset; /* Location of this character in the buffer */
+    size_t col_no; /* The computed column number of this character */
     CellAttribute attr; /* Bitmask of cell attributes */
     SyntaxToken token; /* Syntax token for this character */
 } Cell;

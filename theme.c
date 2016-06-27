@@ -48,6 +48,7 @@ Theme *th_get_default_theme(void)
     theme->groups[SC_STATUS_BAR]            = TG_VAL(DC_YELLOW, DC_BLUE , DA_NONE);
     theme->groups[SC_ERROR_MESSAGE]         = TG_VAL(DC_WHITE , DC_RED  , DA_NONE);
     theme->groups[SC_BUFFER_END]            = TG_VAL(DC_BLUE  , DC_NONE , DA_NONE);
+    theme->groups[SC_COLORCOLUMN]           = TG_VAL(DC_NONE  , DC_RED  , DA_NONE);
 
     return theme;
 }
@@ -91,7 +92,8 @@ int th_str_to_screen_component(ScreenComponent *screen_comp_ptr,
         [SC_ACTIVE_BUFFER_TAB_BAR] = "activebuffertabbar",
         [SC_STATUS_BAR]            = "statusbar",
         [SC_ERROR_MESSAGE]         = "errormessage",
-        [SC_BUFFER_END]            = "bufferend"
+        [SC_BUFFER_END]            = "bufferend",
+        [SC_COLORCOLUMN]           = "colorcolumn"
     };
 
     for (size_t k = ST_ENTRY_NUM; k < SC_ENTRY_NUM; k++) {

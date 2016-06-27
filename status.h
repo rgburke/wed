@@ -104,7 +104,8 @@ typedef enum {
     ERR_CLIPBOARD_ERROR,
     ERR_INVALID_SYNTAXDEFTYPE,
     ERR_INVALID_OPERATION_KEY_STRING,
-    ERR_UNABLE_TO_RESIZE_DISPLAY
+    ERR_UNABLE_TO_RESIZE_DISPLAY,
+    ERR_INVALID_COLORCOLUMN
 } ErrorCode;
 
 /* Structure used to represent success or failure */

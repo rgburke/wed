@@ -258,34 +258,31 @@ static int ti_draw_buffer_line(WINDOW *win, const BufferView *bv,
 
 static int ti_draw_buffer_cell(WINDOW *win, const Cell *cell)
 {
+    attr_t attr = A_NORMAL;
+
     if (cell->attr & CA_SELECTION) {
-        wattron(win, A_REVERSE);
-    } else {
-        wattroff(win, A_REVERSE);
+        attr |= A_REVERSE;
     }
 
     if (cell->attr & CA_ERROR) {
-        wattron(win, SC_COLOR_PAIR(SC_ERROR_MESSAGE));
+        attr |= SC_COLOR_PAIR(SC_ERROR_MESSAGE);
+    } else if (cell->attr & CA_COLORCOLUMN) {
+        attr |= SC_COLOR_PAIR(SC_COLORCOLUMN);
     } else if ((cell->attr & CA_BUFFER_END) || (cell->attr & CA_WRAP)) {
-        wattron(win, SC_COLOR_PAIR(SC_BUFFER_END));
+        attr |= SC_COLOR_PAIR(SC_BUFFER_END);
     } else {
-        wattron(win, SC_COLOR_PAIR(cell->token));
+        attr |= SC_COLOR_PAIR(cell->token);
     }
 
+    wattrset(win, attr);
     waddnstr(win, cell->text, cell->text_len);
 
-    if (cell->attr & CA_LINE_END) {
+    if (cell->attr & CA_BUFFER_END) {
         wclrtoeol(win);
-        int y, x, max_y, max_x;
+        int x, y;
+        (void)x;
         getyx(win, y, x); 
-        getmaxyx(win, max_y, max_x);
-        (void)max_x;
-        
-        if (y >= max_y - 1) {
-            return 0;
-        } else if (x != 0) {
-            wmove(win, ++y, 0);
-        }
+        wmove(win, ++y, 0);
     }
 
     return 1;

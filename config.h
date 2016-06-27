@@ -69,6 +69,7 @@ typedef enum {
     CV_FILEFORMAT,
     CV_SYNTAXDEFTYPE,
     CV_SHDATADIR,
+    CV_COLORCOLUMN,
     CV_ENTRY_NUM
 } ConfigVariable;
 
