@@ -19,13 +19,6 @@
 #ifndef WED_SHARED_H
 #define WED_SHARED_H
 
-/* The main windows the screen is split into in wed */
-typedef enum {
-    WIN_MENU,
-    WIN_TEXT,
-    WIN_STATUS
-} DrawWindow;
-
 typedef unsigned int uint;
 typedef unsigned char uchar;
 

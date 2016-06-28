@@ -210,8 +210,8 @@ void ip_process_input(Session *sess)
     fd_set fds;
 
     while (!finished) {
-		FD_ZERO(&fds);
-		FD_SET(STDIN_FILENO, &fds);
+        FD_ZERO(&fds);
+        FD_SET(STDIN_FILENO, &fds);
 
         /* Wait for user input or signal */
         pselect_res = pselect(1, &fds, NULL, NULL, timeout, &old_set);

@@ -118,9 +118,9 @@ Status ec_run_command(const char *cmd, InputStream *is, OutputStream *os,
 
     const nfds_t nfds = ARRAY_SIZE(fds, struct pollfd);
 
-	int out_fd_flags = fcntl(parent_out_fd, F_GETFL);
+    int out_fd_flags = fcntl(parent_out_fd, F_GETFL);
     int in_fd_flags = fcntl(parent_in_fd, F_GETFL);
-	int err_fd_flags = fcntl(parent_err_in_fd, F_GETFL);
+    int err_fd_flags = fcntl(parent_err_in_fd, F_GETFL);
 
     int fcntl_success = out_fd_flags != -1 &&
                         in_fd_flags != -1 &&
@@ -132,7 +132,7 @@ Status ec_run_command(const char *cmd, InputStream *is, OutputStream *os,
         goto cleanup;
     }
 
-	fcntl_success =
+    fcntl_success =
         fcntl(parent_out_fd, F_SETFL, out_fd_flags | O_NONBLOCK) != -1 &&
         fcntl(parent_in_fd, F_SETFL, in_fd_flags | O_NONBLOCK) != -1 &&
         fcntl(parent_err_in_fd, F_SETFL, err_fd_flags | O_NONBLOCK) != -1;
@@ -159,7 +159,7 @@ Status ec_run_command(const char *cmd, InputStream *is, OutputStream *os,
         int poll_status = poll(fds, nfds, -1); 
 
         if (poll_status == -1) {
-			if (errno == EINTR) {
+            if (errno == EINTR) {
                 continue;
             }
 

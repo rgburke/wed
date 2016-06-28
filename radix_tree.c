@@ -253,11 +253,11 @@ int rt_insert(RadixTree *rtree, const char *str, size_t str_len, void *data)
             }
         }
 
-		rtree->entries++;
+        rtree->entries++;
     } else {
         /* Entry already exists so just update data */
         node->data = data;
-		return 0;
+        return 0;
     }
 
     return 1;
