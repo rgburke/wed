@@ -36,7 +36,6 @@ static void we_print_usage(void);
 static void we_print_version(void);
 static int we_parse_args(WedOpt *wed_opt, int argc, char *argv[],
                          int *file_args_index);
-static void we_init_test_mode(Session *);
 
 static void we_init_wedopt(WedOpt *wed_opt)
 {
@@ -173,6 +172,10 @@ static int we_parse_args(WedOpt *wed_opt, int argc, char *argv[],
         }
     }
 
+    if (wed_opt->test_mode && wed_opt->keystr_input == NULL) {
+        fatal("KEYSTR input must be specified in test mode");
+    }
+
     /* Set the index in argv where file path arguments start */
     if (optind > 0) {
         *file_args_index = optind;
@@ -181,17 +184,6 @@ static int we_parse_args(WedOpt *wed_opt, int argc, char *argv[],
     }
 
     return 1;
-}
-
-static void we_init_test_mode(Session *sess)
-{
-    assert(sess->wed_opt.test_mode);
-    
-    if (sess->input_handler.input_type != IT_KEYSTR) {
-        fatal("A key string argument must be passed in test mode");
-    }
-
-    sess->ui->init(sess->ui);
 }
 
 int main(int argc, char *argv[])
@@ -222,14 +214,12 @@ int main(int argc, char *argv[])
         fatal("Unable to initialise session");
     }
 
+    ip_edit(sess);
+
     int return_code = 0;
 
     if (wed_opt.test_mode) {
-        we_init_test_mode(sess);
-        ip_process_keystr_input(sess);
         return_code = se_has_errors(sess);    
-    } else {
-        ip_edit(sess);
     }
 
     se_free(sess);

@@ -41,7 +41,9 @@ typedef enum {
     CA_BUFFER_END = 1 << 2, /* Lines after buffer content */
     CA_ERROR = 1 << 3, /* Error message */
     CA_WRAP = 1 << 4, /* Displays a wrap character */
-    CA_COLORCOLUMN = 1 << 5 /* Is on colorcolumn */
+    CA_COLORCOLUMN = 1 << 5, /* Is on colorcolumn */
+    CA_NEW_LINE = 1 << 6, /* Cell represents new line character */
+    CA_LINE_END = 1 << 7 /* Empty cells after a new line */
 } CellAttribute;
 
 /* Structure representing each cell in a window */
@@ -103,7 +105,8 @@ void bv_free(BufferView *);
 void bv_update_view(const struct Session *, struct Buffer *);
 int bv_resize(BufferView *, size_t rows, size_t cols);
 size_t bv_screen_col_no(const struct Buffer *, const BufferPos *);
-void bv_apply_cell_attributes(BufferView *, CellAttribute);
+void bv_apply_cell_attributes(BufferView *, CellAttribute attr,
+                              CellAttribute exclude_cell_attr);
 void bv_free_syntax_match_cache(BufferView *);
 
 #endif

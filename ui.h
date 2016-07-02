@@ -30,6 +30,7 @@ typedef struct UI UI;
 /* TODO need to move user input into this interface */
 struct UI {
     Status (*init)(UI *); /* Initialise UI */
+    Status (*get_input)(UI *); /* Get user input */
     Status (*update)(UI *); /* Update display */
     Status (*error)(UI *); /* Display an error */
     Status (*update_theme)(UI *); /* User has changed the active theme so

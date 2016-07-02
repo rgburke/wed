@@ -33,7 +33,7 @@
 #include "command.h"
 #include "ui.h"
 
-#define MAX_KEY_STR_SIZE 50
+#define MAX_KEY_STR_SIZE 100
 
 /* Top level structure containing all state.
  * A new session is created when wed is invoked. */
@@ -68,8 +68,8 @@ struct Session {
                                parsing config files) */
     char prev_key[MAX_KEY_STR_SIZE]; /* Previous keypress */
     WedOpt wed_opt; /* Command line option values */
-    InputHandler input_handler; /* Use to process key press input */
-    UI *ui;
+    UI *ui; /* UI interface */
+    InputBuffer input_buffer; /* Input is buffered in this structure */
 };
 
 typedef struct Session Session;

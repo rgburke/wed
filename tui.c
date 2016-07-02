@@ -24,6 +24,7 @@
 #define SC_COLOR_PAIR(screen_comp) (COLOR_PAIR((screen_comp) + 1))
 
 static Status ti_init(UI *);
+static Status ti_get_input(UI *);
 static void ti_init_display(TUI *);
 static short ti_get_ncurses_color(DrawColor);
 static Status ti_update(UI *);
@@ -51,6 +52,7 @@ UI *ti_new(Session *sess)
     tui->sess = sess;
 
     tui->ui.init = ti_init;
+    tui->ui.get_input = ti_get_input;
     tui->ui.update = ti_update;
     tui->ui.error = ti_error;
     tui->ui.update_theme = ti_update_theme;
@@ -66,12 +68,28 @@ static Status ti_init(UI *ui)
 {
     TUI *tui = (TUI *)ui;
 
+    /* Termkey */
+    /* Create new termkey instance monitoring stdin with
+     * the SIGINT behaviour of Ctrl-C disabled */
+    tui->termkey = termkey_new(STDIN_FILENO,
+                               TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
+
+    if (tui->termkey == NULL) {
+        return st_get_error(ERR_UNABLE_TO_INITIALISE_TERMEKEY,
+                            "Unable to create termkey instance");
+    }
+
+    /* Represent ASCII DEL character as backspace */
+    termkey_set_canonflags(tui->termkey,
+                           TERMKEY_CANON_DELBS | TERMKEY_CANON_SPACESYMBOL);
+
     if (tui->sess->wed_opt.test_mode) {
         tui->rows = 24;
         tui->cols = 80;
         return STATUS_SUCCESS;
     }
 
+    /* ncurses */
     initscr();
     tui->rows = LINES;
     tui->cols = COLS;
@@ -121,6 +139,62 @@ static short ti_get_ncurses_color(DrawColor draw_color)
     assert(draw_color < ARRAY_SIZE(ncurses_colors, short));
 
     return ncurses_colors[draw_color];
+}
+
+static Status ti_get_input(UI *ui)
+{
+    TUI *tui = (TUI *)ui;
+    TermKey *termkey = tui->termkey;
+    InputBuffer *input_buffer = &tui->sess->input_buffer;
+    char keystr[MAX_KEY_STR_SIZE];
+    TermKeyResult ret;
+    TermKeyKey key;
+    size_t keystr_len;
+    size_t keys_added = 0;
+
+    if (input_buffer->arg == IA_INPUT_AVAILABLE_TO_READ) {
+        /* Inform termkey input is available to be read */
+        termkey_advisereadable(termkey);
+
+        while ((ret = termkey_getkey(termkey, &key)) == TERMKEY_RES_KEY) {
+            keystr_len = termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE,
+                                         &key, TERMKEY_FORMAT_VIM);
+
+            RETURN_IF_FAIL(ip_add_keystr_input(input_buffer, keystr,
+                           keystr_len));
+
+            keys_added++;
+        }
+
+        if (ret == TERMKEY_RES_AGAIN) {
+            /* Partial keypress found, try waiting for more input */
+            input_buffer->wait_time_nano = termkey_get_waittime(termkey) * 1000;
+            input_buffer->result = IR_WAIT_FOR_MORE_INPUT;
+        } else if (ret == TERMKEY_RES_EOF) {
+            input_buffer->result = IR_EOF;
+        } else if (keys_added > 0) {
+            input_buffer->result = IR_INPUT_ADDED;
+        } else {
+            input_buffer->result = IR_NO_INPUT_ADDED;
+        }
+    } else if (input_buffer->arg == IA_NO_INPUT_AVAILABLE_TO_READ) {
+        /* Attempt to interpret any unprocessed input as a key */
+        if (termkey_getkey_force(termkey, &key) == TERMKEY_RES_KEY) {
+            keystr_len = termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE,
+                                         &key, TERMKEY_FORMAT_VIM);
+
+            RETURN_IF_FAIL(ip_add_keystr_input(input_buffer, keystr,
+                           keystr_len));
+                
+            input_buffer->result = IR_INPUT_ADDED;
+        } else {
+            input_buffer->result = IR_NO_INPUT_ADDED;
+        }
+    } else {
+        assert(!"Unhandled InputArgument");
+    }
+
+    return STATUS_SUCCESS;
 }
 
 static Status ti_update(UI *ui)
@@ -370,6 +444,10 @@ static Status ti_error(UI *ui)
     TUI *tui = (TUI *)ui;
     Session *sess = tui->sess;
 
+    if (tui->sess->wed_opt.test_mode) {
+        return STATUS_SUCCESS;
+    }
+
     sess->error_buffer->next = sess->active_buffer;
     sess->active_buffer = sess->error_buffer;
     Status status = tv_update(&tui->tv, tui->sess);
@@ -377,7 +455,7 @@ static Status ti_error(UI *ui)
     RETURN_IF_FAIL(status);
 
     BufferView *bv = tui->tv.bv;
-    bv_apply_cell_attributes(bv, CA_ERROR);
+    bv_apply_cell_attributes(bv, CA_ERROR, CA_LINE_END | CA_NEW_LINE);
     wmove(tui->buffer_win, bv->rows - bv->rows_drawn, 0);
     ti_draw_buffer_view(bv, tui->buffer_win);
 
@@ -389,6 +467,10 @@ static Status ti_error(UI *ui)
     wnoutrefresh(tui->status_win);
 
     doupdate();
+
+    /* Wait for user to press any key */
+    TermKeyKey key;
+    termkey_waitkey(tui->termkey, &key);
 
     return status;
 }
@@ -462,6 +544,10 @@ static Status ti_end(UI *ui)
 
 static Status ti_free(UI *ui)
 {
+    TUI *tui = (TUI *)ui;
+
+    termkey_destroy(tui->termkey);
     free(ui);
+
     return STATUS_SUCCESS;
 }

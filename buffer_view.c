@@ -582,12 +582,13 @@ static void bv_populate_buffer_data(const Buffer *buffer)
             if (draw_pos.col_no >= col_no) {
                 cell = &line->cells[col++];
                 bv_set_cell(cell, draw_pos.offset, col_no++,
-                            1, CA_NONE, "%c", ' ');
+                            1, CA_NONE | CA_NEW_LINE, "%c", ' ');
             }
 
             while (col < bv->cols) {
                 cell = &line->cells[col++];
-                bv_set_cell(cell, -1, col_no++, 1, CA_NONE, "%c", ' ');
+                bv_set_cell(cell, -1, col_no++, 1, CA_NONE | CA_LINE_END,
+                            "%c", ' ');
             }
 
             if (draw_pos.offset == buffer_len) {
@@ -825,7 +826,8 @@ size_t bv_screen_col_no(const Buffer *buffer, const BufferPos *pos)
     return col_no;
 }
 
-void bv_apply_cell_attributes(BufferView *bv, CellAttribute attr)
+void bv_apply_cell_attributes(BufferView *bv, CellAttribute attr,
+                              CellAttribute exclude_cell_attr)
 {
     Line *line;
     Cell *cell;
@@ -835,7 +837,10 @@ void bv_apply_cell_attributes(BufferView *bv, CellAttribute attr)
 
         for (size_t col = 0; col < bv->cols; col++) {
             cell = &line->cells[col]; 
-            cell->attr |= attr;
+
+            if (!(cell->attr & exclude_cell_attr)) {
+                cell->attr |= attr;
+            }
         }
     }
 }

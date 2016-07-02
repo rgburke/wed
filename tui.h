@@ -20,6 +20,7 @@
 #define WED_TUI_H
 
 #include <ncurses.h>
+#include "lib/libtermkey/termkey.h"
 #include "ui.h"
 #include "tabbed_view.h"
 #include "session.h"
@@ -38,6 +39,7 @@ typedef struct {
     WINDOW *status_win; /* Used to display status info and the prompt when
                            active */
     WINDOW *line_no_win; /* Used to display line numbers when active */
+    TermKey *termkey;
 } TUI;
 
 UI *ti_new(Session *);

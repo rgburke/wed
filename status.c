@@ -78,7 +78,8 @@ static const char *st_default_error_messages[] = {
     [ERR_INVALID_SYNTAXDEFTYPE]               = "Invalid syntax definition type",
     [ERR_INVALID_OPERATION_KEY_STRING]        = "Invalid operation key string",
     [ERR_UNABLE_TO_RESIZE_DISPLAY]            = "Unable to resize display",
-    [ERR_INVALID_COLORCOLUMN]                 = "Invalid colorcolumn value"
+    [ERR_INVALID_COLORCOLUMN]                 = "Invalid colorcolumn value",
+    [ERR_UNABLE_TO_INITIALISE_TERMEKEY]       = "Unable to initialise termkey"
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

@@ -61,7 +61,7 @@ static Status tv_update_buffer_view(TabbedView *tv, const Session *sess)
     Buffer *buffer = sess->active_buffer;
     tv->is_prompt_active = se_prompt_active(sess);
 
-    if (!tv->is_prompt_active) {
+    if (!tv->is_prompt_active && buffer != sess->error_buffer) {
         tv->last_line_no_width = tv->line_no_width;
         tv->line_no_width = tv_determine_line_no_width(buffer);
     }

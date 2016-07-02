@@ -31,6 +31,7 @@
 #include "command.h"
 #include "status.h"
 #include "util.h"
+#include "tui.h"
 
 #ifdef __MACH__
 #include <mach/clock.h>
@@ -42,10 +43,15 @@
  * screen redraws */
 #define MIN_DRAW_INTERVAL_NS 200000
 
+static int ip_input_available(const InputBuffer *);
 static void ip_setup_signal_handlers(void);
-static void ip_handle_keypress(Session *, TermKeyKey *key, char *keystr,
-                               int *finished, struct timespec *last_draw,
-                               int *redraw_due);
+static void ip_process_input_buffer(Session *, int *finished,
+                                    struct timespec *last_draw,
+                                    int *redraw_due);
+static Status ip_get_next_key(Session *sess, GapBuffer *, char *keystr_buffer,
+                              size_t keystr_buffer_len, size_t *keystr_len);
+static void ip_handle_keypress(Session *, const char *keystr, int *finished,
+                               struct timespec *last_draw, int *redraw_due);
 static void ip_handle_error(Session *);
 static int ip_is_special_key(const TermKeyKey *);
 static int ip_is_wed_operation(const char *key, const char **next);
@@ -72,45 +78,41 @@ static void ip_sigterm_handler(int signal)
     ip_sigterm_signal = signal;
 }
 
-int ip_init(InputHandler *input_handler)
+int ip_init(InputBuffer *input_buffer)
 {
-    memset(input_handler, 0, sizeof(InputHandler));
-    /* Create new termkey instance monitoring stdin with
-     * the SIGINT behaviour of Ctrl-C disabled */
-    input_handler->termkey = termkey_new(STDIN_FILENO,
-                                TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
+    memset(input_buffer, 0, sizeof(InputBuffer));
 
-    if (input_handler->termkey == NULL) {
-        warn("Unable to initialise termkey instance");
+    input_buffer->buffer = gb_new(1024);
+
+    if (input_buffer->buffer == NULL) {
         return 0;
     }
-
-    /* Represent ASCII DEL character as backspace */
-    termkey_set_canonflags(input_handler->termkey,
-                           TERMKEY_CANON_DELBS | TERMKEY_CANON_SPACESYMBOL);
-
-    input_handler->input_type = IT_FD;
 
     return 1;
 }
 
-void ip_free(InputHandler *input_handler)
+void ip_free(InputBuffer *input_buffer)
 {
-    termkey_destroy(input_handler->termkey);
+    gb_free(input_buffer->buffer);
 }
 
-void ip_set_keystr_input(InputHandler *input_handler, const char *keystr)
+Status ip_add_keystr_input(InputBuffer *input_buffer, const char *keystr,
+                           size_t keystr_len)
 {
     assert(!is_null_or_empty(keystr));
+    gb_set_point(input_buffer->buffer, gb_length(input_buffer->buffer));
+     
+    if (!gb_add(input_buffer->buffer, keystr, keystr_len)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to save input");
+    }
 
-    input_handler->keystr_input = keystr;
-    input_handler->iter = keystr;
-    input_handler->input_type = IT_KEYSTR;
+    return STATUS_SUCCESS;
 }
 
-void ip_set_fd_input(InputHandler *input_handler)
+static int ip_input_available(const InputBuffer *input_buffer)
 {
-    input_handler->input_type = IT_FD;
+    return gb_length(input_buffer->buffer) > 0;
 }
 
 static void ip_setup_signal_handlers(void)
@@ -161,20 +163,14 @@ void ip_edit(Session *sess)
 
     sess->ui->init(sess->ui);
 
-    if (sess->input_handler.input_type == IT_KEYSTR) {
-        ip_process_keystr_input(sess);
-        ip_set_fd_input(&sess->input_handler);
-
-        if (se_session_finished(sess)) {
-            sess->ui->end(sess->ui);
-            return;
-        }
-    }
-
     /* If there were errors parsing config
      * or initialising the session then display
      * them first */
-    ip_handle_error(sess);
+    if (se_has_errors(sess)) {
+        sess->ui->update(sess->ui);
+        ip_handle_error(sess);
+    }
+
     sess->ui->update(sess->ui);
 
     ip_process_input(sess);
@@ -184,15 +180,7 @@ void ip_edit(Session *sess)
 
 void ip_process_input(Session *sess)
 {
-    if (sess->input_handler.input_type == IT_KEYSTR) {
-        ip_process_keystr_input(sess);
-        return;
-    }
-
-    TermKey *termkey = sess->input_handler.termkey;
-    char keystr[MAX_KEY_STR_SIZE];
-    TermKeyResult ret;
-    TermKeyKey key;
+    InputBuffer *input_buffer = &sess->input_buffer;
     int pselect_res;
     int finished = 0;
     int redraw_due = 0;
@@ -210,62 +198,62 @@ void ip_process_input(Session *sess)
     fd_set fds;
 
     while (!finished) {
-        FD_ZERO(&fds);
-        FD_SET(STDIN_FILENO, &fds);
+        if (ip_input_available(&sess->input_buffer)) {
+            ip_process_input_buffer(sess, &finished, &last_draw, &redraw_due);
+        } else {
+            FD_ZERO(&fds);
+            FD_SET(STDIN_FILENO, &fds);
 
-        /* Wait for user input or signal */
-        pselect_res = pselect(1, &fds, NULL, NULL, timeout, &old_set);
+            /* Wait for user input or signal */
+            pselect_res = pselect(1, &fds, NULL, NULL, timeout, &old_set);
 
-        if (pselect_res == -1) {
-        /* pselect failed */
-            if (errno == EINTR) {
-                /* A signal was caught */
-                if (ip_window_resize_required) {
-                    sess->ui->resize(sess->ui);
-                    ip_window_resize_required = 0;
-                    continue;
-                } else if (ip_continue_signal) {
-                    sess->ui->resize(sess->ui);
-                    ip_continue_signal = 0;
-                    continue;
-                } else if (ip_sigterm_signal) {
-                    sess->ui->end(sess->ui);
-                    termkey_destroy(sess->input_handler.termkey);
-                    exit(ip_sigterm_signal);
+            if (pselect_res == -1) {
+                /* pselect failed */
+                if (errno == EINTR) {
+                    /* A signal was caught */
+                    if (ip_window_resize_required) {
+                        sess->ui->resize(sess->ui);
+                        ip_window_resize_required = 0;
+                        continue;
+                    } else if (ip_continue_signal) {
+                        sess->ui->resize(sess->ui);
+                        ip_continue_signal = 0;
+                        continue;
+                    } else if (ip_sigterm_signal) {
+                        sess->ui->end(sess->ui);
+                        exit(ip_sigterm_signal);
+                    }
                 }
-            }
-            /* TODO Handle general failure of pselect */
-        } else if (pselect_res == 0) {
-            /* pselect timed out so attempt to interpret any unprocessed
-             * input as a key */
-            if (termkey_getkey_force(termkey, &key) == TERMKEY_RES_KEY) {
-                ip_handle_keypress(sess, &key, keystr, &finished, 
-                                   &last_draw, &redraw_due);
-            } else if (redraw_due) {
-                /* A redraw is due and there has been no further input from
-                 * the user so update the display */
-                sess->ui->update(sess->ui);
-                redraw_due = 0;
-            }
+                /* TODO Handle general failure of pselect */
+            } else if (pselect_res == 0) {
+                input_buffer->arg = IA_NO_INPUT_AVAILABLE_TO_READ;
+                sess->ui->get_input(sess->ui);
+                /* pselect timed out so attempt to interpret any unprocessed
+                 * input as a key */
+                if (input_buffer->result == IR_INPUT_ADDED) {
+                    ip_process_input_buffer(sess, &finished, &last_draw,
+                            &redraw_due);
+                } else if (redraw_due) {
+                    /* A redraw is due and there has been no further input from
+                     * the user so update the display */
+                    sess->ui->update(sess->ui);
+                    redraw_due = 0;
+                }
 
-            timeout = NULL;
-        } else if (pselect_res > 0) {
-            if (FD_ISSET(STDIN_FILENO, &fds)) {
-                /* Inform termkey input is available to be read */
-                termkey_advisereadable(termkey);
-            }
+                timeout = NULL;
+            } else if (pselect_res > 0) {
+                input_buffer->arg = IA_INPUT_AVAILABLE_TO_READ;
+                sess->ui->get_input(sess->ui);
 
-            while ((ret = termkey_getkey(termkey, &key)) == TERMKEY_RES_KEY) {
-                ip_handle_keypress(sess, &key, keystr, &finished,
-                                   &last_draw, &redraw_due);
-            }
-
-            if (ret == TERMKEY_RES_AGAIN) {
-                /* Partial keypress found, try waiting for more input */
-                timeout = &wait_timeout;
-                timeout->tv_nsec = termkey_get_waittime(termkey) * 1000;
-            } else if (ret == TERMKEY_RES_EOF) {
-                finished = 1;
+                if (input_buffer->result == IR_WAIT_FOR_MORE_INPUT) {
+                    timeout = &wait_timeout;
+                    timeout->tv_nsec = input_buffer->wait_time_nano;
+                } else if (input_buffer->result == IR_EOF) {
+                    finished = 1;
+                } else if (input_buffer->result == IR_INPUT_ADDED) {
+                    ip_process_input_buffer(sess, &finished, &last_draw,
+                            &redraw_due);
+                }
             }
         }
 
@@ -279,13 +267,97 @@ void ip_process_input(Session *sess)
     }
 }
 
-static void ip_handle_keypress(Session *sess, TermKeyKey *key, char *keystr,
+static void ip_process_input_buffer(Session *sess, int *finished,
+                                    struct timespec *last_draw,
+                                    int *redraw_due)
+{
+    InputBuffer *input_buffer = &sess->input_buffer;
+    GapBuffer *buffer = input_buffer->buffer;
+
+    static char keystr[MAX_KEY_STR_SIZE];
+    size_t keystr_len;
+    Status status;
+
+    while (gb_length(buffer) > 0 && !*finished) {
+        status = ip_get_next_key(sess, buffer, keystr,
+                                 sizeof(keystr), &keystr_len);
+
+        if (STATUS_IS_SUCCESS(status)) {
+            ip_handle_keypress(sess, keystr, finished, last_draw, redraw_due);
+        } else {
+            se_add_error(sess, status);
+            ip_handle_error(sess);
+        }
+
+        if (sess->wed_opt.test_mode && se_has_errors(sess)) {
+            gb_clear(sess->input_buffer.buffer);
+            return;
+        }
+    }
+}
+
+static Status ip_get_next_key(Session *sess, GapBuffer *buffer,
+                              char *keystr_buffer, size_t keystr_buffer_len,
+                              size_t *keystr_len)
+{
+    size_t bytes = gb_get_range(buffer, 0, keystr_buffer,
+                                MIN(gb_length(buffer), keystr_buffer_len));
+    (void)bytes;
+    assert(bytes > 0);
+
+    const char *iter = keystr_buffer;
+    const char *next;
+    size_t delete_len;
+
+    /* TODO Need to move all termkey related functionality behind UI
+     * interface */
+    TermKey *termkey = ((TUI *)sess->ui)->termkey;
+    TermKeyKey key;
+
+    Status status = STATUS_SUCCESS;
+
+    if (*iter == '<' && ip_is_wed_operation(iter, &next)) {
+        *keystr_len = delete_len = next - iter;
+        assert(*keystr_len < keystr_buffer_len);
+        memcpy(keystr_buffer, iter, *keystr_len); 
+        keystr_buffer[*keystr_len] = '\0';
+        //iter = next;
+    } else if (*iter == '<' && 
+               (next = termkey_strpkey(termkey, iter + 1, &key,
+                                       TERMKEY_FORMAT_VIM)) != NULL &&
+               ip_is_special_key(&key) && *next == '>') {
+        /* Key has string representation of the form <...> */
+        termkey_strfkey(termkey, keystr_buffer, keystr_buffer_len,
+                        &key, TERMKEY_FORMAT_VIM);
+        *keystr_len = delete_len = strlen(keystr_buffer);
+        //iter = next + 1;
+    } else if ((next = termkey_strpkey(termkey, iter, &key,
+                                       TERMKEY_FORMAT_VIM)) != NULL) {
+        /* Normal Unicode key */
+        termkey_strfkey(termkey, keystr_buffer, keystr_buffer_len, &key,
+                        TERMKEY_FORMAT_VIM);
+
+        delete_len = next - iter;
+        *keystr_len = strlen(keystr_buffer);
+        //iter = next;
+    } else {
+        status = st_get_error(ERR_INVALID_KEY, "Invalid key specified starting"
+                                               " from %s", iter); 
+        *keystr_len = 0;
+        delete_len = 1;
+    }
+
+    gb_set_point(buffer, 0);
+    gb_delete(buffer, delete_len);
+
+    return status;
+}
+
+static void ip_handle_keypress(Session *sess, const char *keystr,
                                int *finished, struct timespec *last_draw,
                                int *redraw_due)
 {
     static struct timespec now;
-    termkey_strfkey(sess->input_handler.termkey, keystr,
-                    MAX_KEY_STR_SIZE,key, TERMKEY_FORMAT_VIM);
     /* This is where user input invokes a command */
     se_add_error(sess, cm_do_operation(sess, keystr, finished));
     /* Immediately display any errors that have occurred */
@@ -314,70 +386,8 @@ static void ip_handle_error(Session *sess)
         return;
     }
 
-    TermKeyKey key;
     sess->ui->error(sess->ui);
-    /* Wait for user to press any key */
-    termkey_waitkey(sess->input_handler.termkey, &key);
     se_clear_errors(sess);
-}
-
-void ip_process_keystr_input(Session *sess)
-{
-    InputHandler *input_handler = &sess->input_handler;
-    TermKey *termkey = input_handler->termkey;
-
-    assert(input_handler->keystr_input != NULL);
-    assert(input_handler->iter != NULL);
-
-    char keystr[MAX_KEY_STR_SIZE];
-    int finished = 0;
-    TermKeyKey key;
-    Status status;
-    const char *next;
-
-    while (*input_handler->iter && !finished) {
-        if (*input_handler->iter == '<' &&
-            ip_is_wed_operation(input_handler->iter, &next)) {
-            size_t keystr_length = next - input_handler->iter;
-            assert(keystr_length < MAX_KEY_STR_SIZE);
-            memcpy(keystr, input_handler->iter, keystr_length); 
-            keystr[keystr_length] = '\0';
-            input_handler->iter = next;
-        } else if (*input_handler->iter == '<' &&
-            (next = termkey_strpkey(termkey, input_handler->iter + 1,
-                                    &key, TERMKEY_FORMAT_VIM)
-            ) != NULL && ip_is_special_key(&key) && *next == '>') {
-            /* Key has string representation of the form <...> */
-            termkey_strfkey(input_handler->termkey, keystr, MAX_KEY_STR_SIZE,
-                            &key, TERMKEY_FORMAT_VIM);
-            input_handler->iter = next + 1;
-        } else if ((next = termkey_strpkey(termkey, input_handler->iter,
-                                           &key, TERMKEY_FORMAT_VIM)
-                   ) != NULL) {
-            /* Normal Unicode key */
-            termkey_strfkey(input_handler->termkey, keystr, MAX_KEY_STR_SIZE,
-                            &key, TERMKEY_FORMAT_VIM);
-            input_handler->iter = next;
-        } else {
-            se_add_error(sess, st_get_error(ERR_INVALID_KEY,
-                                            "Invalid key specified in key "
-                                            "string starting from %s",
-                                            input_handler->iter)); 
-            return;
-        }
-
-        status = cm_do_operation(sess, keystr, &finished);
-
-        if (!STATUS_IS_SUCCESS(status)) {
-            se_add_error(sess, status);
-
-            if (sess->wed_opt.test_mode) {
-                return;
-            }
-        }
-
-        se_save_key(sess, keystr);
-    }
 }
 
 /* Does key have string representation of the form <...>.

@@ -84,7 +84,7 @@ struct Buffer {
     FileFormat file_format; /* Unix or Windows line endings */
     RegexInstance mask; /* Inserted text can match mask */
     HashMap *marks; /* Buffer marks */
-    BufferView *bv;
+    BufferView *bv; /* In memory display of buffer */
 };
 
 /* The following two stream implementations make it possible to filter buffer

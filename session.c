@@ -61,12 +61,17 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
         return 0;
     }
 
-    if (!ip_init(&sess->input_handler)) {
+    if (!ip_init(&sess->input_buffer)) {
         return 0;
     }
 
     if (wed_opt->keystr_input != NULL) {
-        ip_set_keystr_input(&sess->input_handler, wed_opt->keystr_input);
+        if (!STATUS_IS_SUCCESS(
+                    ip_add_keystr_input(&sess->input_buffer,
+                                        wed_opt->keystr_input,
+                                        strlen(wed_opt->keystr_input)))) {
+            return 0;
+        }
     }
 
     if ((sess->error_buffer = bf_new_empty("errors", sess->config)) == NULL) {
@@ -200,7 +205,7 @@ void se_free(Session *sess)
         buffer = tmp;
     }
 
-    ip_free(&sess->input_handler);
+    ip_free(&sess->input_buffer);
     cm_free_keymap(&sess->keymap);
     cf_free_config(sess->config);
     pr_free(sess->prompt, 1);

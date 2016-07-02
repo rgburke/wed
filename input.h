@@ -20,6 +20,8 @@
 #define WED_INPUT_H
 
 #include "lib/libtermkey/termkey.h"
+#include "gap_buffer.h"
+#include "status.h"
 
 struct Session;
 
@@ -35,12 +37,30 @@ typedef struct {
     const char *iter;
 } InputHandler;
 
-int ip_init(InputHandler *);
-void ip_free(InputHandler *);
-void ip_set_keystr_input(InputHandler *, const char *);
-void ip_set_fd_input(InputHandler *input_handler);
+typedef enum {
+    IA_NO_INPUT_AVAILABLE_TO_READ,
+    IA_INPUT_AVAILABLE_TO_READ
+} InputArgument;
+
+typedef enum {
+    IR_NO_INPUT_ADDED,
+    IR_INPUT_ADDED,
+    IR_WAIT_FOR_MORE_INPUT,
+    IR_EOF
+} InputResult;
+
+typedef struct {
+    GapBuffer *buffer;
+    InputArgument arg;
+    InputResult result;
+    size_t wait_time_nano;
+} InputBuffer;
+
+int ip_init(InputBuffer *);
+void ip_free(InputBuffer *);
 void ip_edit(struct Session *);
 void ip_process_input(struct Session *);
-void ip_process_keystr_input(struct Session *);
+Status ip_add_keystr_input(InputBuffer *input_buffer, const char *keystr,
+                           size_t keystr_len);
 
 #endif
