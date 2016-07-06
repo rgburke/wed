@@ -18,11 +18,13 @@ before_install:
       brew install pcre;
       brew install source-highlight;
       brew install coreutils;
+      brew install gdb;
     fi;
 
 addons:
   apt:
     packages:
+      - gdb
       - bison
       - flex
       - libncurses5-dev
@@ -32,5 +34,14 @@ addons:
       - libsource-highlight-dev
       - libboost-regex-dev
 
+before_script:
+  - ulimit -c unlimited
+
 script: ./configure && make dev
+
+after_failure:
+  - COREFILE=tests/text/core
+  - if [ -f "$COREFILE" ]; then
+      gdb -c "$COREFILE" wed -ex bt -batch;
+    fi;
 
