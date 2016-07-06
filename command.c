@@ -455,6 +455,40 @@ Status cm_do_operation(Session *sess, const char *key, int *finished)
     return STATUS_SUCCESS;
 }
 
+int cm_is_valid_operation(const Session *sess, const char *key,
+                          size_t key_len, int *is_prefix)
+{
+    assert(!is_null_or_empty(key));
+    assert(is_prefix != NULL);
+
+    const OperationDefinition *operation = NULL;
+    const KeyMap *keymap = &sess->keymap;
+    const RadixTree *map;
+    *is_prefix = 0;
+
+    for (int k = OM_ENTRY_NUM - 1; k > -1; k--) {
+        if (keymap->active_op_modes[k]) {
+            map = keymap->maps[k];
+            int mode_is_prefix;
+
+            if (rt_find(map, key, key_len, (void **)&operation,
+                        &mode_is_prefix)) {
+                break;
+            }
+
+            *is_prefix |= mode_is_prefix;
+        }
+    }
+
+    if (operation != NULL ||
+        !(key[0] == '<' && key[1] != '\0')) {
+        *is_prefix = 0;
+        return 1;
+    }
+
+    return 0;
+}
+
 Status cm_do_command(Command cmd, CommandArgs *cmd_args)
 {
     const CommandDefinition *cmd_def = &cm_commands[cmd]; 

@@ -257,6 +257,8 @@ typedef struct {
 int cm_init_keymap(KeyMap *);
 void cm_free_keymap(KeyMap *);
 Status cm_do_operation(struct Session *, const char *key, int *finished);
+int cm_is_valid_operation(const struct Session *, const char *key,
+                          size_t key_len, int *is_prefix);
 Status cm_do_command(Command cmd, CommandArgs *cmd_args);
 int cm_get_command(const char *function_name, Command *cmd);
 

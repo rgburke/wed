@@ -48,8 +48,11 @@ static void ip_setup_signal_handlers(void);
 static void ip_process_input_buffer(Session *, int *finished,
                                     struct timespec *last_draw,
                                     int *redraw_due);
-static Status ip_get_next_key(Session *sess, GapBuffer *, char *keystr_buffer,
+static Status ip_get_next_key(Session *, GapBuffer *, char *keystr_buffer,
                               size_t keystr_buffer_len, size_t *keystr_len);
+static int ip_parse_key(const Session *, const char *keystr,
+                        char *keystr_buffer, size_t keystr_buffer_len,
+                        size_t *keystr_len, size_t *parsed_len);
 static void ip_handle_keypress(Session *, const char *keystr, int *finished,
                                struct timespec *last_draw, int *redraw_due);
 static void ip_handle_error(Session *);
@@ -100,19 +103,24 @@ Status ip_add_keystr_input(InputBuffer *input_buffer, const char *keystr,
                            size_t keystr_len)
 {
     assert(!is_null_or_empty(keystr));
-    gb_set_point(input_buffer->buffer, gb_length(input_buffer->buffer));
+    GapBuffer *buffer = input_buffer->buffer;
+
+    gb_set_point(buffer, gb_length(buffer));
      
-    if (!gb_add(input_buffer->buffer, keystr, keystr_len)) {
+    if (!gb_add(buffer, keystr, keystr_len)) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                             "Unable to save input");
     }
+
+    gb_set_point(buffer, 0);
 
     return STATUS_SUCCESS;
 }
 
 static int ip_input_available(const InputBuffer *input_buffer)
 {
-    return gb_length(input_buffer->buffer) > 0;
+    GapBuffer *buffer = input_buffer->buffer;
+    return (gb_length(buffer) - gb_get_point(buffer)) > 0;
 }
 
 static void ip_setup_signal_handlers(void)
@@ -278,12 +286,13 @@ static void ip_process_input_buffer(Session *sess, int *finished,
     size_t keystr_len;
     Status status;
 
-    while (gb_length(buffer) > 0 && !*finished) {
+    while (ip_input_available(input_buffer) && !*finished) {
         status = ip_get_next_key(sess, buffer, keystr,
                                  sizeof(keystr), &keystr_len);
 
         if (STATUS_IS_SUCCESS(status)) {
-            ip_handle_keypress(sess, keystr, finished, last_draw, redraw_due);
+            ip_handle_keypress(sess, keystr, finished,
+                               last_draw, redraw_due);
         } else {
             se_add_error(sess, status);
             ip_handle_error(sess);
@@ -298,30 +307,92 @@ static void ip_process_input_buffer(Session *sess, int *finished,
 
 static Status ip_get_next_key(Session *sess, GapBuffer *buffer,
                               char *keystr_buffer, size_t keystr_buffer_len,
-                              size_t *keystr_len)
+                              size_t *keystr_len_ptr)
 {
-    size_t bytes = gb_get_range(buffer, 0, keystr_buffer,
-                                MIN(gb_length(buffer), keystr_buffer_len));
-    (void)bytes;
+    char keystr[keystr_buffer_len];
+    size_t bytes = gb_get_range(buffer, 0, keystr,
+                                MIN(gb_length(buffer), keystr_buffer_len - 1));
     assert(bytes > 0);
+    keystr[bytes] = '\0';
+    keystr_buffer[0] = '\0';
 
-    const char *iter = keystr_buffer;
-    const char *next;
-    size_t delete_len;
+    Status status = STATUS_SUCCESS;
+    size_t total_parsed_len = 0;
+    int is_prefix = 0;
+    int is_valid = 0;
+    size_t keys = 0;
+    size_t keystr_len = 0;
 
+    size_t key_len = 0;
+    size_t parsed_len = 0;
+
+    do {
+        if (!ip_parse_key(sess, keystr + total_parsed_len,
+                          keystr_buffer + keystr_len,
+                          keystr_buffer_len, &key_len, &parsed_len)) {
+            status = st_get_error(ERR_INVALID_KEY, "Invalid key specified "
+                                  "starting from %s",
+                                  keystr + total_parsed_len); 
+        } else {
+            keystr_len += key_len;
+            total_parsed_len += parsed_len;
+            is_valid = cm_is_valid_operation(sess, keystr_buffer,
+                                             keystr_len, &is_prefix);
+        }
+
+        keys++;
+    } while (STATUS_IS_SUCCESS(status) && is_prefix && !is_valid &&
+             total_parsed_len < bytes);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        if (keys > 1) {
+            int valid = ip_parse_key(sess, keystr, keystr_buffer,
+                                     keystr_buffer_len, &keystr_len,
+                                     &total_parsed_len);
+            assert(valid);
+            status = STATUS_SUCCESS;
+        } else {
+            total_parsed_len = 1;
+        }
+    } else if (!is_valid) {
+        if (is_prefix) {
+            keystr_len = 0;
+        } else if (keys > 1) {
+            keystr_len -= key_len;
+            total_parsed_len -= parsed_len;
+            keystr_buffer[keystr_len] = '\0';
+        }
+    }
+
+    *keystr_len_ptr = keystr_len;
+
+    if (is_prefix && keystr_len == 0) {
+        gb_set_point(buffer, total_parsed_len);
+    } else {
+        gb_set_point(buffer, 0);
+        gb_delete(buffer, total_parsed_len);
+    }
+
+    return status;
+}
+
+static int ip_parse_key(const Session *sess, const char *keystr,
+                        char *keystr_buffer, size_t keystr_buffer_len,
+                        size_t *keystr_len, size_t *parsed_len)
+{
     /* TODO Need to move all termkey related functionality behind UI
      * interface */
     TermKey *termkey = ((TUI *)sess->ui)->termkey;
     TermKeyKey key;
 
-    Status status = STATUS_SUCCESS;
+    const char *iter = keystr;
+    const char *next;
 
     if (*iter == '<' && ip_is_wed_operation(iter, &next)) {
-        *keystr_len = delete_len = next - iter;
+        *keystr_len = *parsed_len = next - iter;
         assert(*keystr_len < keystr_buffer_len);
-        memcpy(keystr_buffer, iter, *keystr_len); 
+        memcpy(keystr_buffer, iter, MIN(*keystr_len, keystr_buffer_len)); 
         keystr_buffer[*keystr_len] = '\0';
-        //iter = next;
     } else if (*iter == '<' && 
                (next = termkey_strpkey(termkey, iter + 1, &key,
                                        TERMKEY_FORMAT_VIM)) != NULL &&
@@ -329,28 +400,20 @@ static Status ip_get_next_key(Session *sess, GapBuffer *buffer,
         /* Key has string representation of the form <...> */
         termkey_strfkey(termkey, keystr_buffer, keystr_buffer_len,
                         &key, TERMKEY_FORMAT_VIM);
-        *keystr_len = delete_len = strlen(keystr_buffer);
-        //iter = next + 1;
+        *keystr_len = *parsed_len = strlen(keystr_buffer);
     } else if ((next = termkey_strpkey(termkey, iter, &key,
                                        TERMKEY_FORMAT_VIM)) != NULL) {
         /* Normal Unicode key */
         termkey_strfkey(termkey, keystr_buffer, keystr_buffer_len, &key,
                         TERMKEY_FORMAT_VIM);
 
-        delete_len = next - iter;
+        *parsed_len = next - iter;
         *keystr_len = strlen(keystr_buffer);
-        //iter = next;
     } else {
-        status = st_get_error(ERR_INVALID_KEY, "Invalid key specified starting"
-                                               " from %s", iter); 
-        *keystr_len = 0;
-        delete_len = 1;
+        return 0;
     }
 
-    gb_set_point(buffer, 0);
-    gb_delete(buffer, delete_len);
-
-    return status;
+    return 1;
 }
 
 static void ip_handle_keypress(Session *sess, const char *keystr,
