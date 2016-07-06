@@ -35,13 +35,16 @@ addons:
       - libboost-regex-dev
 
 before_script:
-  - ulimit -c unlimited
+  - ulimit -c unlimited -S
 
 script: ./configure && make dev
 
 after_failure:
   - COREFILE=$(find . -name 'core*' | head -n 1)
-  - if [[ -f "$COREFILE" ]]; then
+  - echo "COREFILE: $COREFILE"
+  - pwd
+  - find .
+  - if [ -f "$COREFILE" ]; then
       gdb -c "$COREFILE" wed -ex bt -ex 'set pagination 0' -batch;
     fi;
 
