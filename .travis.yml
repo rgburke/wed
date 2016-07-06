@@ -40,8 +40,8 @@ before_script:
 script: ./configure && make dev
 
 after_failure:
-  - COREFILE=tests/text/core
-  - if [ -f "$COREFILE" ]; then
-      gdb -c "$COREFILE" wed -ex bt -batch;
+  - COREFILE=$(find . -name 'core*' | head -n 1)
+  - if [[ -f "$COREFILE" ]]; then
+      gdb -c "$COREFILE" wed -ex bt -ex 'set pagination 0' -batch;
     fi;
 
