@@ -34,11 +34,5 @@ addons:
       - libsource-highlight-dev
       - libboost-regex-dev
 
-before_script:
-  - ulimit -c unlimited -S
-
 script: ./configure && make dev
-
-after_failure:
-  - gdb -batch -ex "run --test-mode --key-string 'test<wed-insert-space><M-C-s>tests/text/001-insert/test.output<Enter><Escape>' tests/text/001-insert/input" -ex "bt" wed 2>&1
 

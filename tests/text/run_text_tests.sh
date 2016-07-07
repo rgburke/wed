@@ -76,7 +76,7 @@ for t in "${TESTS[@]}"; do
         TEST_CFG_OPT="--config-file $t/config"
     fi
 
-    "$WED_BIN" --test-mode --key-string "$TEST_CMD" $TEST_CFG_OPT "$t/input" 0<&-
+    gdb -batch -ex "run --test-mode --key-string '$TEST_CMD' $TEST_CFG_OPT $t/input 0<&-" -ex "bt" "$WED_BIN"
     EXIT_CODE=$?
 
     if [ $EXIT_CODE -ne 0 ]; then
