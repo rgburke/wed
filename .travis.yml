@@ -40,11 +40,5 @@ before_script:
 script: ./configure && make dev
 
 after_failure:
-  - COREFILE=$(find . -name 'core*' | head -n 1)
-  - echo "COREFILE: $COREFILE"
-  - pwd
-  - find .
-  - if [ -f "$COREFILE" ]; then
-      gdb -c "$COREFILE" wed -ex bt -ex 'set pagination 0' -batch;
-    fi;
+  - gdb -batch -ex "run --test-mode --key-string 'test<wed-insert-space><M-C-s>tests/text/001-insert/test.output<Enter><Escape>' tests/text/001-insert/input" -ex "bt" wed 2>&1
 
