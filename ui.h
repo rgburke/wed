@@ -27,7 +27,6 @@
 
 typedef struct UI UI;
 
-/* TODO need to move user input into this interface */
 struct UI {
     Status (*init)(UI *); /* Initialise UI */
     Status (*get_input)(UI *); /* Get user input */

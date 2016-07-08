@@ -8,23 +8,17 @@ compiler:
   - gcc
   - clang
 
-matrix:
-  allow_failures:
-    - os: osx
-
 before_install:
   - if [ "$TRAVIS_OS_NAME" = 'osx' ]; then
       brew update;
       brew install pcre;
       brew install source-highlight;
       brew install coreutils;
-      brew install gdb;
     fi;
 
 addons:
   apt:
     packages:
-      - gdb
       - bison
       - flex
       - libncurses5-dev

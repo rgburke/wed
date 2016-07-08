@@ -205,13 +205,14 @@ void ip_process_input(Session *sess)
     ip_get_monotonic_time(&last_draw);
     fd_set fds;
 
+    if (sess->wed_opt.test_mode) {
+        ip_process_input_buffer(sess, &finished, &last_draw, &redraw_due);
+        return;
+    }
+
     while (!finished) {
         if (ip_input_available(&sess->input_buffer)) {
             ip_process_input_buffer(sess, &finished, &last_draw, &redraw_due);
-
-            if (sess->wed_opt.test_mode) {
-                break;
-            }
         } else {
             FD_ZERO(&fds);
             FD_SET(STDIN_FILENO, &fds);
