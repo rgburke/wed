@@ -25,6 +25,7 @@
 #include <stddef.h>
 
 typedef struct RadixTreeNode RadixTreeNode;
+typedef void (*FreeFunction)(void *);
 
 /* Node structure used to construct the tree */
 struct RadixTreeNode {
@@ -45,6 +46,7 @@ typedef struct {
 
 RadixTree *rt_new(void);
 void rt_free(RadixTree *);
+void rt_free_including_entries(RadixTree *, FreeFunction);
 size_t rt_entries(const RadixTree *);
 int rt_find(const RadixTree *, const char *str, size_t str_len,
             void **data, int *is_prefix);

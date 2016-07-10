@@ -34,6 +34,7 @@ struct Session;
  * entities like buffers and allow their functionality to be exposed.
  * Below is a list of all the Commands that are currently available in wed */
 typedef enum {
+    CMD_NOP,
     CMD_BP_CHANGE_LINE,
     CMD_BP_CHANGE_CHAR,
     CMD_BP_TO_LINE_START,
@@ -85,12 +86,15 @@ typedef enum {
     CMD_SESSION_CHANGE_BUFFER,
     CMD_SUSPEND,
     CMD_SESSION_END,
-    CMD_SESSION_ECHO
+    CMD_SESSION_ECHO,
+    CMD_SESSION_MAP,
+    CMD_SESSION_UNMAP
 } Command;
 
 /* Operations are instances of commands i.e. they define a command with
  * arguments */
 typedef enum {
+    OP_NOP,
     OP_MOVE_PREV_LINE,
     OP_MOVE_NEXT_LINE,
     OP_MOVE_NEXT_CHAR,
@@ -183,7 +187,8 @@ typedef Status (*CommandHandler)(const CommandArgs *);
 
 /* Categorisation of commands */
 typedef enum {
-    CMDT_BUFFER_MOVE = 1,
+    CMDT_NOP         = 0,
+    CMDT_BUFFER_MOVE = 1 << 0,
     CMDT_BUFFER_MOD  = 1 << 1,
     CMDT_CMD_INPUT   = 1 << 2,
     CMDT_EXIT        = 1 << 3,
@@ -227,6 +232,7 @@ typedef enum {
     OM_STANDARD, /* Normal buffer is open */
     OM_PROMPT, /* Prompt is open */
     OM_PROMPT_COMPLETER, /* Prompt with auto complete functionality is open */
+    OM_USER, /* User defined mappings */
     OM_ENTRY_NUM
 } OperationMode;
 
@@ -236,11 +242,20 @@ typedef struct {
     RadixTree *maps[OM_ENTRY_NUM]; /* Key bindings for each mode */
 } KeyMap;
 
+typedef enum {
+    KMT_OPERATION,
+    KMT_KEYSTR
+} KeyMappingType;
+
 /* Maps a key press to an operation. A collection of KeyMapping's defines
  * a set of key bindings */
 typedef struct {
-    const char *key; /* Key string */
-    Operation op; /* Operation */
+    KeyMappingType type;
+    char *key; /* Key string */
+    union {
+        Operation op; /* Operation */
+        char *keystr; /* Sequence of keys */
+    } value;
 } KeyMapping;
 
 /* An operation specifies a command, arguments to the command and an operation
@@ -254,8 +269,8 @@ typedef struct {
     Command command; /* The Command to be called */
 } OperationDefinition;
 
-int cm_init_keymap(KeyMap *);
-void cm_free_keymap(KeyMap *);
+int cm_init_key_map(KeyMap *);
+void cm_free_key_map(KeyMap *);
 Status cm_do_operation(struct Session *, const char *key, int *finished);
 int cm_is_valid_operation(const struct Session *, const char *key,
                           size_t key_len, int *is_prefix);

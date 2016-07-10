@@ -60,7 +60,9 @@ int ip_init(InputBuffer *);
 void ip_free(InputBuffer *);
 void ip_edit(struct Session *);
 void ip_process_input(struct Session *);
-Status ip_add_keystr_input(InputBuffer *input_buffer, const char *keystr,
-                           size_t keystr_len);
+Status ip_add_keystr_input_to_start(InputBuffer *, const char *keystr,
+                                    size_t keystr_len);
+Status ip_add_keystr_input_to_end(InputBuffer *, const char *keystr,
+                                  size_t keystr_len);
 
 #endif

@@ -48,8 +48,15 @@ typedef enum {
     QR_ALL = 1 << 4
 } QuestionRespose;
 
+static KeyMapping *cm_new_op_key_mapping(const char *key, Operation);
+static KeyMapping *cm_new_keystr_key_mapping(const char *key,
+                                             const char *keystr);
+static KeyMapping *cm_new_key_mapping(KeyMappingType, const char *key,
+                                      Operation, const char *keystr);
+static void cm_free_key_mapping(KeyMapping *);
 static Status cm_run_command(const CommandDefinition *, CommandArgs *);
 
+static Status cm_nop(const CommandArgs *);
 static Status cm_bp_change_line(const CommandArgs *);
 static Status cm_bp_change_char(const CommandArgs *); 
 static Status cm_bp_to_line_start(const CommandArgs *);
@@ -118,66 +125,72 @@ static QuestionRespose cm_question_prompt(Session *, PromptType,
 static Status cm_cancel_prompt(const CommandArgs *);
 static Status cm_run_prompt_completion(const CommandArgs *);
 static Status cm_session_echo(const CommandArgs *);
+static Status cm_session_map(const CommandArgs *);
+static Status cm_session_unmap(const CommandArgs *);
 
 /* Allow the following to exceed 80 columns.
  * This format is easier to read and maipulate in visual block mode in vim */
 static const CommandDefinition cm_commands[] = {
-    [CMD_BP_CHANGE_LINE]                 = { NULL, cm_bp_change_line                , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_CHANGE_CHAR]                 = { NULL, cm_bp_change_char                , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_LINE_START]               = { NULL, cm_bp_to_line_start              , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_HARD_LINE_START]          = { NULL, cm_bp_to_hard_line_start         , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_LINE_END]                 = { NULL, cm_bp_to_line_end                , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_HARD_LINE_END]            = { NULL, cm_bp_to_hard_line_end           , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_NEXT_WORD]                = { NULL, cm_bp_to_next_word               , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_PREV_WORD]                = { NULL, cm_bp_to_prev_word               , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_BUFFER_START]             = { NULL, cm_bp_to_buffer_start            , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_BUFFER_END]               = { NULL, cm_bp_to_buffer_end              , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_CHANGE_PAGE]                 = { NULL, cm_bp_change_page                , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOVE },
-    [CMD_BP_GOTO_MATCHING_BRACKET]       = { NULL, cm_bp_goto_matching_bracket      , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOVE },
-    [CMD_BUFFER_INSERT_CHAR]             = { NULL, cm_buffer_insert_char            , CMDSIG(1, VAL_TYPE_STR), CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_INDENT]                  = { NULL, cm_buffer_indent                 , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_DELETE_CHAR]             = { NULL, cm_buffer_delete_char            , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_BACKSPACE]               = { NULL, cm_buffer_backspace              , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_DELETE_WORD]             = { NULL, cm_buffer_delete_word            , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_DELETE_PREV_WORD]        = { NULL, cm_buffer_delete_prev_word       , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_INSERT_LINE]             = { NULL, cm_buffer_insert_line            , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_SELECT_ALL_TEXT]         = { NULL, cm_buffer_select_all_text        , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_COPY_SELECTED_TEXT]      = { NULL, cm_buffer_copy_selected_text     , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_CUT_SELECTED_TEXT]       = { NULL, cm_buffer_cut_selected_text      , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_PASTE_TEXT]              = { NULL, cm_buffer_paste_text             , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_UNDO]                    = { NULL, cm_buffer_undo                   , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_REDO]                    = { NULL, cm_buffer_redo                   , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_VERT_MOVE_LINES]         = { NULL, cm_buffer_vert_move_lines        , CMDSIG(1, VAL_TYPE_INT), CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_DUPLICATE_SELECTION]     = { NULL, cm_buffer_duplicate_selection    , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_JOIN_LINES]              = { NULL, cm_buffer_join_lines             , CMDSIG_NO_ARGS         , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_SAVE_FILE]               = { NULL, cm_buffer_save_file              , CMDSIG_NO_ARGS         , CMDT_CMD_INPUT   },
-    [CMD_BUFFER_SAVE_AS]                 = { NULL, cm_buffer_save_as                , CMDSIG_NO_ARGS         , CMDT_CMD_INPUT   },
-    [CMD_BUFFER_FIND]                    = { NULL, cm_buffer_find                   , CMDSIG(1, VAL_TYPE_INT), CMDT_CMD_INPUT   },
-    [CMD_BUFFER_FIND_NEXT]               = { NULL, cm_buffer_find_next              , CMDSIG(1, VAL_TYPE_INT), CMDT_CMD_INPUT   },
-    [CMD_BUFFER_TOGGLE_SEARCH_TYPE]      = { NULL, cm_buffer_toggle_search_type     , CMDSIG_NO_ARGS         , CMDT_CMD_MOD     },
-    [CMD_BUFFER_TOGGLE_SEARCH_CASE]      = { NULL, cm_buffer_toggle_search_case     , CMDSIG_NO_ARGS         , CMDT_CMD_MOD     },
-    [CMD_BUFFER_TOGGLE_SEARCH_DIRECTION] = { NULL, cm_buffer_toggle_search_direction, CMDSIG_NO_ARGS         , CMDT_CMD_MOD     },
-    [CMD_BUFFER_REPLACE]                 = { NULL, cm_buffer_replace                , CMDSIG_NO_ARGS         , CMDT_CMD_INPUT   },
-    [CMD_PREVIOUS_PROMPT_ENTRY]          = { NULL, cm_previous_prompt_entry         , CMDSIG_NO_ARGS         , CMDT_CMD_MOD     },
-    [CMD_NEXT_PROMPT_ENTRY]              = { NULL, cm_next_prompt_entry             , CMDSIG_NO_ARGS         , CMDT_CMD_MOD     },
-    [CMD_PROMPT_INPUT_FINISHED]          = { NULL, cm_prompt_input_finished         , CMDSIG_NO_ARGS         , CMDT_CMD_MOD     },
-    [CMD_CANCEL_PROMPT]                  = { NULL, cm_cancel_prompt                 , CMDSIG_NO_ARGS         , CMDT_CMD_MOD     },
-    [CMD_RUN_PROMPT_COMPLETION]          = { NULL, cm_run_prompt_completion         , CMDSIG_NO_ARGS         , CMDT_CMD_MOD     },
-    [CMD_BUFFER_GOTO_LINE]               = { NULL, cm_buffer_goto_line              , CMDSIG_NO_ARGS         , CMDT_CMD_INPUT   },
-    [CMD_SESSION_OPEN_FILE]              = { NULL, cm_session_open_file             , CMDSIG_NO_ARGS         , CMDT_CMD_INPUT   },
-    [CMD_SESSION_ADD_EMPTY_BUFFER]       = { NULL, cm_session_add_empty_buffer      , CMDSIG_NO_ARGS         , CMDT_SESS_MOD    },
-    [CMD_SESSION_CHANGE_TAB]             = { NULL, cm_session_change_tab            , CMDSIG(1, VAL_TYPE_INT), CMDT_SESS_MOD    },
-    [CMD_SESSION_SAVE_ALL]               = { NULL, cm_session_save_all              , CMDSIG_NO_ARGS         , CMDT_SESS_MOD    },
-    [CMD_SESSION_CLOSE_BUFFER]           = { NULL, cm_session_close_buffer          , CMDSIG(1, VAL_TYPE_INT), CMDT_CMD_INPUT   },
-    [CMD_SESSION_RUN_COMMAND]            = { NULL, cm_session_run_command           , CMDSIG_NO_ARGS         , CMDT_CMD_INPUT   },
-    [CMD_SESSION_CHANGE_BUFFER]          = { NULL, cm_session_change_buffer         , CMDSIG_NO_ARGS         , CMDT_CMD_INPUT   },
-    [CMD_SUSPEND]                        = { NULL, cm_suspend                       , CMDSIG_NO_ARGS         , CMDT_SUSPEND     },
-    [CMD_SESSION_END]                    = { NULL, cm_session_end                   , CMDSIG_NO_ARGS         , CMDT_EXIT        },
-    /* Commands that by default are not mapped to key bindings */
-    [CMD_SESSION_ECHO]                   = { "echo", cm_session_echo                , CMDSIG_VAR_ARGS        , CMDT_SESS_MOD    }
+    [CMD_NOP]                            = { NULL    , cm_nop                           , CMDSIG_NO_ARGS                       , CMDT_NOP         },
+    [CMD_BP_CHANGE_LINE]                 = { NULL    , cm_bp_change_line                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_CHANGE_CHAR]                 = { NULL    , cm_bp_change_char                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_LINE_START]               = { NULL    , cm_bp_to_line_start              , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_HARD_LINE_START]          = { NULL    , cm_bp_to_hard_line_start         , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_LINE_END]                 = { NULL    , cm_bp_to_line_end                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_HARD_LINE_END]            = { NULL    , cm_bp_to_hard_line_end           , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_NEXT_WORD]                = { NULL    , cm_bp_to_next_word               , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_PREV_WORD]                = { NULL    , cm_bp_to_prev_word               , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_BUFFER_START]             = { NULL    , cm_bp_to_buffer_start            , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_BUFFER_END]               = { NULL    , cm_bp_to_buffer_end              , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_CHANGE_PAGE]                 = { NULL    , cm_bp_change_page                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_GOTO_MATCHING_BRACKET]       = { NULL    , cm_bp_goto_matching_bracket      , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOVE },
+    [CMD_BUFFER_INSERT_CHAR]             = { NULL    , cm_buffer_insert_char            , CMDSIG(1, VAL_TYPE_STR)              , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_INDENT]                  = { NULL    , cm_buffer_indent                 , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_DELETE_CHAR]             = { NULL    , cm_buffer_delete_char            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_BACKSPACE]               = { NULL    , cm_buffer_backspace              , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_DELETE_WORD]             = { NULL    , cm_buffer_delete_word            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_DELETE_PREV_WORD]        = { NULL    , cm_buffer_delete_prev_word       , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_INSERT_LINE]             = { NULL    , cm_buffer_insert_line            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_SELECT_ALL_TEXT]         = { NULL    , cm_buffer_select_all_text        , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_COPY_SELECTED_TEXT]      = { NULL    , cm_buffer_copy_selected_text     , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_CUT_SELECTED_TEXT]       = { NULL    , cm_buffer_cut_selected_text      , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_PASTE_TEXT]              = { NULL    , cm_buffer_paste_text             , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_UNDO]                    = { NULL    , cm_buffer_undo                   , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_REDO]                    = { NULL    , cm_buffer_redo                   , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_VERT_MOVE_LINES]         = { NULL    , cm_buffer_vert_move_lines        , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_DUPLICATE_SELECTION]     = { NULL    , cm_buffer_duplicate_selection    , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_JOIN_LINES]              = { NULL    , cm_buffer_join_lines             , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
+    [CMD_BUFFER_SAVE_FILE]               = { NULL    , cm_buffer_save_file              , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
+    [CMD_BUFFER_SAVE_AS]                 = { NULL    , cm_buffer_save_as                , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
+    [CMD_BUFFER_FIND]                    = { NULL    , cm_buffer_find                   , CMDSIG(1, VAL_TYPE_INT)              , CMDT_CMD_INPUT   },
+    [CMD_BUFFER_FIND_NEXT]               = { NULL    , cm_buffer_find_next              , CMDSIG(1, VAL_TYPE_INT)              , CMDT_CMD_INPUT   },
+    [CMD_BUFFER_TOGGLE_SEARCH_TYPE]      = { NULL    , cm_buffer_toggle_search_type     , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
+    [CMD_BUFFER_TOGGLE_SEARCH_CASE]      = { NULL    , cm_buffer_toggle_search_case     , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
+    [CMD_BUFFER_TOGGLE_SEARCH_DIRECTION] = { NULL    , cm_buffer_toggle_search_direction, CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
+    [CMD_BUFFER_REPLACE]                 = { NULL    , cm_buffer_replace                , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
+    [CMD_PREVIOUS_PROMPT_ENTRY]          = { NULL    , cm_previous_prompt_entry         , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
+    [CMD_NEXT_PROMPT_ENTRY]              = { NULL    , cm_next_prompt_entry             , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
+    [CMD_PROMPT_INPUT_FINISHED]          = { NULL    , cm_prompt_input_finished         , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
+    [CMD_CANCEL_PROMPT]                  = { NULL    , cm_cancel_prompt                 , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
+    [CMD_RUN_PROMPT_COMPLETION]          = { NULL    , cm_run_prompt_completion         , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
+    [CMD_BUFFER_GOTO_LINE]               = { NULL    , cm_buffer_goto_line              , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
+    [CMD_SESSION_OPEN_FILE]              = { NULL    , cm_session_open_file             , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
+    [CMD_SESSION_ADD_EMPTY_BUFFER]       = { NULL    , cm_session_add_empty_buffer      , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD    },
+    [CMD_SESSION_CHANGE_TAB]             = { NULL    , cm_session_change_tab            , CMDSIG(1, VAL_TYPE_INT)              , CMDT_SESS_MOD    },
+    [CMD_SESSION_SAVE_ALL]               = { NULL    , cm_session_save_all              , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD    },
+    [CMD_SESSION_CLOSE_BUFFER]           = { NULL    , cm_session_close_buffer          , CMDSIG(1, VAL_TYPE_INT)              , CMDT_CMD_INPUT   },
+    [CMD_SESSION_RUN_COMMAND]            = { NULL    , cm_session_run_command           , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
+    [CMD_SESSION_CHANGE_BUFFER]          = { NULL    , cm_session_change_buffer         , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
+    [CMD_SUSPEND]                        = { NULL    , cm_suspend                       , CMDSIG_NO_ARGS                       , CMDT_SUSPEND     },
+    [CMD_SESSION_END]                    = { NULL    , cm_session_end                   , CMDSIG_NO_ARGS                       , CMDT_EXIT        },
+    /* Commands that by default are not mapped to key bindings and are instead exposed as functions */
+    [CMD_SESSION_ECHO]                   = { "echo"  , cm_session_echo                  , CMDSIG_VAR_ARGS                      , CMDT_SESS_MOD    },
+    [CMD_SESSION_MAP]                    = { "map"   , cm_session_map                   , CMDSIG(2, VAL_TYPE_STR, VAL_TYPE_STR), CMDT_SESS_MOD    },
+    [CMD_SESSION_UNMAP]                  = { "unmap" , cm_session_unmap                 , CMDSIG(1, VAL_TYPE_STR)              , CMDT_SESS_MOD    }
 };
 
 static const OperationDefinition cm_operations[] = {
+    [OP_NOP]            = { "<wed-nop>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_NOP },
     [OP_MOVE_PREV_LINE] = { "<wed-move-prev-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BP_CHANGE_LINE },
     [OP_MOVE_NEXT_LINE] = { "<wed-move-next-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BP_CHANGE_LINE },
     [OP_MOVE_NEXT_CHAR] = { "<wed-move-next-char>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_BP_CHANGE_CHAR },
@@ -258,116 +271,124 @@ static const OperationDefinition cm_operations[] = {
 };
 
 /* Default wed keybindings */
-static const KeyMapping cm_keymappings[] = {
-    { "<Up>",          OP_MOVE_PREV_LINE                   },
-    { "<Down>",        OP_MOVE_NEXT_LINE                   },
-    { "<Right>",       OP_MOVE_NEXT_CHAR                   },
-    { "<Left>",        OP_MOVE_PREV_CHAR                   },
-    { "<Home>",        OP_MOVE_START_OF_SCREEN_LINE        },
-    { "<M-Home>",      OP_MOVE_START_OF_LINE               },
-    { "<End>",         OP_MOVE_END_OF_SCREEN_LINE          },
-    { "<M-End>",       OP_MOVE_END_OF_LINE                 },
-    { "<C-Right>",     OP_MOVE_NEXT_WORD                   },
-    { "<C-Left>",      OP_MOVE_PREV_WORD                   },
-    { "<C-Home>",      OP_MOVE_BUFFER_START                },
-    { "<C-End>",       OP_MOVE_BUFFER_END                  },
-    { "<PageUp>",      OP_MOVE_PREV_PAGE                   },
-    { "<PageDown>",    OP_MOVE_NEXT_PAGE                   },
-    { "<S-Up>",        OP_MOVE_SELECT_PREV_LINE            },
-    { "<S-Down>",      OP_MOVE_SELECT_NEXT_LINE            },
-    { "<S-Right>",     OP_MOVE_SELECT_NEXT_CHAR            },
-    { "<S-Left>",      OP_MOVE_SELECT_PREV_CHAR            },
-    { "<S-Home>",      OP_MOVE_SELECT_START_OF_SCREEN_LINE },
-    { "<M-S-Home>",    OP_MOVE_SELECT_START_OF_LINE        },
-    { "<S-End>",       OP_MOVE_SELECT_END_OF_SCREEN_LINE   },
-    { "<M-S-End>",     OP_MOVE_SELECT_END_OF_LINE          },
-    { "<C-S-Right>",   OP_MOVE_SELECT_NEXT_WORD            },
-    { "<C-S-Left>",    OP_MOVE_SELECT_PREV_WORD            },
-    { "<C-S-Home>",    OP_MOVE_SELECT_BUFFER_START         },
-    { "<C-S-End>",     OP_MOVE_SELECT_BUFFER_END           },
-    { "<S-PageUp>",    OP_MOVE_SELECT_PREV_PAGE            },
-    { "<S-PageDown>",  OP_MOVE_SELECT_NEXT_PAGE            },
-    { "<C-b>",         OP_MOVE_MATCHING_BRACKET            },
-    { "<Tab>",         OP_INDENT                           },
-    { "<S-Tab>",       OP_UNINDENT                         },
-    { "<Delete>",      OP_DELETE                           },
-    { "<Backspace>",   OP_BACKSPACE                        },
-    { "<C-Delete>",    OP_DELETE_NEXT_WORD                 },
-    { "<M-Backspace>", OP_DELETE_PREV_WORD                 },
-    { "<Enter>",       OP_INSERT_NEWLINE                   },
-    { "<Space>",       OP_INSERT_SPACE                     },
-    { "<KPDiv>",       OP_INSERT_KPDIV                     },
-    { "<KPMult>",      OP_INSERT_KPMULT                    },
-    { "<KPMinus>",     OP_INSERT_KPMINUS                   },
-    { "<KPPlus>",      OP_INSERT_KPPLUS                    },
-    { "<C-a>",         OP_SELECT_ALL                       },
-    { "<C-c>",         OP_COPY                             },
-    { "<C-x>",         OP_CUT                              },
-    { "<C-v>",         OP_PASTE                            },
-    { "<C-z>",         OP_UNDO                             },
-    { "<C-y>",         OP_REDO                             },
-    { "<C-S-Up>",      OP_MOVE_LINES_UP                    },
-    { "<C-S-Down>",    OP_MOVE_LINES_DOWN                  },
-    { "<C-d>",         OP_DUPLICATE                        },
-    { "<C-j>",         OP_JOIN_LINES                       },
-    { "<C-s>",         OP_SAVE                             },
-    { "<M-C-s>",       OP_SAVE_AS                          },
-    { "<C-f>",         OP_FIND                             },
-    { "<F3>",          OP_FIND_NEXT                        },
-    { "<F15>",         OP_FIND_PREV                        },
-    { "<C-h>",         OP_FIND_REPLACE                     },
-    { "<C-r>",         OP_FIND_REPLACE                     },
-    { "<C-g>",         OP_GOTO_LINE                        },
-    { "<C-o>",         OP_OPEN                             },
-    { "<C-n>",         OP_NEW                              },
-    { "<M-C-Right>",   OP_NEXT_BUFFER                      },
-    { "<M-Right>",     OP_NEXT_BUFFER                      },
-    { "<M-C-Left>",    OP_PREV_BUFFER                      },
-    { "<M-Left>",      OP_PREV_BUFFER                      },
-    { "<C-^>",         OP_SAVE_ALL                         },
-    { "<C-w>",         OP_CLOSE                            },
-    { "<C-\\>",        OP_CMD                              },
-    { "<C-_>",         OP_CHANGE_BUFFER                    },
-    { "<M-z>",         OP_SUSPEND                          },
-    { "<Escape>",      OP_EXIT                             },
-    { "<C-t>",         OP_TOGGLE_SEARCH_TYPE               },
-    { "<C-s>",         OP_TOGGLE_SEARCH_CASE_SENSITIVITY   },
-    { "<C-d>",         OP_TOGGLE_SEARCH_DIRECTION          },
-    { "<Up>",          OP_PROMPT_PREV_ENTRY                },
-    { "<Down>",        OP_PROMPT_NEXT_ENTRY                },
-    { "<Enter>",       OP_PROMPT_SUBMIT                    },
-    { "<Escape>",      OP_PROMPT_CANCEL                    },
-    { "<Tab>",         OP_PROMPT_COMPLETE                  },
-    { "<S-Tab>",       OP_PROMPT_COMPLETE_PREV             }
+static const KeyMapping cm_key_mappings[] = {
+    { KMT_OPERATION, "<Up>",          { OP_MOVE_PREV_LINE                   } },
+    { KMT_OPERATION, "<Down>",        { OP_MOVE_NEXT_LINE                   } },
+    { KMT_OPERATION, "<Right>",       { OP_MOVE_NEXT_CHAR                   } },
+    { KMT_OPERATION, "<Left>",        { OP_MOVE_PREV_CHAR                   } },
+    { KMT_OPERATION, "<Home>",        { OP_MOVE_START_OF_SCREEN_LINE        } },
+    { KMT_OPERATION, "<M-Home>",      { OP_MOVE_START_OF_LINE               } },
+    { KMT_OPERATION, "<End>",         { OP_MOVE_END_OF_SCREEN_LINE          } },
+    { KMT_OPERATION, "<M-End>",       { OP_MOVE_END_OF_LINE                 } },
+    { KMT_OPERATION, "<C-Right>",     { OP_MOVE_NEXT_WORD                   } },
+    { KMT_OPERATION, "<C-Left>",      { OP_MOVE_PREV_WORD                   } },
+    { KMT_OPERATION, "<C-Home>",      { OP_MOVE_BUFFER_START                } },
+    { KMT_OPERATION, "<C-End>",       { OP_MOVE_BUFFER_END                  } },
+    { KMT_OPERATION, "<PageUp>",      { OP_MOVE_PREV_PAGE                   } },
+    { KMT_OPERATION, "<PageDown>",    { OP_MOVE_NEXT_PAGE                   } },
+    { KMT_OPERATION, "<S-Up>",        { OP_MOVE_SELECT_PREV_LINE            } },
+    { KMT_OPERATION, "<S-Down>",      { OP_MOVE_SELECT_NEXT_LINE            } },
+    { KMT_OPERATION, "<S-Right>",     { OP_MOVE_SELECT_NEXT_CHAR            } },
+    { KMT_OPERATION, "<S-Left>",      { OP_MOVE_SELECT_PREV_CHAR            } },
+    { KMT_OPERATION, "<S-Home>",      { OP_MOVE_SELECT_START_OF_SCREEN_LINE } },
+    { KMT_OPERATION, "<M-S-Home>",    { OP_MOVE_SELECT_START_OF_LINE        } },
+    { KMT_OPERATION, "<S-End>",       { OP_MOVE_SELECT_END_OF_SCREEN_LINE   } },
+    { KMT_OPERATION, "<M-S-End>",     { OP_MOVE_SELECT_END_OF_LINE          } },
+    { KMT_OPERATION, "<C-S-Right>",   { OP_MOVE_SELECT_NEXT_WORD            } },
+    { KMT_OPERATION, "<C-S-Left>",    { OP_MOVE_SELECT_PREV_WORD            } },
+    { KMT_OPERATION, "<C-S-Home>",    { OP_MOVE_SELECT_BUFFER_START         } },
+    { KMT_OPERATION, "<C-S-End>",     { OP_MOVE_SELECT_BUFFER_END           } },
+    { KMT_OPERATION, "<S-PageUp>",    { OP_MOVE_SELECT_PREV_PAGE            } },
+    { KMT_OPERATION, "<S-PageDown>",  { OP_MOVE_SELECT_NEXT_PAGE            } },
+    { KMT_OPERATION, "<C-b>",         { OP_MOVE_MATCHING_BRACKET            } },
+    { KMT_OPERATION, "<Tab>",         { OP_INDENT                           } },
+    { KMT_OPERATION, "<S-Tab>",       { OP_UNINDENT                         } },
+    { KMT_OPERATION, "<Delete>",      { OP_DELETE                           } },
+    { KMT_OPERATION, "<Backspace>",   { OP_BACKSPACE                        } },
+    { KMT_OPERATION, "<C-Delete>",    { OP_DELETE_NEXT_WORD                 } },
+    { KMT_OPERATION, "<M-Backspace>", { OP_DELETE_PREV_WORD                 } },
+    { KMT_OPERATION, "<Enter>",       { OP_INSERT_NEWLINE                   } },
+    { KMT_OPERATION, "<Space>",       { OP_INSERT_SPACE                     } },
+    { KMT_OPERATION, "<KPDiv>",       { OP_INSERT_KPDIV                     } },
+    { KMT_OPERATION, "<KPMult>",      { OP_INSERT_KPMULT                    } },
+    { KMT_OPERATION, "<KPMinus>",     { OP_INSERT_KPMINUS                   } },
+    { KMT_OPERATION, "<KPPlus>",      { OP_INSERT_KPPLUS                    } },
+    { KMT_OPERATION, "<C-a>",         { OP_SELECT_ALL                       } },
+    { KMT_OPERATION, "<C-c>",         { OP_COPY                             } },
+    { KMT_OPERATION, "<C-x>",         { OP_CUT                              } },
+    { KMT_OPERATION, "<C-v>",         { OP_PASTE                            } },
+    { KMT_OPERATION, "<C-z>",         { OP_UNDO                             } },
+    { KMT_OPERATION, "<C-y>",         { OP_REDO                             } },
+    { KMT_OPERATION, "<C-S-Up>",      { OP_MOVE_LINES_UP                    } },
+    { KMT_OPERATION, "<C-S-Down>",    { OP_MOVE_LINES_DOWN                  } },
+    { KMT_OPERATION, "<C-d>",         { OP_DUPLICATE                        } },
+    { KMT_OPERATION, "<C-j>",         { OP_JOIN_LINES                       } },
+    { KMT_OPERATION, "<C-s>",         { OP_SAVE                             } },
+    { KMT_OPERATION, "<M-C-s>",       { OP_SAVE_AS                          } },
+    { KMT_OPERATION, "<C-f>",         { OP_FIND                             } },
+    { KMT_OPERATION, "<F3>",          { OP_FIND_NEXT                        } },
+    { KMT_OPERATION, "<F15>",         { OP_FIND_PREV                        } },
+    { KMT_OPERATION, "<C-h>",         { OP_FIND_REPLACE                     } },
+    { KMT_OPERATION, "<C-r>",         { OP_FIND_REPLACE                     } },
+    { KMT_OPERATION, "<C-g>",         { OP_GOTO_LINE                        } },
+    { KMT_OPERATION, "<C-o>",         { OP_OPEN                             } },
+    { KMT_OPERATION, "<C-n>",         { OP_NEW                              } },
+    { KMT_OPERATION, "<M-C-Right>",   { OP_NEXT_BUFFER                      } },
+    { KMT_OPERATION, "<M-Right>",     { OP_NEXT_BUFFER                      } },
+    { KMT_OPERATION, "<M-C-Left>",    { OP_PREV_BUFFER                      } },
+    { KMT_OPERATION, "<M-Left>",      { OP_PREV_BUFFER                      } },
+    { KMT_OPERATION, "<C-^>",         { OP_SAVE_ALL                         } },
+    { KMT_OPERATION, "<C-w>",         { OP_CLOSE                            } },
+    { KMT_OPERATION, "<C-\\>",        { OP_CMD                              } },
+    { KMT_OPERATION, "<C-_>",         { OP_CHANGE_BUFFER                    } },
+    { KMT_OPERATION, "<M-z>",         { OP_SUSPEND                          } },
+    { KMT_OPERATION, "<Escape>",      { OP_EXIT                             } },
+    { KMT_OPERATION, "<C-t>",         { OP_TOGGLE_SEARCH_TYPE               } },
+    { KMT_OPERATION, "<C-s>",         { OP_TOGGLE_SEARCH_CASE_SENSITIVITY   } },
+    { KMT_OPERATION, "<C-d>",         { OP_TOGGLE_SEARCH_DIRECTION          } },
+    { KMT_OPERATION, "<Up>",          { OP_PROMPT_PREV_ENTRY                } },
+    { KMT_OPERATION, "<Down>",        { OP_PROMPT_NEXT_ENTRY                } },
+    { KMT_OPERATION, "<Enter>",       { OP_PROMPT_SUBMIT                    } },
+    { KMT_OPERATION, "<Escape>",      { OP_PROMPT_CANCEL                    } },
+    { KMT_OPERATION, "<Tab>",         { OP_PROMPT_COMPLETE                  } },
+    { KMT_OPERATION, "<S-Tab>",       { OP_PROMPT_COMPLETE_PREV             } }
 };
 
 /* Map key presses to operations. User input can be used to look
- * up an operation in a keymap so that it can be invoked */
-int cm_init_keymap(KeyMap *keymap)
+ * up an operation in a key_map so that it can be invoked */
+int cm_init_key_map(KeyMap *key_map)
 {
-    memset(keymap, 0, sizeof(KeyMap));
+    memset(key_map, 0, sizeof(KeyMap));
 
-    const size_t keymapping_num = ARRAY_SIZE(cm_keymappings, KeyMapping);
+    const size_t key_mapping_num = ARRAY_SIZE(cm_key_mappings, KeyMapping);
 
     for (size_t k = 0; k < OM_ENTRY_NUM; k++) {
-        keymap->maps[k] = rt_new();
+        key_map->maps[k] = rt_new();
 
-        if (keymap->maps[k] == NULL) {
+        if (key_map->maps[k] == NULL) {
             return 0;
         }
     }
 
-    const KeyMapping *keymapping;
-    OperationDefinition *operation;
+    KeyMapping *key_mapping;
+    const OperationDefinition *operation;
     RadixTree *map;
 
-    for (size_t k = 0; k < keymapping_num; k++) {
-        keymapping = &cm_keymappings[k];
-        operation = (OperationDefinition *)&cm_operations[keymapping->op];
-        map = keymap->maps[operation->op_mode];
+    for (size_t k = 0; k < key_mapping_num; k++) {
+        key_mapping = (KeyMapping *)&cm_key_mappings[k];
 
-        if (!rt_insert(map, keymapping->key, strlen(keymapping->key),
-                       operation)) {
+        key_mapping = cm_new_op_key_mapping(key_mapping->key,
+                                            key_mapping->value.op);
+
+        if (key_mapping == NULL) {
+            return 0;
+        }
+
+        operation = &cm_operations[key_mapping->value.op];
+        map = key_map->maps[operation->op_mode];
+
+        if (!rt_insert(map, key_mapping->key, strlen(key_mapping->key),
+                       key_mapping)) {
             return 0;
         }
     }
@@ -375,29 +396,98 @@ int cm_init_keymap(KeyMap *keymap)
     const size_t operation_num = ARRAY_SIZE(cm_operations, OperationDefinition);
 
     for (size_t k = 0; k < operation_num; k++) {
-        operation = (OperationDefinition *)&cm_operations[k];        
-        map = keymap->maps[operation->op_mode];
+        operation = &cm_operations[k];        
 
-        if (!rt_insert(map, operation->name, strlen(operation->name),
-                       operation)) {
+        key_mapping = cm_new_op_key_mapping(operation->name, k);
+
+        if (key_mapping == NULL) {
+            return 0;
+        }
+
+        map = key_map->maps[operation->op_mode];
+
+        if (!rt_insert(map, key_mapping->key, strlen(key_mapping->key),
+                       key_mapping)) {
             return 0;
         }
     }
 
-    keymap->active_op_modes[OM_STANDARD] = 1;
+    key_map->active_op_modes[OM_STANDARD] = 1;
 
     return 1;
 }
 
-void cm_free_keymap(KeyMap *keymap)
+void cm_free_key_map(KeyMap *key_map)
 {
-    if (keymap == NULL) {
+    if (key_map == NULL) {
         return;
     } 
 
     for (size_t k = 0; k < OM_ENTRY_NUM; k++) {
-        rt_free(keymap->maps[k]);
+        rt_free_including_entries(key_map->maps[k],
+                                  (FreeFunction)cm_free_key_mapping);
     }
+}
+
+static KeyMapping *cm_new_op_key_mapping(const char *key, Operation operation)
+{
+    return cm_new_key_mapping(KMT_OPERATION, key, operation, NULL);
+}
+
+static KeyMapping *cm_new_keystr_key_mapping(const char *key,
+                                             const char *keystr)
+{
+    return cm_new_key_mapping(KMT_KEYSTR, key, 0, keystr);
+}
+
+static KeyMapping *cm_new_key_mapping(KeyMappingType type, const char *key,
+                                      Operation operation, const char *keystr)
+{
+    KeyMapping *key_mapping = malloc(sizeof(KeyMapping));
+
+    if (key_mapping == NULL) {
+        return NULL;
+    }
+
+    memset(key_mapping, 0, sizeof(KeyMapping));
+
+    key_mapping->key = strdup(key);
+
+    if (key_mapping->key == NULL) {
+        cm_free_key_mapping(key_mapping);
+        return NULL;
+    }
+
+    if (type == KMT_OPERATION) {
+        key_mapping->value.op = operation;
+    } else if (type == KMT_KEYSTR) {
+        key_mapping->value.keystr = strdup(keystr);
+
+        if (key_mapping->value.keystr == NULL) {
+            cm_free_key_mapping(key_mapping);
+            return NULL;
+        }
+    } else {
+        assert(!"Invalid KeyMappingType");
+    }
+
+    key_mapping->type = type;
+
+    return key_mapping;
+}
+
+static void cm_free_key_mapping(KeyMapping *key_mapping)
+{
+    if (key_mapping == NULL) {
+        return;
+    }
+
+    if (key_mapping->type == KMT_KEYSTR) {
+        free(key_mapping->value.keystr);
+    }
+
+    free(key_mapping->key);
+    free(key_mapping);
 }
 
 Status cm_do_operation(Session *sess, const char *key, int *finished)
@@ -405,41 +495,50 @@ Status cm_do_operation(Session *sess, const char *key, int *finished)
     assert(!is_null_or_empty(key));
     assert(finished != NULL);
 
-    const OperationDefinition *operation = NULL;
-    const KeyMap *keymap = &sess->keymap;
+    const KeyMapping *key_mapping = NULL;
+    const KeyMap *key_map = &sess->key_map;
     const RadixTree *map;
 
     for (int k = OM_ENTRY_NUM - 1; k > -1; k--) {
-        if (keymap->active_op_modes[k]) {
-            map = keymap->maps[k];
+        if (key_map->active_op_modes[k]) {
+            map = key_map->maps[k];
 
-            if (rt_find(map, key, strlen(key), (void **)&operation, NULL)) {
+            if (rt_find(map, key, strlen(key), (void **)&key_mapping, NULL)) {
                 break;
             }
         }
     }
 
-    if (operation != NULL) {
-        const CommandDefinition *command = &cm_commands[operation->command];
+    if (key_mapping != NULL) {
+        if (key_mapping->type == KMT_OPERATION) {
+            const OperationDefinition *operation =
+                &cm_operations[key_mapping->value.op];
+            const CommandDefinition *command = &cm_commands[operation->command];
 
-        CommandArgs cmd_args;
-        cmd_args.sess = sess;
-        cmd_args.arg_num = operation->arg_num;
-        cmd_args.key = key;
-        cmd_args.finished = finished;
-        memcpy(cmd_args.args, operation->args, sizeof(operation->args));
+            CommandArgs cmd_args;
+            cmd_args.sess = sess;
+            cmd_args.arg_num = operation->arg_num;
+            cmd_args.key = key;
+            cmd_args.finished = finished;
+            memcpy(cmd_args.args, operation->args, sizeof(operation->args));
 
-        return cm_run_command(command, &cmd_args);
+            return cm_run_command(command, &cmd_args);
+        } else if (key_mapping->type == KMT_KEYSTR) {
+            size_t keystr_len = strlen(key_mapping->value.keystr);
+            return ip_add_keystr_input_to_start(&sess->input_buffer,
+                                                key_mapping->value.keystr,
+                                                keystr_len);
+        }
     }
 
     if (!(key[0] == '<' && key[1] != '\0') &&
         !se_command_type_excluded(sess, CMDT_BUFFER_MOD)) {
         /* Just a normal letter character so insert it into buffer */
         return bf_insert_character(sess->active_buffer, key, 1);
-    } else if (strncmp(key, "<wed-", 5) == 0 && operation == NULL) {
+    } else if (strncmp(key, "<wed-", 5) == 0 && key_mapping == NULL) {
         /* An invalid operation was specified */
         for (int k = OM_ENTRY_NUM - 1; k > -1; k--) {
-            map = keymap->maps[k];
+            map = key_map->maps[k];
 
             if (rt_find(map, key, strlen(key), NULL, NULL)) {
                 return st_get_error(ERR_INVALID_OPERATION_KEY_STRING,
@@ -461,17 +560,17 @@ int cm_is_valid_operation(const Session *sess, const char *key,
     assert(!is_null_or_empty(key));
     assert(is_prefix != NULL);
 
-    const OperationDefinition *operation = NULL;
-    const KeyMap *keymap = &sess->keymap;
+    const KeyMapping *key_mapping = NULL;
+    const KeyMap *key_map = &sess->key_map;
     const RadixTree *map;
     *is_prefix = 0;
 
     for (int k = OM_ENTRY_NUM - 1; k > -1; k--) {
-        if (keymap->active_op_modes[k]) {
-            map = keymap->maps[k];
+        if (key_map->active_op_modes[k]) {
+            map = key_map->maps[k];
             int mode_is_prefix;
 
-            if (rt_find(map, key, key_len, (void **)&operation,
+            if (rt_find(map, key, key_len, (void **)&key_mapping,
                         &mode_is_prefix)) {
                 break;
             }
@@ -480,7 +579,7 @@ int cm_is_valid_operation(const Session *sess, const char *key,
         }
     }
 
-    if (operation != NULL ||
+    if (key_mapping != NULL ||
         !(key[0] == '<' && key[1] != '\0')) {
         *is_prefix = 0;
         return 1;
@@ -549,6 +648,12 @@ int cm_get_command(const char *function_name, Command *cmd)
     }
 
     return 0;
+}
+
+static Status cm_nop(const CommandArgs *cmd_args)
+{
+    (void)cmd_args;
+    return STATUS_SUCCESS;
 }
 
 static Status cm_bp_change_line(const CommandArgs *cmd_args)
@@ -1847,6 +1952,11 @@ static Status cm_session_echo(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
     Status status = STATUS_SUCCESS;
+
+    if (!se_initialised(sess)) {
+        return status;
+    }
+
     char *str_val;
 
     for (size_t k = 0; k < cmd_args->arg_num; k++) {
@@ -1855,6 +1965,7 @@ static Status cm_session_echo(const CommandArgs *cmd_args)
         if (cf_str_to_var(str_val, NULL)) {
             ConfigLevel config_level = cp_determine_config_level(str_val,
                                                                  CL_BUFFER);
+
             status = cf_print_var(CE_VAL(sess, sess->active_buffer),
                                   config_level, str_val);
 
@@ -1867,6 +1978,99 @@ static Status cm_session_echo(const CommandArgs *cmd_args)
 
         free(str_val);
     }
+
+    return status;
+}
+
+static Status cm_session_map(const CommandArgs *cmd_args)
+{
+    Session *sess = cmd_args->sess;
+    char *map_from;
+    char *map_to;
+    
+    map_from = va_to_string(cmd_args->args[0]);
+    map_to = va_to_string(cmd_args->args[1]);
+
+    if (is_null_or_empty(map_from) || is_null_or_empty(map_to)) {
+        free(map_from);
+        free(map_to);
+        return st_get_error(ERR_INVALID_KEY_MAPPING,
+                            "Key mappings must be non-empty");
+    }
+
+    KeyMapping *key_mapping = cm_new_keystr_key_mapping(map_from, map_to);
+
+    free(map_from);
+    free(map_to);
+
+    if (key_mapping == NULL) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to create key mapping");
+    }
+
+    KeyMap *key_map = &sess->key_map;
+    RadixTree *map = key_map->maps[OM_USER];
+    KeyMapping *existing_key_mapping = NULL;
+    size_t key_len = strlen(key_mapping->key);
+
+    if (rt_find(map, key_mapping->key, key_len,
+                (void **)&existing_key_mapping, NULL)) {
+        rt_delete(map, key_mapping->key, key_len);
+        cm_free_key_mapping(existing_key_mapping);
+    }
+
+    if (!rt_insert(map, key_mapping->key, key_len, key_mapping)) {
+        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                            "Unable to create key mapping");
+    }
+
+    key_map->active_op_modes[OM_USER] = 1;
+
+    char msg[MAX_MSG_SIZE];
+    snprintf(msg, MAX_MSG_SIZE, "Mapped %s to %s", key_mapping->key,
+             key_mapping->value.keystr);
+    se_add_msg(sess, msg);
+
+    return STATUS_SUCCESS;
+}
+
+static Status cm_session_unmap(const CommandArgs *cmd_args)
+{
+    Session *sess = cmd_args->sess;
+    Status status = STATUS_SUCCESS;
+    char *map_from = va_to_string(cmd_args->args[0]);
+
+    if (is_null_or_empty(map_from)) {
+        free(map_from);
+        return st_get_error(ERR_INVALID_KEY_MAPPING,
+                            "Key mappings must be non-empty");
+    }
+
+    KeyMap *key_map = &sess->key_map;
+    RadixTree *map = key_map->maps[OM_USER];
+    KeyMapping *existing_key_mapping = NULL;
+    size_t map_from_len = strlen(map_from);
+
+    if (!rt_find(map, map_from, map_from_len,
+                 (void **)&existing_key_mapping, NULL)) {
+        status = st_get_error(ERR_INVALID_KEY_MAPPING,
+                              "No mappping exists for %s", map_from);
+        free(map_from);
+        return status;
+    }
+
+    rt_delete(map, map_from, map_from_len);
+    cm_free_key_mapping(existing_key_mapping);
+
+    if (rt_entries(map) == 0) {
+        key_map->active_op_modes[OM_USER] = 0;
+    }
+
+    char msg[MAX_MSG_SIZE];
+    snprintf(msg, MAX_MSG_SIZE, "Unmapped %s", map_from);
+    se_add_msg(sess, msg);
+
+    free(map_from);
 
     return status;
 }

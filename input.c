@@ -43,6 +43,8 @@
  * screen redraws */
 #define MIN_DRAW_INTERVAL_NS 200000
 
+static Status ip_add_keystr_input(InputBuffer *, size_t pos,
+                                  const char *keystr, size_t keystr_len);
 static int ip_input_available(const InputBuffer *);
 static void ip_setup_signal_handlers(void);
 static void ip_process_input_buffer(Session *, int *finished,
@@ -99,13 +101,26 @@ void ip_free(InputBuffer *input_buffer)
     gb_free(input_buffer->buffer);
 }
 
-Status ip_add_keystr_input(InputBuffer *input_buffer, const char *keystr,
-                           size_t keystr_len)
+Status ip_add_keystr_input_to_end(InputBuffer *input_buffer,
+                                  const char *keystr, size_t keystr_len)
+{
+    return ip_add_keystr_input(input_buffer, gb_length(input_buffer->buffer),
+                               keystr, keystr_len);
+}
+
+Status ip_add_keystr_input_to_start(InputBuffer *input_buffer,
+                                    const char *keystr, size_t keystr_len)
+{
+    return ip_add_keystr_input(input_buffer, 0, keystr, keystr_len);
+}
+
+static Status ip_add_keystr_input(InputBuffer *input_buffer, size_t pos,
+                                  const char *keystr, size_t keystr_len)
 {
     assert(!is_null_or_empty(keystr));
     GapBuffer *buffer = input_buffer->buffer;
 
-    gb_set_point(buffer, gb_length(buffer));
+    gb_set_point(buffer, pos);
      
     if (!gb_add(buffer, keystr, keystr_len)) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "

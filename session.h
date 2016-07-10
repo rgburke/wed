@@ -42,7 +42,7 @@ struct Session {
     Buffer *active_buffer; /* The buffer currently being edited */
     Buffer *error_buffer; /* Buffer which stores error messages */
     Buffer *msg_buffer; /* Buffer which stores messages */
-    KeyMap keymap; /* Maps keyboard inputs to commands */
+    KeyMap key_map; /* Maps keyboard inputs to commands */
     Clipboard clipboard; /* Handles copy and paste to system clipboard */
     HashMap *config; /* Stores config variables */
     Prompt *prompt; /* Used to control prompt */

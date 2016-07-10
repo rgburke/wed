@@ -24,7 +24,7 @@
 #include <assert.h>
 #include "radix_tree.h"
 
-static void rt_free_tree(RadixTreeNode *node);
+static void rt_free_tree(RadixTreeNode *, FreeFunction);
 static RadixTreeNode *rt_new_node(const char *str, size_t str_len, void *data,
                                   RadixTreeNode *sibling, RadixTreeNode *child);
 static void rt_free_node(RadixTreeNode *node);
@@ -48,19 +48,31 @@ RadixTree *rt_new(void)
 void rt_free(RadixTree *rtree)
 {
     if (rtree != NULL) {
-        rt_free_tree(rtree->root);
+        rt_free_tree(rtree->root, NULL);
         free(rtree);
     }
 }
 
-static void rt_free_tree(RadixTreeNode *node)
+void rt_free_including_entries(RadixTree *rtree, FreeFunction free_func)
+{
+    if (rtree != NULL) {
+        rt_free_tree(rtree->root, free_func);
+        free(rtree);
+    }
+}
+
+static void rt_free_tree(RadixTreeNode *node, FreeFunction free_func)
 {
     if (node == NULL) {
         return;
     }
 
-    rt_free_tree(node->child);
-    rt_free_tree(node->sibling);
+    if (free_func != NULL) {
+        free_func(node->data);
+    }
+
+    rt_free_tree(node->child, free_func);
+    rt_free_tree(node->sibling, free_func);
     rt_free_node(node);
 }
 
@@ -276,6 +288,7 @@ static int rt_join(RadixTreeNode *parent)
 
     memcpy(parent->key + parent->key_len, child->key, child->key_len);
     parent->key_len += child->key_len;
+    parent->data = child->data;
     parent->child = child->child;
     rt_free_node(child);
 

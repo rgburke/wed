@@ -160,8 +160,8 @@ static Status ti_get_input(UI *ui)
             keystr_len = termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE,
                                          &key, TERMKEY_FORMAT_VIM);
 
-            RETURN_IF_FAIL(ip_add_keystr_input(input_buffer, keystr,
-                           keystr_len));
+            RETURN_IF_FAIL(ip_add_keystr_input_to_end(input_buffer, keystr,
+                                                      keystr_len));
 
             keys_added++;
         }
@@ -183,8 +183,8 @@ static Status ti_get_input(UI *ui)
             keystr_len = termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE,
                                          &key, TERMKEY_FORMAT_VIM);
 
-            RETURN_IF_FAIL(ip_add_keystr_input(input_buffer, keystr,
-                           keystr_len));
+            RETURN_IF_FAIL(ip_add_keystr_input_to_end(input_buffer, keystr,
+                                                      keystr_len));
                 
             input_buffer->result = IR_INPUT_ADDED;
         } else {
