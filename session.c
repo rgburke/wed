@@ -39,10 +39,6 @@ static int se_is_valid_config_def(Session *, HashMap *, ConfigType,
                                   const char *def_name);
 static int se_add_buffer_from_stdin(Session *);
 
-#if WED_SOURCE_HIGHLIGHT
-static int se_is_valid_sh_def(Session *, const char *syn_type);
-#endif
-
 Session *se_new(void)
 {
     Session *sess = malloc(sizeof(Session));
@@ -110,7 +106,7 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
         return 0;
     }
 
-    if ((sess->syn_defs = new_hashmap()) == NULL) {
+    if (!sm_init(&sess->sm)) {
         return 0;
     }
 
@@ -218,13 +214,12 @@ void se_free(Session *sess)
     list_free_all(sess->buffer_history);
     free_hashmap_values(sess->filetypes, (void (*)(void *))ft_free);
     free_hashmap(sess->filetypes);
-    free_hashmap_values(sess->syn_defs, (void (*)(void *))sy_free_def);
-    free_hashmap(sess->syn_defs);
     free_hashmap_values(sess->themes, NULL);
     free_hashmap(sess->themes);
     list_free(sess->cfg_buffer_stack);
     cl_free(&sess->clipboard);
     sess->ui->free(sess->ui);
+    sm_free(&sess->sm);
 
     free(sess);
 }
@@ -783,26 +778,6 @@ int se_disable_msgs(Session *sess)
     return currently_enabled;
 }
 
-Status se_add_syn_def(Session *sess, SyntaxDefinition *syn_def,
-                      const char *syn_name)
-{
-    assert(syn_def != NULL);
-    assert(!is_null_or_empty(syn_name));
-
-    SyntaxDefinition *existing = hashmap_get(sess->syn_defs, syn_name);
-
-    if (!hashmap_set(sess->syn_defs, syn_name, syn_def)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to save syntax definition");
-    }
-
-    if (existing != NULL) {
-        sy_free_def(existing);
-    }
-
-    return STATUS_SUCCESS;
-}
-
 /* Attempt to set syntaxtype based on filetype if necessary */
 void se_determine_syntaxtype(Session *sess, Buffer *buffer)
 {
@@ -840,48 +815,26 @@ static void se_determine_fileformat(Session *sess, Buffer *buffer)
 
 int se_is_valid_syntaxtype(Session *sess, const char *syn_type)
 {
-    if (is_null_or_empty(syn_type)) {
+    if (is_null_or_empty(syn_type) || sm_has_def(&sess->sm, syn_type)) {
         return 1;
     }
 
-#if WED_SOURCE_HIGHLIGHT
     const char *sdt = cf_string(sess->config, CV_SYNTAXDEFTYPE);
+    SyntaxDefinitionType type;
 
-    if (strncmp(sdt, "sh", 3) == 0) {
-        return se_is_valid_sh_def(sess, syn_type);
-    }
-#endif
-
-    return se_is_valid_config_def(sess, sess->syn_defs, CT_SYNTAX, syn_type);
-}
-
-#if WED_SOURCE_HIGHLIGHT
-static int se_is_valid_sh_def(Session *sess, const char *syn_type)
-{
-    if (hashmap_get(sess->syn_defs, syn_type) != NULL) {
-        return 1;
-    }
-
-    SourceHighlight sh;
-    const char *shdd = cf_string(sess->config, CV_SHDATADIR);
-
-    Status status = sh_init(&sh, shdd, syn_type);
-
-    if (!STATUS_IS_SUCCESS(status)) {
-        se_add_error(sess, status);
+    if (!sm_get_syntax_definition_type(sdt, &type)) {
         return 0;
     }
 
-    SyntaxDefinitionInstance instance = {
-        .sh = sh 
-    };
-    SyntaxDefinition *syn_def = sy_new_def(SDT_SOURCE_HIGHLIGHT, instance);
+    Status status = sm_load_definition(&sess->sm, sess, type, syn_type);
 
-    hashmap_set(sess->syn_defs, syn_type, syn_def);
+    if (!STATUS_IS_SUCCESS(status)) {
+        st_free_status(status);
+        return 0;
+    }
 
-    return 1;
+    return sm_has_def(&sess->sm, syn_type);
 }
-#endif
 
 static int se_is_valid_config_def(Session *sess, HashMap *defs, 
                                   ConfigType config_type, const char *def_name)
@@ -908,7 +861,7 @@ const SyntaxDefinition *se_get_syntax_def(const Session *sess,
 
     const char *syn_type = cf_string(buffer->config, CV_SYNTAXTYPE);
 
-    return hashmap_get(sess->syn_defs, syn_type);
+    return sm_get_def(&sess->sm, syn_type);
 }
 
 int se_is_valid_theme(Session *sess, const char *theme)

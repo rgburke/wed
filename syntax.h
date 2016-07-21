@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Richard Burke
+ * Copyright (C) 2016 Richard Burke
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -19,10 +19,8 @@
 #ifndef WED_SYNTAX_H
 #define WED_SYNTAX_H
 
-#include "regex_util.h"
-#include "shared.h"
+#include <stddef.h>
 #include "status.h"
-#include "source_highlight_interface.h"
 
 #define MAX_SYNTAX_MATCH_NUM 500
 
@@ -42,32 +40,6 @@ typedef enum {
     ST_TODO,
     ST_ENTRY_NUM
 } SyntaxToken;
-
-typedef enum {
-    SDT_WED,
-    SDT_SOURCE_HIGHLIGHT
-} SyntaxDefinitionType;
-
-typedef struct SyntaxPattern SyntaxPattern;
-
-/* Used to tokenize buffer content */
-struct SyntaxPattern {
-    RegexInstance regex; /* Pattern run against buffer content */
-    SyntaxToken token; /* Token that matched buffer content corresponds with */
-    SyntaxPattern *next; /* SynaxtPattern's are stored in a linked list */
-};
-
-typedef union {
-    SyntaxPattern *patterns;
-    SourceHighlight sh;
-} SyntaxDefinitionInstance;
-
-/* Syntax definition for a language. Each language is represented by its
- * own SyntaxDefinition instance */
-typedef struct {
-    SyntaxDefinitionType type;
-    SyntaxDefinitionInstance sdi;
-} SyntaxDefinition;
 
 /* Match data for SyntaxPattern's that have matched buffer content */
 typedef struct {
@@ -91,14 +63,21 @@ struct SyntaxMatches {
 
 typedef struct SyntaxMatches SyntaxMatches;
 
+typedef struct SyntaxDefinition SyntaxDefinition;
+
+/* Syntax definition interface. All syntax definition types that wed supports
+ * implement this interface */
+struct SyntaxDefinition {
+    Status (*load)(SyntaxDefinition *, const char *syntax_type);
+    SyntaxMatches *(*generate_matches)(const SyntaxDefinition *,
+                                       const char *str, size_t str_len,
+                                       size_t offset);
+    void (*free)(SyntaxDefinition *);
+};
+
 int sy_str_to_token(SyntaxToken *, const char *token_str);
-Status sy_new_pattern(SyntaxPattern **, const Regex *, SyntaxToken);
-void syn_free_pattern(SyntaxPattern *);
-SyntaxDefinition *sy_new_def(SyntaxDefinitionType, SyntaxDefinitionInstance);
-void sy_free_def(SyntaxDefinition *);
-SyntaxMatches *sy_get_syntax_matches(const SyntaxDefinition *,
-                                     const char *str, size_t str_len,
-                                     size_t offset);
+SyntaxMatches *sy_new_matches(size_t offset);
+int sy_add_match(SyntaxMatches *, const SyntaxMatch *);
 const SyntaxMatch *sy_get_syntax_match(SyntaxMatches *, size_t offset);
 
 #endif

@@ -38,7 +38,7 @@ Tokenizer::Tokenizer(srchilite::SourceHighlighter *highlighter,
                      srchilite::FormatterManager *fmt_manager,
                      srchilite::FormatterParams *fmt_params) :
                      highlighter(highlighter), fmt_manager(fmt_manager),
-                     fmt_params(fmt_params)
+                     fmt_params(fmt_params), syn_matches(NULL)
 {
 }
 
@@ -52,7 +52,7 @@ Tokenizer::~Tokenizer()
 /* Tokenizes an input string */
 void Tokenizer::tokenize(const std::string &str)
 {
-    this->syn_matches = (SyntaxMatches *)malloc(sizeof(SyntaxMatches));
+    this->syn_matches = sy_new_matches(0);
 
     if (this->syn_matches == NULL) {
         return;
@@ -193,10 +193,11 @@ static Tokenizer *construct_tokenizer(const std::string &lang_dir,
 
 /* The functions below are the C interface exposed to the rest of wed */
 
-Status sh_init(SourceHighlight *sh, const char *lang_dir,
+extern "C" {
+
+Status sh_init(SHSyntaxDefinition *sh_def, const char *lang_dir,
                const char *lang_name)
 {
-    std::memset(sh, 0, sizeof(SourceHighlight));
     std::string dir(lang_dir);
     std::string lang(lang_name);
     Status status = { ERR_NONE, NULL, 0 };
@@ -206,7 +207,7 @@ Status sh_init(SourceHighlight *sh, const char *lang_dir,
     }
 
     try {
-        sh->tokenizer = wed::construct_tokenizer(dir, lang + ".lang");
+        sh_def->tokenizer = wed::construct_tokenizer(dir, lang + ".lang");
     } catch (srchilite::ParserException e) {
         std::stringstream ss;
         ss << e;
@@ -220,17 +221,19 @@ Status sh_init(SourceHighlight *sh, const char *lang_dir,
     return status;
 }
 
-SyntaxMatches *sh_tokenize(const SourceHighlight *sh, const char *str)
+SyntaxMatches *sh_tokenize(const SHSyntaxDefinition *sh_def,
+                           const char *str, size_t str_len)
 {
-    wed::Tokenizer *tokenizer = (wed::Tokenizer *)sh->tokenizer;
-    std::string input(str);
-    tokenizer->tokenize(str);
+    wed::Tokenizer *tokenizer = (wed::Tokenizer *)sh_def->tokenizer;
+    std::string input(str, str_len);
+    tokenizer->tokenize(input);
     return tokenizer->get_syn_matches();
 }
 
-void sh_free(SourceHighlight *sh)
+void sh_free_tokenizer(SHSyntaxDefinition *sh_def)
 {
-    wed::Tokenizer *tokenizer = (wed::Tokenizer *)sh->tokenizer;
+    wed::Tokenizer *tokenizer = (wed::Tokenizer *)sh_def->tokenizer;
     delete tokenizer;
 }
 
+}

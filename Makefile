@@ -13,7 +13,8 @@ STATIC_SOURCES=wed.c buffer.c util.c input.c session.c \
 	text_search.c regex_search.c search.c replace.c undo.c       \
 	file_type.c regex_util.c syntax.c theme.c prompt.c           \
 	prompt_completer.c search_util.c external_command.c          \
-	clipboard.c radix_tree.c buffer_view.c tui.c tabbed_view.c
+	clipboard.c radix_tree.c buffer_view.c tui.c tabbed_view.c   \
+	syntax_manager.c wed_syntax.c source_highlight_syntax.c
 STATIC_CXX_SOURCES=source_highlight.cc
 GENERATED_SOURCES=config_parse.c config_scan.c
 SOURCES=$(STATIC_SOURCES) $(GENERATED_SOURCES)
@@ -43,6 +44,7 @@ all: $(BINARY)
 
 .PHONY: dev
 dev: CFLAGS+=-g -ggdb -Wall -Wextra -pedantic -MMD -MP -O0 -UNDEBUG
+dev: CXXFLAGS+=-g -ggdb -Wall -Wextra -pedantic -MMD -MP -O0 -UNDEBUG -Wno-variadic-macros
 dev: all test
 
 $(BINARY): $(SOURCES) $(LIBTERMKEYLIB) $(LIBWED) wed.o
@@ -82,6 +84,7 @@ build_config.h:
 	@echo '#define WED_BUILD_DATETIME "$(WED_BUILD_DATETIME)"' >> build_config.h
 	@echo '#define WED_PCRE_VERSION_GE_8_20 $(WED_PCRE_VERSION_GE_8_20)' >> build_config.h
 	@echo '#define WED_SOURCE_HIGHLIGHT $(WED_SOURCE_HIGHLIGHT)' >> build_config.h
+	@echo '#define WED_DEFAULT_SDT "$(WED_DEFAULT_SDT)"' >> build_config.h
 	@echo '#endif' >> build_config.h
 
 test: $(BINARY) $(TESTS)

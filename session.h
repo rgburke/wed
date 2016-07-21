@@ -25,7 +25,7 @@
 #include "status.h"
 #include "hashmap.h"
 #include "file_type.h"
-#include "syntax.h"
+#include "syntax_manager.h"
 #include "theme.h"
 #include "prompt.h"
 #include "input.h"
@@ -60,8 +60,8 @@ struct Session {
     List *lineno_history; /* Previous line numbers entered */
     List *buffer_history; /* Previous buffer names entered */
     HashMap *filetypes; /* Store filetypes by name */
-    HashMap *syn_defs; /* Store syntax definitions by name */
     HashMap *themes; /* Store themes by name */
+    SyntaxManager sm; /* Manage syntax definitions */
     int initialised; /* True if session finished initialising */
     int finished; /* True if the session has finished */
     List *cfg_buffer_stack; /* Stack of YY_BUFFER_STATE buffers (used for
@@ -111,7 +111,6 @@ Status se_add_cmd_to_history(Session *, const char *cmd_text);
 Status se_add_lineno_to_history(Session *, const char *lineno_text);
 Status se_add_buffer_to_history(Session *, const char *buffer_text);
 Status se_add_filetype_def(Session *, FileType *);
-Status se_add_syn_def(Session *, SyntaxDefinition *, const char *syn_name);
 void se_determine_syntaxtype(Session *, Buffer *);
 int se_is_valid_syntaxtype(Session *, const char *syn_type);
 const SyntaxDefinition *se_get_syntax_def(const Session *, const Buffer *);

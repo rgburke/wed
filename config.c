@@ -31,18 +31,13 @@
 #include "buffer.h"
 #include "config_parse_util.h"
 #include "config_parse.h"
+#include "syntax_manager.h"
 #include "build_config.h"
 
 #define CFG_FILE_NAME "wedrc"
 #define CFG_SYSTEM_DIR "/etc"
 #define CFG_FILETYPES_FILE_NAME "filetypes.wed"
 #define CFG_USER_DIR "wed"
-
-#if WED_SOURCE_HIGHLIGHT
-#define CFG_DEFAULT_SDT "sh"
-#else
-#define CFG_DEFAULT_SDT "wed"
-#endif
 
 static Status cf_path_append(const char *path, const char *append,
                              char **result);
@@ -76,7 +71,7 @@ static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
     [CV_EXPANDTAB] = { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0) , NULL , NULL },
     [CV_AUTOINDENT] = { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL },
     [CV_FILEFORMAT] = { "fileformat", "ff" , CL_BUFFER , STR_VAL_STRUCT("unix") , cf_fileformat_validator, cf_fileformat_on_change_event },
-    [CV_SYNTAXDEFTYPE] = { "syntaxdeftype", "sdt", CL_SESSION, STR_VAL_STRUCT(CFG_DEFAULT_SDT), cf_sdt_validator, NULL },
+    [CV_SYNTAXDEFTYPE] = { "syntaxdeftype", "sdt", CL_SESSION, STR_VAL_STRUCT(WED_DEFAULT_SDT), cf_sdt_validator, NULL },
     [CV_SHDATADIR] = { "shdatadir", "shdd", CL_SESSION, STR_VAL_STRUCT(""), NULL, NULL },
     [CV_COLORCOLUMN] = { "colorcolumn", "cc", CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(0), cf_colorcolumn_validator, NULL }
 };
@@ -635,12 +630,7 @@ static Status cf_sdt_validator(ConfigEntity entity,
 {
     (void)entity;
 
-    if (!is_null_or_empty(SVAL(value)) && (
-            strncmp(SVAL(value), "wed", 4) == 0
-#if WED_SOURCE_HIGHLIGHT
-            || strncmp(SVAL(value), "sh", 3) == 0
-#endif
-        )) {
+    if (sm_get_syntax_definition_type(SVAL(value), NULL)) {
         return STATUS_SUCCESS;
     }
 

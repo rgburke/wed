@@ -293,6 +293,7 @@ int main(int argc, char *argv[]) {
 EOF
 
     if cf_check_if_lib_is_present CXXFLAGS_BASE "$CXX" source-highlight; then
+        WED_DEFAULT_SDT=sh
         return 0
     fi
 
@@ -375,6 +376,7 @@ FLEX=$FLEX
 BISON=$BISON
 WED_PCRE_VERSION_GE_8_20=$WED_PCRE_VERSION_GE_8_20
 WED_SOURCE_HIGHLIGHT=$WED_SOURCE_HIGHLIGHT
+WED_DEFAULT_SDT=$WED_DEFAULT_SDT
 EOF
 
     printf "$OUTFILE generated\n"
@@ -404,6 +406,7 @@ cf_init() {
     FLEX=flex
     BISON=bison
     WED_SOURCE_HIGHLIGHT=1
+    WED_DEFAULT_SDT=wed
 
     cf_determine_os
     cf_create_temp_files

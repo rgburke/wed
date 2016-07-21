@@ -16,21 +16,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_SOURCE_HIGHLIGHT_INTERFACE_H
-#define WED_SOURCE_HIGHLIGHT_INTERFACE_H
+#ifndef WED_SOURCE_HIGHLIGHT_SYNTAX_H
+#define WED_SOURCE_HIGHLIGHT_SYNTAX_H
 
-#include "status.h"
+#include "syntax.h"
+#include "session.h"
 
-/* The C interface to the C++ source-highlight functionality */
-
-struct SyntaxMatches;
-
+/* GNU Source Highlight syntax definition */
 typedef struct {
+    SyntaxDefinition syn_def; /* Interface */
+    Session *sess; /* Session reference used to determine the source highlight
+                      data dir if set */
     void *tokenizer; /* Instance of a wed::Tokenizer class */
-} SourceHighlight;
+} SHSyntaxDefinition;
 
-Status sh_init(SourceHighlight *sh, const char *lang_dir, const char *lang);
-struct SyntaxMatches *sh_tokenize(const SourceHighlight *sh, const char *str);
-void sh_free(SourceHighlight *sh);
+SyntaxDefinition *sh_new(Session *);
 
 #endif
+

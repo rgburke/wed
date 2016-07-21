@@ -29,7 +29,7 @@
 #include "status.h"
 #include "util.h"
 #include "file_type.h"
-#include "syntax.h"
+#include "wed_syntax.h"
 #include "theme.h"
 
 /* Bison v2.5 shipped with Ubuntu 12.04.5 LTS doesn't add a yyparse
@@ -849,7 +849,7 @@ static void cp_process_syntax_block(Session *sess,
     const size_t expected_vars_num =
         ARRAY_SIZE(expected_vars, VariableAssignment);
 
-    SyntaxDefinition *syn_def = NULL;
+    WedSyntaxDefinition *wed_def = NULL;
     SyntaxPattern *syn_current = NULL;
     SyntaxPattern *syn_first = NULL;
 
@@ -897,38 +897,34 @@ static void cp_process_syntax_block(Session *sess,
         goto cleanup;
     }
 
-    SyntaxDefinitionInstance instance = {
-        .patterns = syn_first
-    };
-    syn_def = sy_new_def(SDT_WED, instance);
+    wed_def = (WedSyntaxDefinition *)ws_new(sess);
 
-    if (syn_def == NULL) {
+    if (wed_def == NULL) {
         se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                                         "Unable to allocate SyntaxDefinition"));
 
         goto cleanup;
     }
 
-    Status status = se_add_syn_def(sess, syn_def, SVAL(name));
+    wed_def->patterns = syn_first;
+    SyntaxManager *sm = &sess->sm;
 
-    if (!STATUS_IS_SUCCESS(status)) {
-        se_add_error(sess, status);
+    if (!hashmap_set(sm->syn_defs, SVAL(name), wed_def)) {
+        se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
+                                        "Unable to save SyntaxDefinition"));
         goto cleanup;
     }
 
     return;
 
 cleanup:
-
-    if (syn_def == NULL) {
-        while (syn_first != NULL) {
-            syn_current = syn_first->next;
-            syn_free_pattern(syn_first);
-            syn_first = syn_current;
-        }
-    } else {
-        sy_free_def(syn_def);
+    while (syn_first != NULL) {
+        syn_current = syn_first->next;
+        ws_free_pattern(syn_first);
+        syn_first = syn_current;
     }
+
+    free(wed_def);
 }
 
 static SyntaxPattern *cp_process_syntax_pattern_block(Session *sess, 
@@ -982,7 +978,7 @@ static SyntaxPattern *cp_process_syntax_pattern_block(Session *sess,
     }
 
     SyntaxPattern *syn_pattern;
-    Status status = sy_new_pattern(&syn_pattern, &RVAL(regex), token);
+    Status status = ws_new_pattern(&syn_pattern, &RVAL(regex), token);
 
     if (!STATUS_IS_SUCCESS(status)) {
         se_add_error(sess, cp_get_config_error(status.error_code, 
