@@ -20,6 +20,7 @@
 #define WED_THEME_H
 
 #include "syntax.h"
+#include "shared.h"
 
 /* This enum unifies tokens with items that appear
  * on the screen, i.e. it unifies all drawn items */

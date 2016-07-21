@@ -21,6 +21,7 @@
 #include <string.h>
 #include <wchar.h>
 #include <ctype.h>
+#include "shared.h"
 #include "buffer.h"
 #include "config.h"
 #include "gap_buffer.h"
