@@ -58,8 +58,8 @@ sudo make install
 
 To customise the build and installation edit `config.mk` (after running
 `./configure`) or pass in the relevant arguments to the `configure` script.
-For example to build wed using clang with syntax highlighting disabled and
-then subsequently installed to `/opt` run:
+For example to build wed using clang with Scintillua syntax highlighting
+disabled and then subsequently installed to `/opt` run:
 
 ```
 ./configure --disable-lua CC=clang PREFIX=/opt
@@ -316,7 +316,7 @@ colorcolumn   | cc    | Global/File | int    | 0           | Sets column number 
 wedruntime    | wrt   | Global      | string | WEDRUNTIME  | Config definition location directory (set in config.mk)
 syntax        | sy    | Global      | bool   | true        | Enables/Disables syntax highlighting
 theme         | th    | Global      | string | "default"   | Set the active theme
-syntaxdeftype | sdt   | Global      | string | "sh"        | Syntax definition type to use (allowed "sh" or "wed")
+syntaxdeftype | sdt   | Global      | string | "sl"        | Syntax definition type to use (allowed "sl", "sh" or "wed")
 shdatadir     | shdd  | Global      | string | ""          | Directory path containing language definition files
 filetype      | ft    | File        | string | ""          | Sets the type of the current file (drives syntaxtype)
 syntaxtype    | st    | File        | string | ""          | Set the syntax definition to use for highlighting
