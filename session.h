@@ -33,6 +33,10 @@
 #include "command.h"
 #include "ui.h"
 
+#if WED_FEATURE_LUA
+#include "wed_lua.h"
+#endif
+
 #define MAX_KEY_STR_SIZE 100
 
 /* Top level structure containing all state.
@@ -70,6 +74,9 @@ struct Session {
     WedOpt wed_opt; /* Command line option values */
     UI *ui; /* UI interface */
     InputBuffer input_buffer; /* Input is buffered in this structure */
+#if WED_FEATURE_LUA
+    LuaState *ls;
+#endif
 };
 
 typedef struct Session Session;

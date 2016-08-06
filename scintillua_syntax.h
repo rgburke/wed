@@ -16,21 +16,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef WED_SOURCE_HIGHLIGHT_SYNTAX_H
-#define WED_SOURCE_HIGHLIGHT_SYNTAX_H
+#ifndef WED_SCINTILLUA_H
+#define WED_SCINTILLUA_H
 
 #include "syntax.h"
+#include "wed_lua.h"
 #include "session.h"
 
-/* GNU Source Highlight syntax definition */
+/* Scintillua syntax definition */
 typedef struct {
     SyntaxDefinition syn_def; /* Interface */
-    Session *sess; /* Session reference used to determine the source highlight
-                      data dir if set */
-    void *tokenizer; /* Instance of a wed::Tokenizer class */
-} SHSyntaxDefinition;
+    LuaState *ls; /* Reference to lua state used to invoke lua functionality */
+    char *syntax_type; /* The syntax type this definition represents */
+} ScintilluaSyntaxDefinition;
 
-SyntaxDefinition *sh_new(Session *);
+SyntaxDefinition *sl_new(Session *);
 
 #endif
 

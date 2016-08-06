@@ -27,10 +27,11 @@
 /* The providers of syntax definitions available in wed */
 typedef enum {
     SDT_WED /* Builtin wed definition - always available */
-#if WED_SOURCE_HIGHLIGHT
-    ,SDT_SOURCE_HIGHLIGHT /* GNU Source Highlight based definition, only
-                             available if wed was compiled with support for
-                             GNU Source Highlight */
+#if WED_FEATURE_GNU_SOURCE_HIGHLIGHT
+    ,SDT_GNU_SOURCE_HIGHLIGHT /* GNU Source Highlight based definition */
+#endif
+#if WED_FEATURE_LUA
+    ,SDT_SCINTILLUA /* Scintillua based definition */
 #endif
 } SyntaxDefinitionType;
 

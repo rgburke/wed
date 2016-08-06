@@ -22,7 +22,7 @@
 #include <stddef.h>
 #include "status.h"
 
-#define MAX_SYNTAX_MATCH_NUM 500
+#define MAX_SYNTAX_MATCH_NUM 8192
 
 /* The list of tokens available in wed. Syntax patterns can specify one 
  * of these tokens for matched buffer content, allowing wed to tokenize

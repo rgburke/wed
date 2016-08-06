@@ -14,15 +14,25 @@ STATIC_SOURCES=wed.c buffer.c util.c input.c session.c \
 	file_type.c regex_util.c syntax.c theme.c prompt.c           \
 	prompt_completer.c search_util.c external_command.c          \
 	clipboard.c radix_tree.c buffer_view.c tui.c tabbed_view.c   \
-	syntax_manager.c wed_syntax.c source_highlight_syntax.c
-STATIC_CXX_SOURCES=source_highlight.cc
+	syntax_manager.c wed_syntax.c
 GENERATED_SOURCES=config_parse.c config_scan.c
-SOURCES=$(STATIC_SOURCES) $(GENERATED_SOURCES)
+GNU_SOURCE_HIGHLIGHT_SOURCES=gnu_source_highlight_syntax.c
+GNU_SOURCE_HIGHLIGHT_CXX_SOURCES=gnu_source_highlight.cc
+LUA_SOURCES=wed_lua.c scintillua_syntax.c
+
+SOURCES:=$(STATIC_SOURCES) $(GENERATED_SOURCES)
 OBJECTS:=$(SOURCES:.c=.o)
 
-ifeq ($(WED_SOURCE_HIGHLIGHT),1)
-	SOURCES:=$(SOURCES) $(STATIC_CXX_SOURCES)
-	OBJECTS:=$(OBJECTS) $(STATIC_CXX_SOURCES:.cc=.o)
+ifeq ($(WED_FEATURE_LUA),1)
+	SOURCES:=$(SOURCES) $(LUA_SOURCES)
+	OBJECTS:=$(OBJECTS) $(LUA_SOURCES:.c=.o)
+endif
+
+ifeq ($(WED_FEATURE_GNU_SOURCE_HIGHLIGHT),1)
+	SOURCES:=$(SOURCES) $(GNU_SOURCE_HIGHLIGHT_SOURCES) \
+		$(GNU_SOURCE_HIGHLIGHT_CXX_SOURCES)
+	OBJECTS:=$(OBJECTS) $(GNU_SOURCE_HIGHLIGHT_SOURCES:.c=.o) \
+		$(GNU_SOURCE_HIGHLIGHT_CXX_SOURCES:.cc=.o)
 endif
 
 LIBOBJECTS=$(filter-out wed.o, $(OBJECTS))
@@ -83,7 +93,8 @@ build_config.h:
 	@echo '#define WED_VERSION_LONG "$(WED_VERSION_LONG)"' >> build_config.h
 	@echo '#define WED_BUILD_DATETIME "$(WED_BUILD_DATETIME)"' >> build_config.h
 	@echo '#define WED_PCRE_VERSION_GE_8_20 $(WED_PCRE_VERSION_GE_8_20)' >> build_config.h
-	@echo '#define WED_SOURCE_HIGHLIGHT $(WED_SOURCE_HIGHLIGHT)' >> build_config.h
+	@echo '#define WED_FEATURE_LUA $(WED_FEATURE_LUA)' >> build_config.h
+	@echo '#define WED_FEATURE_GNU_SOURCE_HIGHLIGHT $(WED_FEATURE_GNU_SOURCE_HIGHLIGHT)' >> build_config.h
 	@echo '#define WED_DEFAULT_SDT "$(WED_DEFAULT_SDT)"' >> build_config.h
 	@echo '#endif' >> build_config.h
 

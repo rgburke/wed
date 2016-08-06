@@ -138,12 +138,22 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
         return 0;
     }
 
+#if WED_FEATURE_LUA
+    if ((sess->ls = ls_new(sess)) == 0) {
+        return 0;
+    }
+#endif
+
     se_add_error(sess, cf_init_session_config(sess));
 
     if (sess->wed_opt.config_file_path != NULL) {
         se_add_error(sess, cf_load_config(sess,
                                           sess->wed_opt.config_file_path));
     }
+
+#if WED_FEATURE_LUA
+    se_add_error(sess, ls_init(sess->ls));
+#endif
 
     if (buffer_num == 1 && strcmp("-", buffer_paths[0]) == 0) {
         if (!se_add_buffer_from_stdin(sess)) {
@@ -220,6 +230,10 @@ void se_free(Session *sess)
     cl_free(&sess->clipboard);
     sess->ui->free(sess->ui);
     sm_free(&sess->sm);
+
+#if WED_FEATURE_LUA
+    ls_free(sess->ls);
+#endif
 
     free(sess);
 }

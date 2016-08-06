@@ -18,10 +18,17 @@
 
 #include <string.h>
 #include "syntax_manager.h"
-#include "wed_syntax.h"
-#include "source_highlight_syntax.h"
 #include "session.h"
 #include "util.h"
+
+#include "wed_syntax.h"
+
+#if WED_FEATURE_GNU_SOURCE_HIGHLIGHT
+#include "gnu_source_highlight_syntax.h"
+#endif
+#if WED_FEATURE_LUA
+#include "scintillua_syntax.h"
+#endif
 
 typedef SyntaxDefinition *(*SyntaxDefinitionCreator)(Session *sess);
 
@@ -30,8 +37,11 @@ typedef SyntaxDefinition *(*SyntaxDefinitionCreator)(Session *sess);
  * a generic way */
 static const SyntaxDefinitionCreator sm_syntax_def_types[] = {
     [SDT_WED] = ws_new
-#if WED_SOURCE_HIGHLIGHT
-    ,[SDT_SOURCE_HIGHLIGHT] = sh_new
+#if WED_FEATURE_GNU_SOURCE_HIGHLIGHT
+    ,[SDT_GNU_SOURCE_HIGHLIGHT] = sh_new
+#endif
+#if WED_FEATURE_LUA
+    ,[SDT_SCINTILLUA] = sl_new
 #endif
 };
 
@@ -102,8 +112,11 @@ int sm_get_syntax_definition_type(const char *syn_def_type,
 {
     static const char *syn_def_types[] = {
         [SDT_WED] = "wed"
-#if WED_SOURCE_HIGHLIGHT
-        ,[SDT_SOURCE_HIGHLIGHT] = "sh"
+#if WED_FEATURE_GNU_SOURCE_HIGHLIGHT
+        ,[SDT_GNU_SOURCE_HIGHLIGHT] = "sh"
+#endif
+#if WED_FEATURE_LUA
+        ,[SDT_SCINTILLUA] = "sl"
 #endif
     };
     static const size_t syn_def_num = ARRAY_SIZE(syn_def_types, const char *);

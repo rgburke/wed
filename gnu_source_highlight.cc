@@ -27,7 +27,7 @@
 #include <srchilite/regexrulefactory.h>
 #include <srchilite/parserexception.h>
 #include <srchilite/settings.h>
-#include "source_highlight.h"
+#include "gnu_source_highlight.h"
 
 namespace wed {
 

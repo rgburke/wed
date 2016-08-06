@@ -107,7 +107,8 @@ typedef enum {
     ERR_UNABLE_TO_RESIZE_DISPLAY,
     ERR_INVALID_COLORCOLUMN,
     ERR_UNABLE_TO_INITIALISE_TERMEKEY,
-    ERR_INVALID_KEY_MAPPING
+    ERR_INVALID_KEY_MAPPING,
+    ERR_LUA_ERROR
 } ErrorCode;
 
 /* Structure used to represent success or failure */

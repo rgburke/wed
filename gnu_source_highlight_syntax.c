@@ -16,7 +16,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "source_highlight_syntax.h"
+#include "gnu_source_highlight_syntax.h"
+#include "session.h"
 #include "config.h"
 
 /* The following three function declarations are the exposed C interface

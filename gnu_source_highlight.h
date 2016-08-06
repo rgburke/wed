@@ -27,7 +27,7 @@
 #include <srchilite/formatterparams.h>
 
 extern "C" {
-#include "source_highlight_syntax.h"
+#include "gnu_source_highlight_syntax.h"
 }
 
 namespace wed {

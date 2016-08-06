@@ -36,10 +36,16 @@ The following libraries and tools are required to build wed:
   - GNU make
   - realpath (for running tests)
 
-When using Source-highlight for syntax highlighting (enabled by default) the
-following libraries are also required:
+Using Scintillua for syntax highlighting (enabled by default) also requires
+the following libraries:
 
-  - Source-highlight
+  - Lua
+  - Lua LPeg
+
+Using GNU Source-highlight for syntax highlighting (disabled by default) also
+requires the following libraries:
+
+  - GNU Source-highlight
   - Boost Regex
 
 To build and install wed (defaults to `/usr/local/`) simply run:
@@ -52,11 +58,11 @@ sudo make install
 
 To customise the build and installation edit `config.mk` (after running
 `./configure`) or pass in the relevant arguments to the `configure` script.
-For example to build wed using clang with GNU Source-highlight disabled and
+For example to build wed using clang with syntax highlighting disabled and
 then subsequently installed to `/opt` run:
 
 ```
-./configure --disable-source-highlight CC=clang PREFIX=/opt
+./configure --disable-lua CC=clang PREFIX=/opt
 make
 sudo make install
 ```
@@ -228,6 +234,28 @@ their default values.
 <C-d>                       Toggle search direction
 ```
 
+### Syntax Highlighting
+
+Wed currently supports three types of syntax definitions:
+
+  - [Scintillua](http://foicica.com/scintillua/) - Lua LPeg lexers with
+    support for over 90 languages. Support for this syntax definition type is
+    enabled by default.
+  - [GNU Source-highlight](https://www.gnu.org/software/src-highlite/) - C++
+    library with support for over 80 languages. Support for this syntax
+    definition type is disabled by default, as it introduces a C++ dependency
+    and increases the memory footprint of wed. Support can be enabled by
+    running the configure script with the `--enable-gnu-source-highlight` flag
+    when building wed.
+  - Wed - Syntax definitions can be specified in wed config as examined in the
+    [Syntax Definition](#syntax-definition) section below. Support for this
+    syntax definition type is always available.
+
+Only one syntax definition type can be active at a time. The default syntax
+definition type wed uses is determined by the `configure` script. The syntax
+definition type used can be changed at runtime using the `syntaxdeftype` config
+variable.
+
 ### Config
 
 Various aspects of wed's behaviour and appearance can be customised through
@@ -360,11 +388,6 @@ be identified e.g. any file beginning with `#!/bin/sh` is a Bourne shell
 script.
 
 ##### Syntax Definition
-
-By default wed now uses Source-highlight language definitions to perform
-syntax highlighting. However wed syntax definitions can still be defined
-and used (when wed is built without support for Source-highlight or simply
-when desired) by setting `syntaxdeftype="wed";`.
 
 A syntax definition defines a set of regex patterns and associated token types
 that wed can use to highlight file content. A partial but sufficient example
@@ -600,8 +623,6 @@ before looking at the [Future Tasks](#future-tasks) section.
   - Highlight line or line number cursor is on.
   - Set session or buffer level variable using ":" syntax. i.e. `s:ln=0;` to
     turn off line numbers at global level.
-  - Remap keys in config. Users should have the ability to define non-recursive
-    mappings.
   - Add ability to filter file through external commands e.g. sort
   - Highlight search matches (already done in when doing a replace). A further
     step would be to highlight all matches currently visible on screen.
@@ -612,7 +633,7 @@ before looking at the [Future Tasks](#future-tasks) section.
     more advanced implementation is to listen for file events (e.g. using
     inotify) and alert the user as soon as a change from another source is
     detected.
-  - Enhance syntax definitions:
+  - Enhance wed syntax definitions:
     - Specify different token types for each capture group.
       e.g. For `^\s*(#include)\s+(<\w+>)` the token types are
       `\1 = "special"; \2 = "constant";`.

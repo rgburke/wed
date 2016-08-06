@@ -267,6 +267,16 @@ EOF
     cf_fatal 'The librt library is required to build wed'
 }
 
+cf_check_if_have_gnu_source_highlight() {
+    if [ $WED_FEATURE_GNU_SOURCE_HIGHLIGHT -eq 1 ]; then
+        cf_check_for_cxx_compiler
+        cf_check_compiler_works 'C++' "$CXX"
+        cf_check_cpp_cflags
+        cf_check_if_have_boost_regex
+        cf_check_if_have_lib_gnu_source_highlight
+    fi
+}
+
 cf_check_if_have_boost_regex() {
     cat >"$TMP_C" <<EOF
 #include <boost/regex.hpp>
@@ -283,7 +293,7 @@ EOF
     cf_fatal 'The Boost Regex library is required to build wed'
 }
 
-cf_check_if_have_source_highlight() {
+cf_check_if_have_lib_gnu_source_highlight() {
     cat >"$TMP_C" <<EOF
 #include "srchilite/sourcehighlight.h"
 int main(int argc, char *argv[]) {
@@ -293,11 +303,79 @@ int main(int argc, char *argv[]) {
 EOF
 
     if cf_check_if_lib_is_present CXXFLAGS_BASE "$CXX" source-highlight; then
-        WED_DEFAULT_SDT=sh
         return 0
     fi
 
     cf_fatal 'The GNU Source-highlight library is required to build wed'
+}
+
+cf_check_if_have_lua() {
+    if [ $WED_FEATURE_LUA -eq 1 ]; then
+        cf_check_if_have_lib_lua
+        cf_check_if_have_lua_cli_client
+        cf_check_if_have_lpeg
+    fi
+}
+
+cf_check_if_have_lib_lua() {
+    cat >"$TMP_C" <<EOF
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+int main(int argc, char *argv[]) {
+    lua_State *state = luaL_newstate();
+    lua_close(state);
+    return 0;
+}
+EOF
+
+    for v in 3 2 1; do
+        for lib in lua5.$v lua-5.$v lua5$v; do
+            if cf_check_if_lib_is_present CFLAGS_BASE "$CC" "$lib"; then
+                return 0
+            fi
+        done
+    done
+
+    if cf_check_if_lib_is_present CFLAGS_BASE "$CC" 'lua'; then
+        return 0
+    fi
+
+    cf_fatal 'The Lua library is required to build wed'
+}
+
+cf_check_if_have_lua_cli_client() {
+    printf 'Checking if lua cli client is present... '
+    LUA_CLI_CLIENT='lua'
+
+    if cf_cmd_exists "$LUA_CLI_CLIENT"; then
+        printf 'yes\n'
+        return 0
+    fi
+
+    for v in 3 2 1; do
+        for lua_client in lua5.$v lua5$v; do
+            if cf_cmd_exists "$lua_client"; then
+                LUA_CLI_CLIENT="$lua_client"
+                printf 'yes\n'
+                return 0
+            fi
+        done
+    done
+
+    printf 'no\n'
+    cf_fatal 'The standalone cli Lua interpreter is required to test for lpeg'
+}
+
+cf_check_if_have_lpeg() {
+    printf 'Checking if lpeg is present... '
+
+    if $LUA_CLI_CLIENT -e "require('lpeg')" >/dev/null 2>&1; then
+        printf 'yes\n'
+    else
+        printf 'no\n'
+        cf_fatal 'The Lua LPeg library is required to build wed'
+    fi
 }
 
 cf_check_if_have_bison() {
@@ -341,7 +419,7 @@ cf_add_os_specific_flags() {
 cf_add_general_flags() {
     CFLAGS_BASE="$CFLAGS_BASE -DNDEBUG"
 
-    if [ $WED_SOURCE_HIGHLIGHT -eq 1 ]; then
+    if [ $WED_FEATURE_GNU_SOURCE_HIGHLIGHT -eq 1 ]; then
         LDFLAGS_BASE="$LDFLAGS_BASE -lstdc++"
     fi
 }
@@ -361,6 +439,14 @@ cf_determine_pcre_version() {
     fi
 }
 
+cf_determine_default_sdt() {
+    if [ $WED_FEATURE_LUA -eq 1 ]; then
+        WED_DEFAULT_SDT='sl'
+    elif [ $WED_FEATURE_GNU_SOURCE_HIGHLIGHT -eq 1 ]; then
+        WED_DEFAULT_SDT='sh'
+    fi
+}
+
 cf_write_config() {
     OUTFILE='config.mk'
 
@@ -375,7 +461,8 @@ WEDRUNTIME=\$(PREFIX)/share/wed
 FLEX=$FLEX
 BISON=$BISON
 WED_PCRE_VERSION_GE_8_20=$WED_PCRE_VERSION_GE_8_20
-WED_SOURCE_HIGHLIGHT=$WED_SOURCE_HIGHLIGHT
+WED_FEATURE_LUA=$WED_FEATURE_LUA
+WED_FEATURE_GNU_SOURCE_HIGHLIGHT=$WED_FEATURE_GNU_SOURCE_HIGHLIGHT
 WED_DEFAULT_SDT=$WED_DEFAULT_SDT
 EOF
 
@@ -405,7 +492,8 @@ cf_init() {
     PREFIX=/usr/local
     FLEX=flex
     BISON=bison
-    WED_SOURCE_HIGHLIGHT=1
+    WED_FEATURE_LUA=1
+    WED_FEATURE_GNU_SOURCE_HIGHLIGHT=0
     WED_DEFAULT_SDT=wed
 
     cf_determine_os
@@ -423,8 +511,17 @@ cf_parse_args() {
             --prefix=*)
                 PREFIX=${opt#*=}
                 ;;
-            --disable-source-highlight)
-                WED_SOURCE_HIGHLIGHT=0
+            --enable-lua)
+                WED_FEATURE_LUA=1
+                ;;
+            --disable-lua)
+                WED_FEATURE_LUA=0
+                ;;
+            --enable-gnu-source-highlight)
+                WED_FEATURE_GNU_SOURCE_HIGHLIGHT=1
+                ;;
+            --disable-gnu-source-highlight)
+                WED_FEATURE_GNU_SOURCE_HIGHLIGHT=0
                 ;;
             CC=*)
                 CC="${opt#*=}"
@@ -467,20 +564,26 @@ cf_usage() {
 configure [OPTIONS] [VARIABLE=VALUE]...
 
 OPTIONS:
--h,--help                       Print this message
---prefix=PATH                   Installation prefix (Default: $PREFIX)
---disable-source-highlight      Disable syntax highlighting using
-                                GNU Source-highlight
+    -h,--help                       Print this message
+    --prefix=PATH                   Installation prefix (Default: $PREFIX)
+
+    Use lua (Scintillua) for syntax highlighting (enabled by default)
+    --enable-lua
+    --disable-lua
+
+    Use GNU Source-highlight for syntax highlighting (disabled by default)
+    --enable-gnu-source-highlight
+    --disable-gnu-source-highlight
 
 VARIABLES:
-CC
-CXX
-CFLAGS
-CXXFLAGS
-LDFLAGS
-FLEX
-BISON
-PREFIX
+    CC              C compiler
+    CXX             C++ compiler
+    CFLAGS          C compiler flags
+    CXXFLAGS        C++ compiler flags
+    LDFLAGS         Linker flags
+    FLEX            Flex Lexer
+    BISON           Bison Parser generator
+    PREFIX          Installation prefix
 "
 }
 
@@ -495,19 +598,13 @@ main() {
     cf_check_if_have_ncurses
     cf_check_if_have_pcre
     cf_check_if_have_rt
-
-    if [ $WED_SOURCE_HIGHLIGHT -eq 1 ]; then
-        cf_check_for_cxx_compiler
-        cf_check_compiler_works 'C++' "$CXX"
-        cf_check_cpp_cflags
-        cf_check_if_have_boost_regex
-        cf_check_if_have_source_highlight
-    fi
-
+    cf_check_if_have_lua
+    cf_check_if_have_gnu_source_highlight
     cf_check_if_have_bison
     cf_check_if_have_flex
     cf_add_general_flags
     cf_determine_pcre_version
+    cf_determine_default_sdt
     cf_write_config
     cf_check_if_have_make
     cf_cleanup
