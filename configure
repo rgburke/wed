@@ -313,7 +313,16 @@ cf_check_if_have_lua() {
     if [ $WED_FEATURE_LUA -eq 1 ]; then
         cf_check_if_have_lib_lua
         cf_check_if_have_lua_cli_client
-        cf_check_if_have_lpeg
+
+        # Don't check for LPeg when building on Travis CI
+        #
+        # The liblua5.1-lpeg2 package is not in the Travis CI apt package
+        # whitelist. The lua-lpeg package is in the whitelist but causes
+        # apt-get install to fail. Therefore we have to disable this check
+        # when running under Travis CI
+        if ! [ "$TRAVIS" = 'true' ]; then
+            cf_check_if_have_lpeg
+        fi
     fi
 }
 

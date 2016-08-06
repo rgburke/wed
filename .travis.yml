@@ -31,7 +31,6 @@ addons:
       - libboost-regex-dev
       - liblua5.1-0-dev
       - lua5.1
-      - lua-lpeg
 
 script: ./configure --enable-gnu-source-highlight && make dev
 
