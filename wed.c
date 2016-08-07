@@ -78,6 +78,22 @@ WED - Windows terminal EDitor %s (%s, Built %s)\n\
 ";
 
     printf(version, WED_VERSION, WED_VERSION_LONG, WED_BUILD_DATETIME);
+
+    struct Feature {
+        const char *name;
+        const int enabled;
+    } const features[] = {
+        { "Lua", WED_FEATURE_LUA },
+        { "GNU Source-highlight", WED_FEATURE_GNU_SOURCE_HIGHLIGHT }
+    };
+
+    const size_t feature_num = ARRAY_SIZE(features, struct Feature);
+
+    printf("Features:\n");
+
+    for (size_t k = 0; k < feature_num; k++) {
+        printf("%c %s\n", features[k].enabled ? '+' : '-', features[k].name);
+    }
 }
 
 static int we_parse_args(WedOpt *wed_opt, int argc, char *argv[],
