@@ -562,6 +562,6 @@ int bc_has_state_changed(const BufferChanges *changes,
         return change_state.version != changes->undo->version;
     }
 
-    return 0;
+    return change_state.version > 0;
 }
 

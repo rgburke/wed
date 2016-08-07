@@ -944,7 +944,7 @@ static int se_add_buffer_from_stdin(Session *sess)
     }
 
     Buffer *buffer = sess->buffers;
-    buffer->is_dirty = 1;
+    buffer->change_state.version++;
     FileInfo *file_info = &buffer->file_info;
     fi_free(file_info);
     

@@ -106,6 +106,7 @@ Buffer *bf_new(const FileInfo *file_info, const HashMap *config)
     bf_select_reset(buffer);
     bs_init_default_opt(&buffer->search);
     bc_init(&buffer->changes);
+    buffer->change_state = bc_get_current_state(&buffer->changes);
 
     if ((buffer->bv = bv_new(24, 80, &buffer->pos)) == NULL) {
         bf_free(buffer);
@@ -377,7 +378,7 @@ Status bf_write_file(Buffer *buffer, const char *file_path)
 
 cleanup:
     if (STATUS_IS_SUCCESS(status)) {
-        buffer->is_dirty = 0;
+        buffer->change_state = bc_get_current_state(&buffer->changes);
     } else {
         remove(tmp_file_path);
     }
@@ -440,6 +441,11 @@ size_t bf_length(const Buffer *buffer)
 int bf_is_view_initialised(const Buffer *buffer)
 {
     return buffer->bv != NULL;
+}
+
+int bf_is_dirty(const Buffer *buffer)
+{
+    return bc_has_state_changed(&buffer->changes, buffer->change_state);
 }
 
 int bf_is_draw_dirty(const Buffer *buffer)
@@ -1495,7 +1501,7 @@ Status bf_insert_string(Buffer *buffer, const char *string,
     }
 
     size_t lines_after = gb_lines(buffer->data);
-    buffer->is_dirty = buffer->is_draw_dirty = 1;
+    buffer->is_draw_dirty = 1;
 
     bf_update_marks(buffer, &buffer->pos, TCT_INSERT, string_length,
                     lines_after - lines_before);
@@ -1602,7 +1608,7 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
     }
 
     size_t lines_after = gb_lines(buffer->data);
-    buffer->is_dirty = buffer->is_draw_dirty = 1;
+    buffer->is_draw_dirty = 1;
 
     bf_update_marks(buffer, &buffer->pos, TCT_DELETE, byte_num,
                     lines_before - lines_after);

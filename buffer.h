@@ -76,7 +76,8 @@ struct Buffer {
     Buffer *next; /* Next buffer in this session */
     size_t line_col_offset; /* Global cursor line offset */
     HashMap *config; /* Stores config variables */
-    int is_dirty; /* Any modification performed on buffer since last write */
+    BufferChangeState change_state; /* Reference to state when buffer was
+                                       last written */
     int is_draw_dirty; /* Any modification performed since last draw */
     GapBuffer *data; /* Gap Buffer which stores buffer content */
     BufferSearch search; /* Search params */
@@ -121,6 +122,7 @@ int bf_is_empty(const Buffer *);
 size_t bf_lines(const Buffer *);
 size_t bf_length(const Buffer *);
 int bf_is_view_initialised(const Buffer *);
+int bf_is_dirty(const Buffer *);
 int bf_is_draw_dirty(const Buffer *);
 void bf_set_is_draw_dirty(Buffer *, int);
 int bf_get_range(Buffer *, Range *);

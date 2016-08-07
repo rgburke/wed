@@ -1548,7 +1548,7 @@ static Status cm_session_save_all(const CommandArgs *cmd_args)
     int re_enable_msgs = se_disable_msgs(sess);
 
     while (buffer != NULL) {
-        if (buffer->is_dirty) {
+        if (bf_is_dirty(buffer)) {
             se_set_active_buffer(sess, buffer_index);
             sess->ui->update(sess->ui);
             
@@ -1594,7 +1594,7 @@ static Status cm_session_close_buffer(const CommandArgs *cmd_args)
     CommandArgs close_args = *cmd_args;
     close_args.args[0] = INT_VAL(0);
 
-    if (buffer->is_dirty) {
+    if (bf_is_dirty(buffer)) {
         char prompt_text[50];
         char *fmt = "Save changes to %.*s (Y/n)?";
         snprintf(prompt_text, sizeof(prompt_text), fmt, 
