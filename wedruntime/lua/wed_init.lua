@@ -8,6 +8,10 @@ wed.lexer_loader = require('lexer')
 -- Map of wed filetypes to Scintillua syntax types
 wed.lexer_name_map = {
     c = 'ansi_c',
+    d = 'dmd',
+    io = 'io_lang',
+    objectivec = 'objective_c',
+    r = 'rstats',
     sh = 'bash'
 }
 

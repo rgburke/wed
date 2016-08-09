@@ -604,7 +604,12 @@ CharacterClass bf_character_class(const Buffer *buffer, const BufferPos *pos)
     return CCLASS_WORD;
 }
 
-int bf_get_fileformat(const char *ff_name, FileFormat *file_format)
+FileFormat bf_get_fileformat(const Buffer *buffer)
+{
+    return buffer->file_format;
+}
+
+int bf_determine_fileformat(const char *ff_name, FileFormat *file_format)
 {
     assert(!is_null_or_empty(ff_name));
 
@@ -620,7 +625,7 @@ int bf_get_fileformat(const char *ff_name, FileFormat *file_format)
     return 0;
 }
 
-const char *bf_get_fileformat_str(FileFormat file_format)
+const char *bf_determine_fileformat_str(FileFormat file_format)
 {
     if (file_format == FF_UNIX) {
         return "unix";

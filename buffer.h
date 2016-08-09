@@ -133,8 +133,9 @@ Status bf_get_buffer_output_stream(BufferOutputStream *, Buffer *,
                                    const BufferPos *write_pos,
                                    int replace_mode);
 CharacterClass bf_character_class(const Buffer *, const BufferPos *);
-int bf_get_fileformat(const char *ff_name, FileFormat *);
-const char *bf_get_fileformat_str(FileFormat);
+FileFormat bf_get_fileformat(const Buffer *);
+int bf_determine_fileformat(const char *ff_name, FileFormat *);
+const char *bf_determine_fileformat_str(FileFormat);
 void bf_set_fileformat(Buffer *, FileFormat);
 const char *bf_new_line_str(FileFormat);
 int bf_bp_at_screen_line_start(const Buffer *, const BufferPos *);

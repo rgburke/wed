@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include "util.h"
 
 void warn(const char *error_msg)
@@ -186,5 +187,30 @@ void *memrchr(const void *str, int val, size_t bytes)
     }
 
     return NULL;
+}
+
+void bytes_to_str(size_t bytes, char *buf, size_t buf_len)
+{
+    if (buf == NULL || buf_len == 0) {
+        return;
+    }
+
+    static const char *units[] = {
+        "B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"
+    };
+
+    size_t unit_index = 0;
+    long double size = bytes;
+
+    while (size > 1000) {
+        size /= 1024;
+        unit_index++;
+    }
+
+    assert(unit_index < ARRAY_SIZE(units,  const char *));
+
+    int decimal_places = unit_index == 0 ? 0 : 2;
+
+    snprintf(buf, buf_len, "%.*Lf %s", decimal_places, size, units[unit_index]);
 }
 

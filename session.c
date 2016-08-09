@@ -824,7 +824,7 @@ static void se_determine_fileformat(Session *sess, Buffer *buffer)
 {
     FileFormat file_format = bf_detect_fileformat(buffer);
     cf_set_var(CE_VAL(sess, buffer), CL_BUFFER, CV_FILEFORMAT, 
-               STR_VAL((char *)bf_get_fileformat_str(file_format)));
+               STR_VAL((char *)bf_determine_fileformat_str(file_format)));
 }
 
 int se_is_valid_syntaxtype(Session *sess, const char *syn_type)
@@ -973,5 +973,23 @@ int se_session_finished(const Session *sess)
 void se_set_session_finished(Session *sess)
 {
     sess->finished = 1;
+}
+
+const char *se_get_file_type_display_name(const Session *sess,
+                                          const Buffer *buffer)
+{
+    const char *file_type_name = cf_string(buffer->config, CV_FILETYPE);
+
+    if (is_null_or_empty(file_type_name)) {
+        return "";
+    }
+
+    const FileType *file_type = hashmap_get(sess->filetypes, file_type_name);
+
+    if (file_type == NULL) {
+        return "";
+    }
+
+    return file_type->display_name;
 }
 

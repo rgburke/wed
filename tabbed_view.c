@@ -287,26 +287,30 @@ static size_t tv_status_pos_info(TabbedView *tv, const Session *sess,
         snprintf(rel_pos, sizeof(rel_pos), "%2d%%%%", pos_pct);
     }
 
+    char buf_size[64];
+    bytes_to_str(bf_length(buffer), buf_size, sizeof(buf_size));
+
+    const char *file_type_name = se_get_file_type_display_name(sess, buffer);
+
+    if (is_null_or_empty(file_type_name)) {
+        file_type_name = "Plain Text";
+    }
+
+    const char *file_format =
+        bf_get_fileformat(buffer) == FF_UNIX ? "LF" : "CRLF";
+
     /* Attempt to print as much info as space allows */
 
     int pos_info_size = snprintf(tv->status_bar[2],
                                  MAX_STATUS_BAR_SECTION_WIDTH,
-                                 "Length: %zu Lines: %zu | "
-                                 "Offset: %zu Line: %zu Col: %zu | "
-                                 "%s ",
-                                 bf_length(buffer), line_num,
-                                 pos->offset, pos->line_no, pos->col_no,
+                                 "%s | %s | %s | %zu:%zu | %s",
+                                 buf_size, file_type_name, file_format,
+                                 pos->line_no, pos->col_no,
                                  rel_pos);
 
     if (pos_info_size < 0 || (size_t)pos_info_size > max_segment_width) {
-        pos_info_size = snprintf(tv->status_bar[2], max_segment_width,
-                                 "Line: %zu Col: %zu ",
-                                 pos->line_no, pos->col_no);
-    }
-
-    if (pos_info_size < 0 || (size_t)pos_info_size > max_segment_width) {
         pos_info_size = snprintf(tv->status_bar[2], max_segment_width, 
-                                 "L:%zu C:%zu ", pos->line_no, pos->col_no);
+                                 "%zu:%zu ", pos->line_no, pos->col_no);
     }
 
     return pos_info_size;

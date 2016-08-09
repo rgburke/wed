@@ -1,246 +1,240 @@
 filetype {
 	name = "actionscript";
-	display_name = "actionscript";
+	display_name = "ActionScript";
 	file_pattern = /\.(as|asc)$/;
 }
 
 filetype {
 	name = "ada";
-	display_name = "ada";
+	display_name = "Ada";
 	file_pattern = /\.(ada|adb|ads)$/;
 }
 
 filetype {
 	name = "antlr";
-	display_name = "antlr";
+	display_name = "ANTLR";
 	file_pattern = /\.(g|g4)$/;
 }
 
 filetype {
 	name = "apdl";
-	display_name = "apdl";
+	display_name = "APDL";
 	file_pattern = /\.(ans|inp|mac)$/;
 }
 
 filetype {
 	name = "apl";
-	display_name = "apl";
+	display_name = "APL";
 	file_pattern = /\.apl$/;
 }
 
 filetype {
 	name = "applescript";
-	display_name = "applescript";
+	display_name = "AppleScript";
 	file_pattern = /\.(applescript|scpt)$/;
 }
 
 filetype {
 	name = "asm";
-	display_name = "asm";
+	display_name = "Assembler";
 	file_pattern = /\.(asm|ASM|s|S)$/;
 }
 
 filetype {
 	name = "asp";
-	display_name = "asp";
+	display_name = "ASP";
 	file_pattern = /\.(asa|asp|hta)$/;
 }
 
 filetype {
 	name = "autoit";
-	display_name = "autoit";
+	display_name = "AutoIt";
 	file_pattern = /\.(au3|a3x)$/;
 }
 
 filetype {
 	name = "awk";
-	display_name = "awk";
+	display_name = "AWK";
 	file_pattern = /\.awk$/;
 }
 
 filetype {
 	name = "sh";
-	display_name = "sh";
+	display_name = "Shell Script";
 	file_pattern = /\.(bash|bashrc|bash_profile|configure|csh|sh|ksh|tcsh|zsh|shell)$/;
 }
 
 filetype {
 	name = "batch";
-	display_name = "batch";
+	display_name = "Batch File";
 	file_pattern = /\.(bat|.batch|cmd)$/;
 }
 
 filetype {
 	name = "bibtex";
-	display_name = "bibtex";
+	display_name = "BibTeX";
 	file_pattern = /\.bib$/;
 }
 
 filetype {
 	name = "bison";
-	display_name = "bison";
+	display_name = "Bison";
 	file_pattern = /\.(bison|yacc|y|yy)$/;
 }
 
 filetype {
 	name = "boo";
-	display_name = "boo";
+	display_name = "Boo";
 	file_pattern = /\.boo$/;
 }
 
 filetype {
 	name = "c";
-	display_name = "c";
+	display_name = "C";
 	file_pattern = /\.c$/;
 }
 
 filetype {
 	name = "caml";
-	display_name = "caml";
+	display_name = "Caml";
 	file_pattern = /\.(caml|ml|mli|mll|mly)$/;
 }
 
 filetype {
 	name = "changelog";
-	display_name = "changelog";
+	display_name = "Changelog";
 	file_pattern = /\.changelog$/;
 }
 
 filetype {
 	name = "chuck";
-	display_name = "chuck";
+	display_name = "ChucK";
 	file_pattern = /\.ck$/;
 }
 
 filetype {
 	name = "clipper";
-	display_name = "clipper";
+	display_name = "Clipper";
 	file_pattern = /\.(clipper|prg)$/;
 }
 
 filetype {
 	name = "cmake";
-	display_name = "cmake";
+	display_name = "CMake";
 	file_pattern = /\.(cmake|cmakein|ctest|ctestin)$/;
 }
 
 filetype {
 	name = "cobol";
-	display_name = "cobol";
+	display_name = "COBOL";
 	file_pattern = /\.(cbl|cobol)$/;
 }
 
 filetype {
 	name = "coffeescript";
-	display_name = "coffeescript";
+	display_name = "CoffeeScript";
 	file_pattern = /\.(coffee|coffeescript)$/;
 }
 
 filetype {
 	name = "conf";
-	display_name = "conf";
+	display_name = "Config";
 	file_pattern = /^(\/etc\/(.*\/)?[^\.]+|.*\.(conf|cfg|cf))$/;
 }
 
 filetype {
 	name = "cpp";
-	display_name = "cpp";
+	display_name = "C++";
 	file_pattern = /\.(cpp|cxx|c\+\+|cc|C|h|hh|H|hpp|hxx|h\+\+|moc)$/;
 }
 
 filetype {
 	name = "crystal";
-	display_name = "crystal";
+	display_name = "Crystal";
 	file_pattern = /\.cr$/;
 }
 
 filetype {
 	name = "csharp";
-	display_name = "csharp";
+	display_name = "C#";
 	file_pattern = /\.(cs|csharp)$/;
 }
 
 filetype {
 	name = "css";
-	display_name = "css";
+	display_name = "CSS";
 	file_pattern = /\.css$/;
 }
 
 filetype {
 	name = "cuda";
-	display_name = "cuda";
+	display_name = "CUDA";
 	file_pattern = /\.(cu|cuh)$/;
 }
 
 filetype {
 	name = "dart";
-	display_name = "dart";
+	display_name = "Dart";
 	file_pattern = /\.dart$/;
 }
 
 filetype {
 	name = "desktop";
-	display_name = "desktop";
+	display_name = "Desktop";
 	file_pattern = /\.desktop$/;
 }
 
 filetype {
 	name = "diff";
-	display_name = "diff";
+	display_name = "Diff";
 	file_pattern = /\.(diff|patch)$/;
 }
 
 filetype {
-	name = "dmd";
-	display_name = "dmd";
+	name = "d";
+	display_name = "D";
 	file_pattern = /\.(d|di|dmd)$/;
 }
 
 filetype {
 	name = "dockerfile";
-	display_name = "dockerfile";
+	display_name = "Dockerfile";
 	file_pattern = /Dockerfile$/;
 }
 
 filetype {
 	name = "dot";
-	display_name = "dot";
+	display_name = "DOT";
 	file_pattern = /\.dot$/;
 }
 
 filetype {
-	name = "dsv";
-	display_name = "dsv";
-	file_pattern = /(group|gshadow|passwd|shadow)$/;
-}
-
-filetype {
 	name = "eiffel";
-	display_name = "eiffel";
+	display_name = "Eiffel";
 	file_pattern = /\.(e|eif)$/;
 }
 
 filetype {
 	name = "elixir";
-	display_name = "elixir";
+	display_name = "Elixir";
 	file_pattern = /\.(ex|exs)$/;
 }
 
 filetype {
 	name = "erlang";
-	display_name = "erlang";
+	display_name = "Erlang";
 	file_pattern = /\.(erl|erlang|hrl)$/;
 }
 
 filetype {
 	name = "errors";
-	display_name = "errors";
+	display_name = "Errors";
 	file_pattern = /\.errors$/;
 }
 
 filetype {
 	name = "faust";
-	display_name = "faust";
+	display_name = "Faust";
 	file_pattern = /\.dsp$/;
 }
 
@@ -252,31 +246,31 @@ filetype {
 
 filetype {
 	name = "fixed-fortran";
-	display_name = "fixed-fortran";
+	display_name = "Fixed-FORTRAN";
 	file_pattern = /\.fixed\-fortran$/;
 }
 
 filetype {
 	name = "flex";
-	display_name = "flex";
+	display_name = "Flex";
 	file_pattern = /\.(flex|lex|l|ll)$/;
 }
 
 filetype {
 	name = "forth";
-	display_name = "forth";
+	display_name = "Forth";
 	file_pattern = /\.(forth|frt|fs)$/;
 }
 
 filetype {
 	name = "fortran";
-	display_name = "fortran";
+	display_name = "FORTRAN";
 	file_pattern = /\.(f|for|fortran|free\-fortran|ftn|fpp|f77|f90|f95|f03|f08)$/;
 }
 
 filetype {
 	name = "fsharp";
-	display_name = "fsharp";
+	display_name = "F#";
 	file_pattern = /\.fs$/;
 }
 
@@ -288,7 +282,7 @@ filetype {
 
 filetype {
 	name = "gap";
-	display_name = "gap";
+	display_name = "GAP";
 	file_pattern = /\.(g|gd|gi|gap)$/;
 }
 
@@ -300,181 +294,175 @@ filetype {
 
 filetype {
 	name = "gherkin";
-	display_name = "gherkin";
+	display_name = "Gherkin";
 	file_pattern = /\.feature$/;
 }
 
 filetype {
 	name = "glsl";
-	display_name = "glsl";
+	display_name = "GLSL";
 	file_pattern = /\.(glsl|glslf|glslv)$/;
 }
 
 filetype {
 	name = "gnuplot";
-	display_name = "gnuplot";
+	display_name = "Gnuplot";
 	file_pattern = /\.(dem|plt)$/;
 }
 
 filetype {
 	name = "go";
-	display_name = "go";
+	display_name = "Go";
 	file_pattern = /\.go$/;
 }
 
 filetype {
 	name = "groovy";
-	display_name = "groovy";
+	display_name = "Groovy";
 	file_pattern = /\.(groovy|gvy)$/;
 }
 
 filetype {
 	name = "gtkrc";
-	display_name = "gtkrc";
+	display_name = "GTK";
 	file_pattern = /\.gtkrc$/;
 }
 
 filetype {
 	name = "haskell";
-	display_name = "haskell";
-	file_pattern = /\.(hs|hs|haskell)$/;
-}
-
-filetype {
-	name = "haskell_literate";
-	display_name = "haskell_literate";
-	file_pattern = /\.lhs$/;
+	display_name = "Haskell";
+	file_pattern = /\.(hs|hs|lhs|haskell)$/;
 }
 
 filetype {
 	name = "haxe";
-	display_name = "haxe";
+	display_name = "Haxe";
 	file_pattern = /\.(haxe|hx)$/;
 }
 
 filetype {
 	name = "html";
-	display_name = "html";
+	display_name = "HTML";
 	file_pattern = /\.(htm|html|shtm|shtml|xhtml)$/;
 }
 
 filetype {
 	name = "icon";
-	display_name = "icon";
+	display_name = "Icon";
 	file_pattern = /\.icn$/;
 }
 
 filetype {
 	name = "idl";
-	display_name = "idl";
+	display_name = "IDL";
 	file_pattern = /\.(idl|odl)$/;
 }
 
 filetype {
 	name = "inform";
-	display_name = "inform";
+	display_name = "Inform";
 	file_pattern = /\.(inf|ni)$/;
 }
 
 filetype {
 	name = "ini";
-	display_name = "ini";
-	file_pattern = /\.(cfg|cnf|inf|ini|reg)$/;
+	display_name = "INI";
+	file_pattern = /\.(inf|ini|reg)$/;
 }
 
 filetype {
 	name = "islisp";
-	display_name = "islisp";
+	display_name = "ISLISP";
 	file_pattern = /\.islisp$/;
 }
 
 filetype {
-	name = "io_lang";
-	display_name = "io_lang";
+	name = "io";
+	display_name = "Io";
 	file_pattern = /\.io$/;
 }
 
 filetype {
 	name = "java";
-	display_name = "java";
+	display_name = "Java";
 	file_pattern = /\.(bsh|java)$/;
 }
 
 filetype {
 	name = "javalog";
-	display_name = "javalog";
+	display_name = "JavaLog";
 	file_pattern = /\.javalog$/;
 }
 
 filetype {
 	name = "javascript";
-	display_name = "javascript";
+	display_name = "JavaScript";
 	file_pattern = /\.(js|javascript|jsfl)$/;
 }
 
 filetype {
 	name = "json";
-	display_name = "json";
+	display_name = "JSON";
 	file_pattern = /\.json$/;
 }
 
 filetype {
 	name = "jsp";
-	display_name = "jsp";
+	display_name = "JSP";
 	file_pattern = /\.jsp$/;
 }
 
 filetype {
 	name = "latex";
-	display_name = "latex";
+	display_name = "LaTeX";
 	file_pattern = /\.(bbl|dtx|ins|ltx|tex|sty|latex)$/;
 }
 
 filetype {
 	name = "ldap";
-	display_name = "ldap";
+	display_name = "LDAP";
 	file_pattern = /\.(ldap|ldif)$/;
 }
 
 filetype {
 	name = "ledger";
-	display_name = "ledger";
+	display_name = "Ledger";
 	file_pattern = /\.(ledger|journal)$/;
 }
 
 filetype {
 	name = "less";
-	display_name = "less";
+	display_name = "Less";
 	file_pattern = /\.less$/;
 }
 
 filetype {
 	name = "lilypond";
-	display_name = "lilypond";
+	display_name = "LilyPond";
 	file_pattern = /\.(lily|ly|lilypond)$/;
 }
 
 filetype {
 	name = "lisp";
-	display_name = "lisp";
+	display_name = "Lisp";
 	file_pattern = /\.(cl|el|lisp|lsp)$/;
 }
 
 filetype {
 	name = "litcoffee";
-	display_name = "litcoffee";
+	display_name = "Literate CoffeeScript";
 	file_pattern = /\.litcoffee$/;
 }
 
 filetype {
 	name = "log";
-	display_name = "log";
+	display_name = "Log";
 	file_pattern = /\.(syslog|log)$/;
 }
 
 filetype {
 	name = "logtalk";
-	display_name = "logtalk";
+	display_name = "Logtalk";
 	file_pattern = /\.(lgt|logtalk)$/;
 }
 
@@ -486,79 +474,79 @@ filetype {
 
 filetype {
 	name = "lua";
-	display_name = "lua";
+	display_name = "Lua";
 	file_pattern = /\.lua$/;
 }
 
 filetype {
 	name = "m4";
-	display_name = "m4";
+	display_name = "M4";
 	file_pattern = /\.(m4|ac|autoconf)$/;
 }
 
 filetype {
 	name = "makefile";
-	display_name = "makefile";
+	display_name = "Makefile";
 	file_pattern = /(GNUmakefile|\.iface|\.mak|\.mk|\.am|\.in|makefile|Makefile)$/;
 }
 
 filetype {
 	name = "man";
-	display_name = "man";
-	file_pattern = /\.(1|2|3|4|5|6|7|8|9|1x|2x|3x|4x|5x|6x|7x|8x|9x)$/;
+	display_name = "Man Page";
+	file_pattern = /\.[0-9]x?$/;
 }
 
 filetype {
 	name = "manifest";
-	display_name = "manifest";
+	display_name = "Manifest";
 	file_pattern = /\.(manifest|mf)$/;
 }
 
 filetype {
 	name = "markdown";
-	display_name = "markdown";
+	display_name = "Markdown";
 	file_pattern = /\.(md|markdown)$/;
 }
 
 filetype {
 	name = "moonscript";
-	display_name = "moonscript";
+	display_name = "MoonScript";
 	file_pattern = /\.moon$/;
 }
 
 filetype {
 	name = "nemerle";
-	display_name = "nemerle";
+	display_name = "Nemerle";
 	file_pattern = /\.n$/;
 }
 
 filetype {
 	name = "networkd";
-	display_name = "networkd";
+	display_name = "systemd-networkd";
 	file_pattern = /\.(link|network|netdev)$/;
 }
 
 filetype {
 	name = "nim";
-	display_name = "nim";
+	display_name = "Nim";
 	file_pattern = /\.nim$/;
 }
 
 filetype {
 	name = "nsis";
-	display_name = "nsis";
+	display_name = "NSIS";
 	file_pattern = /\.(nsh|nsi|nsis)$/;
 }
 
 filetype {
-	name = "objective_c";
-	display_name = "objective_c";
+	name = "objectivec";
+	display_name = "Objective-C";
 	file_pattern = /\.(m|mm|objc)$/;
 }
 
 filetype {
 	name = "opa";
-	display_name = "opa";
+	display_name = "Opa";
 	file_pattern = /\.opa$/;
 }
 
@@ -570,211 +558,199 @@ filetype {
 
 filetype {
 	name = "oz";
-	display_name = "oz";
+	display_name = "Oz";
 	file_pattern = /\.oz$/;
 }
 
 filetype {
 	name = "pascal";
-	display_name = "pascal";
+	display_name = "Pascal";
 	file_pattern = /\.(dpk|dpr|p|pas|pascal)$/;
 }
 
 filetype {
 	name = "pc";
-	display_name = "pc";
+	display_name = "pkg-config";
 	file_pattern = /\.(pc|pkgconfig)$/;
 }
 
 filetype {
 	name = "perl";
-	display_name = "perl";
+	display_name = "Perl";
 	file_pattern = /\.(al|perl|pl|pm|pod)$/;
 }
 
 filetype {
 	name = "php";
-	display_name = "php";
+	display_name = "PHP";
 	file_pattern = /\.(inc|php|php3|php4|php5|phtml|ctp)$/;
 }
 
 filetype {
 	name = "pico8";
-	display_name = "pico8";
+	display_name = "PICO-8";
 	file_pattern = /\.p8$/;
 }
 
 filetype {
 	name = "pike";
-	display_name = "pike";
+	display_name = "Pike";
 	file_pattern = /\.(pike|pmod)$/;
 }
 
 filetype {
 	name = "pkgbuild";
-	display_name = "pkgbuild";
+	display_name = "PKGBUILD";
 	file_pattern = /PKGBUILD$/;
 }
 
 filetype {
-	name = "po";
-	display_name = "po";
-	file_pattern = /\.(po|pot)$/;
-}
-
-filetype {
-	name = "postscript";
-	display_name = "postscript";
+	name = "ps";
+	display_name = "PostScript";
 	file_pattern = /\.(ps|eps|postscript)$/;
 }
 
 filetype {
 	name = "powershell";
-	display_name = "powershell";
+	display_name = "PowerShell";
 	file_pattern = /\.ps1$/;
 }
 
 filetype {
 	name = "prolog";
-	display_name = "prolog";
+	display_name = "Prolog";
 	file_pattern = /\.prolog$/;
 }
 
 filetype {
 	name = "props";
-	display_name = "props";
+	display_name = "Properties";
 	file_pattern = /\.(props|properties)$/;
 }
 
 filetype {
 	name = "protobuf";
-	display_name = "protobuf";
+	display_name = "Protocol Buffers";
 	file_pattern = /\.(protobuf|proto)$/;
 }
 
 filetype {
-	name = "ps";
-	display_name = "ps";
-	file_pattern = /\.(eps|ps)$/;
-}
-
-filetype {
 	name = "pure";
-	display_name = "pure";
+	display_name = "Pure";
 	file_pattern = /\.pure$/;
 }
 
 filetype {
 	name = "python";
-	display_name = "python";
+	display_name = "Python";
 	file_pattern = /\.(sc|py|pyw|python)$/;
 }
 
 filetype {
 	name = "rebol";
-	display_name = "rebol";
+	display_name = "REBOL";
 	file_pattern = /\.(r|reb)$/;
 }
 
 filetype {
 	name = "rest";
-	display_name = "rest";
+	display_name = "reStructuredText";
 	file_pattern = /\.rst$/;
 }
 
 filetype {
 	name = "rexx";
-	display_name = "rexx";
+	display_name = "Rexx";
 	file_pattern = /\.(orx|rex)$/;
 }
 
 filetype {
 	name = "rhtml";
-	display_name = "rhtml";
+	display_name = "RHTML";
 	file_pattern = /\.(erb|rhtml)$/;
 }
 
 filetype {
-	name = "rstats";
-	display_name = "rstats";
+	name = "r";
+	display_name = "R";
 	file_pattern = /(\.R|\.Rout|\.Rhistory|\.Rt|Rout\.save|Rout\.fail)$/;
 }
 
 filetype {
 	name = "ruby";
-	display_name = "ruby";
+	display_name = "Ruby";
 	file_pattern = /\.(Rakefile|rake|rb|rbw|ruby)$/;
 }
 
 filetype {
 	name = "rust";
-	display_name = "rust";
+	display_name = "Rust";
 	file_pattern = /\.rs$/;
 }
 
 filetype {
 	name = "s";
-	display_name = "s";
+	display_name = "S";
 	file_pattern = /\.s$/;
 }
 
 filetype {
 	name = "sass";
-	display_name = "sass";
+	display_name = "Sass";
 	file_pattern = /\.(sass|scss)$/;
 }
 
 filetype {
 	name = "scala";
-	display_name = "scala";
+	display_name = "Scala";
 	file_pattern = /\.scala$/;
 }
 
 filetype {
 	name = "scheme";
-	display_name = "scheme";
+	display_name = "Scheme";
 	file_pattern = /\.(sch|scm|scheme)$/;
 }
 
 filetype {
 	name = "slang";
-	display_name = "slang";
+	display_name = "S-Lang";
 	file_pattern = /\.(sl|slsh|slang)$/;
 }
 
 filetype {
 	name = "smalltalk";
-	display_name = "smalltalk";
+	display_name = "Smalltalk";
 	file_pattern = /\.(changes|st|sources)$/;
 }
 
 filetype {
 	name = "sml";
-	display_name = "sml";
+	display_name = "Standard ML";
 	file_pattern = /\.(sml|sig)$/;
 }
 
 filetype {
 	name = "snobol4";
-	display_name = "snobol4";
+	display_name = "SNOBOL4";
 	file_pattern = /\.(sno|SNO)$/;
 }
 
 filetype {
 	name = "spec";
-	display_name = "spec";
+	display_name = "SPEC";
 	file_pattern = /\.spec$/;
 }
 
 filetype {
 	name = "sql";
-	display_name = "sql";
+	display_name = "SQL";
 	file_pattern = /\.(ddl|sql)$/;
 }
 
 filetype {
 	name = "style";
-	display_name = "style";
+	display_name = "Style";
 	file_pattern = /\.style$/;
 }
 
@@ -786,90 +762,91 @@ filetype {
 
 filetype {
 	name = "tcl";
-	display_name = "tcl";
+	display_name = "Tcl";
 	file_pattern = /\.(tcl|tk)$/;
 }
 
 filetype {
 	name = "texinfo";
-	display_name = "texinfo";
+	display_name = "Texinfo";
 	file_pattern = /\.(texi|texinfo)$/;
 }
 
 filetype {
 	name = "tml";
-	display_name = "tml";
+	display_name = "TML";
 	file_pattern = /\.tml$/;
 }
 
 filetype {
 	name = "toml";
-	display_name = "toml";
+	display_name = "TOML";
 	file_pattern = /\.toml$/;
 }
 
 filetype {
 	name = "upc";
-	display_name = "upc";
+	display_name = "UPC";
 	file_pattern = /\.upc$/;
 }
 
 filetype {
 	name = "vala";
-	display_name = "vala";
+	display_name = "Vala";
 	file_pattern = /\.vala$/;
 }
 
 filetype {
 	name = "vb";
-	display_name = "vb";
+	display_name = "Visual Basic";
 	file_pattern = /\.(asa|bas|cls|ctl|dob|dsm|dsr|frm|pag|vb|vba|vbs|vbscript)$/;
 }
 
 filetype {
 	name = "vcard";
-	display_name = "vcard";
+	display_name = "vCard";
 	file_pattern = /\.(vcf|vcard)$/;
 }
 
 filetype {
 	name = "verilog";
-	display_name = "verilog";
+	display_name = "Verilog";
 	file_pattern = /\.(v|ver)$/;
 }
 
 filetype {
 	name = "vhdl";
-	display_name = "vhdl";
+	display_name = "VHDL";
 	file_pattern = /\.(vh|vhd|vhdl)$/;
 }
 
 filetype {
 	name = "wsf";
-	display_name = "wsf";
+	display_name = "Windows Script File";
 	file_pattern = /\.wsf$/;
 }
 
 filetype {
 	name = "xml";
-	display_name = "xml";
+	display_name = "XML";
 	file_pattern = /\.(dtd|svg|xml|xsd|xsl|xslt|xul|kcfg|ui|kdevelop|rc|docbook|kidl)$/;
 }
 
 filetype {
 	name = "xorg";
-	display_name = "xorg";
+	display_name = "X.Org";
 	file_pattern = /\.xorg$/;
 }
 
 filetype {
 	name = "xtend";
-	display_name = "xtend";
+	display_name = "Xtend";
 	file_pattern = /\.xtend$/;
 }
 
 filetype {
 	name = "yaml";
-	display_name = "yaml";
+	display_name = "YAML";
 	file_pattern = /\.yaml$/;
 }
+

@@ -602,7 +602,7 @@ static Status cf_fileformat_validator(ConfigEntity entity, Value value)
     (void)entity;
     FileFormat file_format;
 
-    if (!bf_get_fileformat(SVAL(value), &file_format)) {
+    if (!bf_determine_fileformat(SVAL(value), &file_format)) {
         return st_get_error(ERR_INVALID_FILE_FORMAT,
                             "Invalid file format \"%s\"",
                             SVAL(value));
@@ -619,7 +619,7 @@ static Status cf_fileformat_on_change_event(ConfigEntity entity, Value old_val,
     FileFormat file_format;
     Buffer *buffer = entity.buffer;
 
-    bf_get_fileformat(SVAL(new_val), &file_format);
+    bf_determine_fileformat(SVAL(new_val), &file_format);
     bf_set_fileformat(buffer, file_format);
 
     return STATUS_SUCCESS;
