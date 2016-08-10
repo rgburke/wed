@@ -946,6 +946,8 @@ static Status cm_buffer_save_file(const CommandArgs *cmd_args)
         }
 
         RETURN_IF_FAIL(status);
+
+        se_determine_filetypes_if_unset(sess, buffer);
     } else {
         fi_refresh_file_attributes(&buffer->file_info);
     }

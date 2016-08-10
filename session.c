@@ -993,3 +993,20 @@ const char *se_get_file_type_display_name(const Session *sess,
     return file_type->display_name;
 }
 
+void se_determine_filetypes_if_unset(Session *sess, Buffer *buffer)
+{
+    int re_enable_msgs = se_disable_msgs(sess);
+
+    if (is_null_or_empty(cf_string(buffer->config, CV_FILETYPE))) {
+        se_determine_filetype(sess, buffer);
+    }
+
+    if (is_null_or_empty(cf_string(buffer->config, CV_SYNTAXTYPE))) {
+        se_determine_syntaxtype(sess, buffer);
+    }
+
+    if (re_enable_msgs) {
+        se_enable_msgs(sess);
+    }
+}
+

@@ -130,5 +130,6 @@ const char *se_get_prev_key(const Session *);
 int se_session_finished(const Session *);
 void se_set_session_finished(Session *);
 const char *se_get_file_type_display_name(const Session *, const Buffer *);
+void se_determine_filetypes_if_unset(Session *, Buffer *);
 
 #endif
