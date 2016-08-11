@@ -2351,3 +2351,22 @@ Status bf_join_lines(Buffer *buffer, const char *sep, size_t sep_len)
 
     return status;
 }
+
+size_t bf_get_text(const Buffer *buffer, const BufferPos *pos, char *buf,
+                   size_t text_len)
+{
+    size_t buffer_len = bf_length(buffer);
+
+    if (pos->offset > buffer_len) {
+        return 0;
+    }
+
+    size_t end_pos = pos->offset + text_len;
+
+    if (end_pos > buffer_len) {
+        text_len -= (end_pos - buffer_len);
+    }
+
+    return gb_get_range(buffer->data, pos->offset, buf, text_len);
+}
+

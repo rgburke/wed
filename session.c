@@ -30,6 +30,7 @@
 #include "tui.h"
 
 #define MAX_EMPTY_BUFFER_NAME_SIZE 20
+#define FILE_TYPE_FILE_BUF_SIZE 128
 
 static const char *se_get_empty_buffer_name(Session *);
 static Status se_add_to_history(List *, const char *text);
@@ -711,6 +712,7 @@ Status se_add_filetype_def(Session *sess, FileType *file_type)
 
     Buffer *buffer = sess->buffers;
     int re_enable_msgs = se_disable_msgs(sess);
+    char file_buf[FILE_TYPE_FILE_BUF_SIZE];
     int matches;
 
     /* Check all existing buffer's without a filetype set 
@@ -718,8 +720,15 @@ Status se_add_filetype_def(Session *sess, FileType *file_type)
 
     while (buffer != NULL) {
         if (is_null_or_empty(cf_string(buffer->config, CV_FILETYPE))) {
+
+            BufferPos pos_start = buffer->pos;
+            bp_to_buffer_start(&pos_start);
+            size_t file_buf_size = bf_get_text(buffer, &pos_start, file_buf,
+                                               sizeof(file_buf) - 1);
+            file_buf[file_buf_size] = '\0';
+
             se_add_error(sess, ft_matches(file_type, &buffer->file_info,
-                                          &matches));
+                                          file_buf, file_buf_size, &matches));
 
             if (matches) {
                 se_add_error(sess, cf_set_var(CE_VAL(sess, buffer), CL_BUFFER,
@@ -754,12 +763,19 @@ static void se_determine_filetype(Session *sess, Buffer *buffer)
     FileType *file_type;
     int matches;
 
+    char file_buf[FILE_TYPE_FILE_BUF_SIZE];
+    BufferPos pos_start = buffer->pos;
+    bp_to_buffer_start(&pos_start);
+    size_t file_buf_size = bf_get_text(buffer, &pos_start, file_buf,
+            sizeof(file_buf) - 1);
+    file_buf[file_buf_size] = '\0';
+
     for (size_t k = 0; k < key_num; k++) {
         file_type = hashmap_get(filetypes, keys[k]);
 
         if (file_type != NULL) {
             se_add_error(sess, ft_matches(file_type, &buffer->file_info,
-                                          &matches));
+                                          file_buf, file_buf_size, &matches));
 
             if (matches) {
                 se_add_error(sess, cf_set_var(CE_VAL(sess, buffer), CL_BUFFER,

@@ -191,5 +191,7 @@ Status bf_indent(Buffer *, Direction);
 Status bf_jump_to_matching_bracket(Buffer *);
 Status bf_duplicate_selection(Buffer *);
 Status bf_join_lines(Buffer *, const char *sep, size_t sep_len);
+size_t bf_get_text(const Buffer *, const BufferPos *, char *buf,
+                   size_t text_len);
 
 #endif

@@ -21,16 +21,15 @@
 #include "file_type.h"
 #include "util.h"
 
-#define FT_OUTPUT_VECTOR_SIZE 30
-
 Status ft_init(FileType **file_type_ptr, const char *name, 
-               const char *display_name, const Regex *regex)
+               const char *display_name, const Regex *file_pattern_regex,
+               const Regex *file_content_regex)
 {
     assert(file_type_ptr != NULL);
     assert(!is_null_or_empty(name));
     assert(!is_null_or_empty(display_name));
-    assert(regex != NULL);
-    assert(!is_null_or_empty(regex->regex_pattern));
+    assert(file_pattern_regex != NULL);
+    assert(!is_null_or_empty(file_pattern_regex->regex_pattern));
 
     FileType *file_type = malloc(sizeof(FileType));
 
@@ -42,11 +41,23 @@ Status ft_init(FileType **file_type_ptr, const char *name,
     memset(file_type, 0, sizeof(FileType));
     Status status = STATUS_SUCCESS;
 
-    status = ru_compile_custom_error_msg(&file_type->file_pattern, regex, 
+    status = ru_compile_custom_error_msg(&file_type->file_pattern,
+                                         file_pattern_regex,
                                          "filetype %s ", name);
 
     if (!STATUS_IS_SUCCESS(status)) {
         goto cleanup;
+    }
+
+    if (file_content_regex != NULL &&
+        file_content_regex->regex_pattern != NULL) {
+        status = ru_compile_custom_error_msg(&file_type->file_content,
+                                             file_content_regex,
+                                             "filetype %s", name);
+
+        if (!STATUS_IS_SUCCESS(status)) {
+            goto cleanup;
+        }
     }
     
     file_type->name = strdup(name);
@@ -86,10 +97,16 @@ void ft_free(FileType *file_type)
     free(file_type->name);
     free(file_type->display_name);
     ru_free_instance(&file_type->file_pattern);
+
+    if (file_type->file_content.regex != NULL) {
+        ru_free_instance(&file_type->file_content);
+    }
+
     free(file_type);
 }
 
-Status ft_matches(FileType *file_type, FileInfo *file_info, int *matches)
+Status ft_matches(FileType *file_type, FileInfo *file_info, char *file_buf,
+                  size_t file_buf_size, int *matches)
 {
     const char *path;
     *matches = 0;
@@ -106,6 +123,24 @@ Status ft_matches(FileType *file_type, FileInfo *file_info, int *matches)
     Status status = ru_exec_custom_error_msg(&result, &file_type->file_pattern,
                                              path, strlen(path), 0,
                                              "filetype %s - ", file_type->name);
+
+    if (!STATUS_IS_SUCCESS(status)) {
+        return status;
+    }
+
+    if (result.match) {
+        *matches = 1;
+        return STATUS_SUCCESS;
+    }
+
+    if (file_buf == NULL || file_buf_size == 0 ||
+        file_type->file_content.regex == NULL) {
+        return STATUS_SUCCESS;
+    }
+
+    status = ru_exec_custom_error_msg(&result, &file_type->file_content,
+                                      file_buf, file_buf_size, 0,
+                                      "filetype %s - ", file_type->name);
 
     if (!STATUS_IS_SUCCESS(status)) {
         return status;

@@ -44,6 +44,7 @@ typedef struct {
     char *var_name; /* Variable name */
     ValueType value_type; /* Expected type for this variable */
     Value *value; /* This is set to the value found */
+    int optional; /* True if this variable can optionally appear */
     const ParseLocation *location; /* This is set to the location
                                       of the assignment */
     int value_set; /* True if this variable was found and its value set */
@@ -779,12 +780,14 @@ static void cp_process_filetype_block(Session *sess,
     Value name;
     Value display_name;
     Value file_pattern;
+    Value file_content = REGEX_VAL(NULL, 0);
 
     /* Variable assignements expected in a filetype block */
     VariableAssignment expected_vars[] = {
-        { "name"        , VAL_TYPE_STR  , &name        , NULL, 0 },
-        { "display_name", VAL_TYPE_STR  , &display_name, NULL, 0 },
-        { "file_pattern", VAL_TYPE_REGEX, &file_pattern, NULL, 0 }
+        { "name"        , VAL_TYPE_STR  , &name        , 0, NULL, 0 },
+        { "display_name", VAL_TYPE_STR  , &display_name, 0, NULL, 0 },
+        { "file_pattern", VAL_TYPE_REGEX, &file_pattern, 0, NULL, 0 },
+        { "file_content", VAL_TYPE_REGEX, &file_content, 1, NULL, 0 }
     };
 
     size_t expected_vars_num =
@@ -817,7 +820,7 @@ static void cp_process_filetype_block(Session *sess,
 
     FileType *file_type;
     Status status = ft_init(&file_type, SVAL(name), SVAL(display_name),
-                            &RVAL(file_pattern));
+                            &RVAL(file_pattern), &RVAL(file_content));
 
     if (!STATUS_IS_SUCCESS(status)) {
         se_add_error(sess, status);
@@ -843,7 +846,7 @@ static void cp_process_syntax_block(Session *sess,
     Value name;
 
     VariableAssignment expected_vars[] = {
-        { "name", VAL_TYPE_STR, &name, NULL, 0 }
+        { "name", VAL_TYPE_STR, &name, 0, NULL, 0 }
     };
 
     const size_t expected_vars_num =
@@ -938,8 +941,8 @@ static SyntaxPattern *cp_process_syntax_pattern_block(Session *sess,
     Value type;
 
     VariableAssignment expected_vars[] = {
-        { "regex", VAL_TYPE_REGEX, &regex, NULL, 0 },
-        { "type" , VAL_TYPE_STR  , &type , NULL, 0 }
+        { "regex", VAL_TYPE_REGEX, &regex, 0, NULL, 0 },
+        { "type" , VAL_TYPE_STR  , &type , 0, NULL, 0 }
     };
 
     size_t expected_vars_num =
@@ -1001,7 +1004,7 @@ static void cp_process_theme_block(Session *sess, StatementBlockNode *stmb_node)
     Value name;
 
     VariableAssignment expected_vars[] = {
-        { "name", VAL_TYPE_STR, &name, NULL, 0 }
+        { "name", VAL_TYPE_STR, &name, 0, NULL, 0 }
     };
 
     const size_t expected_vars_num =
@@ -1058,9 +1061,9 @@ static void cp_process_theme_group_block(Session *sess, Theme *theme,
     Value name, fg_color_val, bg_color_val;
 
     VariableAssignment expected_vars[] = {
-        { "name"    , VAL_TYPE_STR, &name        , NULL, 0 },
-        { "fgcolor" , VAL_TYPE_STR, &fg_color_val, NULL, 0 },
-        { "bgcolor" , VAL_TYPE_STR, &bg_color_val, NULL, 0 }
+        { "name"    , VAL_TYPE_STR, &name        , 0, NULL, 0 },
+        { "fgcolor" , VAL_TYPE_STR, &fg_color_val, 0, NULL, 0 },
+        { "bgcolor" , VAL_TYPE_STR, &bg_color_val, 0, NULL, 0 }
     };
 
     size_t expected_vars_num =
@@ -1197,7 +1200,7 @@ static int cp_validate_block_vars(Session *sess,
 
     /* Check all expected values are set */
     for (size_t k = 0; k < expected_vars_num; k++) {
-        if (!expected_vars[k].value_set) {
+        if (!expected_vars[k].value_set && !expected_vars[k].optional) {
             se_add_error(sess,
                          cp_get_config_error(ERR_MISSING_VARIABLE_DEFINITION,
                                              block_location,

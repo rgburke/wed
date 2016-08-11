@@ -36,11 +36,15 @@ typedef struct {
                            display */
     RegexInstance file_pattern; /* A regex applied to a file path in order
                                    to determine membership of a file type */
+    RegexInstance file_content; /* A regex applied to the first line of
+                                   of a file */
 } FileType;
 
 Status ft_init(FileType **file_type_ptr, const char *name, 
-               const char *display_name, const Regex *regex);
+               const char *display_name, const Regex *file_pattern_regex,
+               const Regex *file_content_regex);
 void ft_free(FileType *);
-Status ft_matches(FileType *, FileInfo *, int *matches);
+Status ft_matches(FileType *, FileInfo *, char *file_buf,
+                  size_t file_buf_size, int *matches);
 
 #endif

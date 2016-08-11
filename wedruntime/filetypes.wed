@@ -56,12 +56,14 @@ filetype {
 	name = "awk";
 	display_name = "AWK";
 	file_pattern = /\.awk$/;
+	file_content = /^#!.+(\/|\s+)awk/;
 }
 
 filetype {
 	name = "sh";
 	display_name = "Shell Script";
 	file_pattern = /\.(bash|bashrc|bash_profile|configure|csh|sh|ksh|tcsh|zsh|shell)$/;
+	file_content = /^#!.+(\/|\s+)(sh|bash|csh|ksh|tcsh|zsh)/;
 }
 
 filetype {
@@ -320,6 +322,7 @@ filetype {
 	name = "groovy";
 	display_name = "Groovy";
 	file_pattern = /\.(groovy|gvy)$/;
+	file_content = /^#!.+(\/|\s+)groovy/;
 }
 
 filetype {
@@ -398,6 +401,7 @@ filetype {
 	name = "javascript";
 	display_name = "JavaScript";
 	file_pattern = /\.(js|javascript|jsfl)$/;
+	file_content = /^#!.+(\/|\s+)node/;
 }
 
 filetype {
@@ -476,6 +480,7 @@ filetype {
 	name = "lua";
 	display_name = "Lua";
 	file_pattern = /\.lua$/;
+	file_content = /^#!.+(\/|\s+)lua/;
 }
 
 filetype {
@@ -488,6 +493,7 @@ filetype {
 	name = "makefile";
 	display_name = "Makefile";
 	file_pattern = /(GNUmakefile|\.iface|\.mak|\.mk|\.am|\.in|makefile|Makefile)$/;
+	file_content = /^#!.+(\/|\s+)make/;
 }
 
 filetype {
@@ -578,12 +584,14 @@ filetype {
 	name = "perl";
 	display_name = "Perl";
 	file_pattern = /\.(al|perl|pl|pm|pod)$/;
+	file_content = /^#!.+(\/|\s+)perl/;
 }
 
 filetype {
 	name = "php";
 	display_name = "PHP";
 	file_pattern = /\.(inc|php|php3|php4|php5|phtml|ctp)$/;
+	file_content = /^#!.+(\/|\s+)php/;
 }
 
 filetype {
@@ -644,6 +652,7 @@ filetype {
 	name = "python";
 	display_name = "Python";
 	file_pattern = /\.(sc|py|pyw|python)$/;
+	file_content = /^#!.+(\/|\s+)python/;
 }
 
 filetype {
@@ -680,6 +689,7 @@ filetype {
 	name = "ruby";
 	display_name = "Ruby";
 	file_pattern = /\.(Rakefile|rake|rb|rbw|ruby)$/;
+	file_content = /^#!.+(\/|\s+)ruby/;
 }
 
 filetype {
