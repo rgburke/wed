@@ -8,6 +8,8 @@ compiler:
   - gcc
   - clang
 
+sudo: required
+
 before_install:
   - if [ "$TRAVIS_OS_NAME" = 'osx' ]; then
       brew update;
@@ -30,7 +32,10 @@ addons:
       - libsource-highlight-dev
       - libboost-regex-dev
       - liblua5.1-0-dev
+      - liblua5.1-lpeg-dev
       - lua5.1
 
-script: ./configure --enable-gnu-source-highlight && make dev
+script:
+  - ./configure --enable-gnu-source-highlight && make dev && make clean &&
+    if [ "$TRAVIS_OS_NAME" = 'linux' ]; then ./configure --static && make; fi
 
