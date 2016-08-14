@@ -330,7 +330,7 @@ int cp_convert_to_regex_value(const char *rvalue, Value *value)
 
     /* Find terminating / character. It's not the last character
      * in the string as modifiers can be specified */
-    const char *regex_end = memrchr(rvalue + 1, '/', length - 1);
+    const char *regex_end = memrch(rvalue + 1, '/', length - 1);
 
     if (regex_end == NULL) {
         return 0;

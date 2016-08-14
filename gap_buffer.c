@@ -545,7 +545,7 @@ int gb_find_prev(const GapBuffer *buffer, size_t point, size_t *prev, char c)
     size_t offset;
 
     if (point > buffer->gap_end) {
-        match = memrchr(buffer->text + buffer->gap_end, c,
+        match = memrch(buffer->text + buffer->gap_end, c,
                         point - buffer->gap_end);
 
         if (match != NULL) {
@@ -559,7 +559,7 @@ int gb_find_prev(const GapBuffer *buffer, size_t point, size_t *prev, char c)
         point = buffer->gap_start;
     }
 
-    match = memrchr(buffer->text, c, point);
+    match = memrch(buffer->text, c, point);
 
     if (match != NULL) {
         offset = match - buffer->text;

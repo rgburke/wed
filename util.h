@@ -36,7 +36,7 @@ char *concat_all(size_t str_num, ...);
 int is_null_or_empty(const char *str);
 size_t occurrences(const char *str, const char *sub_str);
 char *replace(const char *str, const char *to_replace, const char *replacement);
-void *memrchr(const void *str, int val, size_t bytes);
+void *memrch(const void *str, int val, size_t bytes);
 void bytes_to_str(size_t bytes, char *buf, size_t buf_len);
 
 #endif

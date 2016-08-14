@@ -314,13 +314,16 @@ cf_check_if_have_lua() {
         cf_check_if_have_lib_lua
         cf_check_if_have_lua_cli_client
 
+        if [ $WED_STATIC_BUILD -eq 1 ]; then
+            cf_check_if_have_lib_lpeg
+
         # Don't check for LPeg when building on Travis CI
         #
         # The liblua5.1-lpeg2 package is not in the Travis CI apt package
         # whitelist. The lua-lpeg package is in the whitelist but causes
         # apt-get install to fail. Therefore we have to disable this check
         # when running under Travis CI
-        if ! [ "$TRAVIS" = 'true' ]; then
+        elif ! [ "$TRAVIS" = 'true' ]; then
             cf_check_if_have_lpeg
         fi
     fi
@@ -374,6 +377,38 @@ cf_check_if_have_lua_cli_client() {
 
     printf 'no\n'
     cf_fatal 'The standalone cli Lua interpreter is required to test for lpeg'
+}
+
+cf_check_if_have_lib_lpeg() {
+    cat >"$TMP_C" <<EOF
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+int luaopen_lpeg(lua_State *);
+int main(int argc, char *argv[]) {
+    lua_State *state = luaL_newstate();
+    lua_getglobal(state, "package");
+    lua_getfield(state, -1, "preload");
+    lua_pushcfunction(state, luaopen_lpeg);
+    lua_setfield(state, -2, "lpeg");
+    lua_close(state);
+    return 0;
+}
+EOF
+
+    for v in 3 2 1; do
+        for lib in lua5.${v}-lpeg lua-5.${v}-lpeg lua5${v}-lpeg; do
+            if cf_check_if_lib_is_present CFLAGS_BASE "$CC" "$lib"; then
+                return 0
+            fi
+        done
+    done
+
+    if cf_check_if_lib_is_present CFLAGS_BASE "$CC" 'lua-lpeg'; then
+        return 0
+    fi
+
+    cf_fatal 'The Lua LPeg library is required to build wed'
 }
 
 cf_check_if_have_lpeg() {
@@ -433,6 +468,18 @@ cf_add_general_flags() {
     fi
 }
 
+cf_add_static_flags() {
+    if [ $WED_STATIC_BUILD -eq 0 ]; then
+        return
+    fi
+
+    if [ $WED_FEATURE_LUA -eq 1 ]; then
+        LDFLAGS="$LDFLAGS -lm"
+    fi
+
+    LDFLAGS="$LDFLAGS -lpthread -ldl -lc -static"
+}
+
 cf_determine_pcre_version() {
     printf 'Checking if PCRE version is at least 8.20... '
 
@@ -469,6 +516,7 @@ PREFIX=$PREFIX
 WEDRUNTIME=\$(PREFIX)/share/wed
 FLEX=$FLEX
 BISON=$BISON
+WED_STATIC_BUILD=$WED_STATIC_BUILD
 WED_PCRE_VERSION_GE_8_20=$WED_PCRE_VERSION_GE_8_20
 WED_FEATURE_LUA=$WED_FEATURE_LUA
 WED_FEATURE_GNU_SOURCE_HIGHLIGHT=$WED_FEATURE_GNU_SOURCE_HIGHLIGHT
@@ -501,6 +549,7 @@ cf_init() {
     PREFIX=/usr/local
     FLEX=flex
     BISON=bison
+    WED_STATIC_BUILD=0
     WED_FEATURE_LUA=1
     WED_FEATURE_GNU_SOURCE_HIGHLIGHT=0
     WED_DEFAULT_SDT=wed
@@ -519,6 +568,12 @@ cf_parse_args() {
                 ;;
             --prefix=*)
                 PREFIX=${opt#*=}
+                ;;
+            # The static option is experimental having only been tested on
+            # Ubuntu. It will most likely not work elsewhere without further
+            # work. Therefore it is not listed in the help message options
+            --static)
+                WED_STATIC_BUILD=1
                 ;;
             --enable-lua)
                 WED_FEATURE_LUA=1
@@ -612,6 +667,7 @@ main() {
     cf_check_if_have_bison
     cf_check_if_have_flex
     cf_add_general_flags
+    cf_add_static_flags
     cf_determine_pcre_version
     cf_determine_default_sdt
     cf_write_config

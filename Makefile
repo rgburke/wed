@@ -92,6 +92,7 @@ build_config.h: config.mk
 	@echo '#define WED_VERSION "$(WED_VERSION)"' >> build_config.h
 	@echo '#define WED_VERSION_LONG "$(WED_VERSION_LONG)"' >> build_config.h
 	@echo '#define WED_BUILD_DATETIME "$(WED_BUILD_DATETIME)"' >> build_config.h
+	@echo '#define WED_STATIC_BUILD $(WED_STATIC_BUILD)' >> build_config.h
 	@echo '#define WED_PCRE_VERSION_GE_8_20 $(WED_PCRE_VERSION_GE_8_20)' >> build_config.h
 	@echo '#define WED_FEATURE_LUA $(WED_FEATURE_LUA)' >> build_config.h
 	@echo '#define WED_FEATURE_GNU_SOURCE_HIGHLIGHT $(WED_FEATURE_GNU_SOURCE_HIGHLIGHT)' >> build_config.h

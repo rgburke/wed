@@ -24,6 +24,7 @@
 #include "session.h"
 #include "config.h"
 #include "util.h"
+#include "build_config.h"
 
 /* Files and directories under WEDRUNTIME related to lua */
 #define WED_LUA_DIR "lua"
@@ -139,6 +140,19 @@ Status ls_init(LuaState *ls)
     const char *wrt = cf_string(sess->config, CV_WEDRUNTIME);
     Status status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
                                  "Unable to allocate memory for file path");
+
+#if WED_STATIC_BUILD
+    /* Load the lpeg library compiled into wed so that when wed_init.lua runs
+     * require('lpeg') a shared lpeg library is not used instead */
+
+    int luaopen_lpeg(lua_State *);
+
+    lua_getglobal(ls->state, "package");
+    lua_getfield(ls->state, -1, "preload");
+    lua_pushcfunction(ls->state, luaopen_lpeg);
+    lua_setfield(ls->state, -2, "lpeg");
+    lua_pop(ls->state, 2);
+#endif
 
     char *wed_lua_dir_path = NULL;
     char *wed_lua_lexers_path = NULL;
