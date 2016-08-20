@@ -1447,8 +1447,13 @@ Status bf_insert_character(Buffer *buffer, const char *character,
 
     if (*character == '\t' && cf_bool(buffer->config, CV_EXPANDTAB)) {
         return bf_insert_expanded_tab(buffer, advance_cursor);
-    } else if (*character == '\n' && cf_bool(buffer->config, CV_AUTOINDENT)) {
-        return bf_auto_indent(buffer, advance_cursor);
+    } else if (*character == '\n') {
+        if (cf_bool(buffer->config, CV_AUTOINDENT)) {
+            return bf_auto_indent(buffer, advance_cursor);
+        } else {
+            character = bf_new_line_str(buffer->file_format);
+            char_len = strlen(character);
+        }
     }
 
     return bf_insert_string(buffer, character, char_len, advance_cursor);
