@@ -202,6 +202,8 @@ FileFormat bf_detect_fileformat(const Buffer *buffer)
             } else {
                 unix_le++;
             }
+
+            point++;
         } while (--lines != 0);
 
         if (dos_le > unix_le) {
