@@ -34,6 +34,8 @@
 
 static const char *se_get_empty_buffer_name(Session *);
 static Status se_add_to_history(List *, const char *text);
+static size_t se_populate_file_buf(const Buffer *, char *file_buf,
+                                   size_t file_buf_size);
 static void se_determine_filetype(Session *, Buffer *);
 static void se_determine_fileformat(Session *, Buffer *);
 static int se_is_valid_config_def(Session *, HashMap *, ConfigType,
@@ -713,6 +715,7 @@ Status se_add_filetype_def(Session *sess, FileType *file_type)
     Buffer *buffer = sess->buffers;
     int re_enable_msgs = se_disable_msgs(sess);
     char file_buf[FILE_TYPE_FILE_BUF_SIZE];
+    size_t file_buf_size;
     int matches;
 
     /* Check all existing buffer's without a filetype set 
@@ -720,12 +723,8 @@ Status se_add_filetype_def(Session *sess, FileType *file_type)
 
     while (buffer != NULL) {
         if (is_null_or_empty(cf_string(buffer->config, CV_FILETYPE))) {
-
-            BufferPos pos_start = buffer->pos;
-            bp_to_buffer_start(&pos_start);
-            size_t file_buf_size = bf_get_text(buffer, &pos_start, file_buf,
-                                               sizeof(file_buf) - 1);
-            file_buf[file_buf_size] = '\0';
+            file_buf_size = se_populate_file_buf(buffer, file_buf,
+                                                 FILE_TYPE_FILE_BUF_SIZE);
 
             se_add_error(sess, ft_matches(file_type, &buffer->file_info,
                                           file_buf, file_buf_size, &matches));
@@ -747,6 +746,41 @@ Status se_add_filetype_def(Session *sess, FileType *file_type)
     return STATUS_SUCCESS;
 }
 
+static size_t se_populate_file_buf(const Buffer *buffer, char *file_buf,
+                                   size_t file_buf_size)
+{
+    BufferPos pos_start = buffer->pos;
+    bp_to_buffer_start(&pos_start);
+    file_buf_size = bf_get_text(buffer, &pos_start, file_buf,
+                                file_buf_size - 1);
+    file_buf[file_buf_size] = '\0';
+
+    if (file_buf_size == 0) {
+        return 0;
+    }
+
+    /* If the regex below fails then file_buf contains an invalid UTF-8
+     * sequence and there is no point attempting to run the
+     * file_content regex against it */
+
+    RegexResult regex_result;
+    RegexInstance regex_instance;
+    Regex regex = { .regex_pattern = ".", .modifiers = 0 };
+
+    if (!STATUS_IS_SUCCESS(ru_compile(&regex_instance, &regex))) {
+        return 0;
+    }
+
+    if (!STATUS_IS_SUCCESS(
+                ru_exec(&regex_result, &regex_instance,
+                        file_buf, file_buf_size, 0)
+                )) {
+        return 0;
+    }
+
+    return file_buf_size;
+}
+
 static void se_determine_filetype(Session *sess, Buffer *buffer)
 {
     HashMap *filetypes = sess->filetypes;
@@ -764,11 +798,8 @@ static void se_determine_filetype(Session *sess, Buffer *buffer)
     int matches;
 
     char file_buf[FILE_TYPE_FILE_BUF_SIZE];
-    BufferPos pos_start = buffer->pos;
-    bp_to_buffer_start(&pos_start);
-    size_t file_buf_size = bf_get_text(buffer, &pos_start, file_buf,
-            sizeof(file_buf) - 1);
-    file_buf[file_buf_size] = '\0';
+    size_t file_buf_size = se_populate_file_buf(buffer, file_buf,
+                                                FILE_TYPE_FILE_BUF_SIZE);
 
     for (size_t k = 0; k < key_num; k++) {
         file_type = hashmap_get(filetypes, keys[k]);
