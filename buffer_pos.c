@@ -18,6 +18,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <assert.h>
 #include "buffer_pos.h"
 #include "util.h"
@@ -150,6 +151,22 @@ int bp_at_line_end(const BufferPos *pos)
 int bp_on_empty_line(const BufferPos *pos)
 {
     return bp_at_line_start(pos) && bp_at_line_end(pos);
+}
+
+int bp_on_whitespace_line(const BufferPos *pos)
+{
+    BufferPos tmp = *pos;
+    bp_to_line_start(&tmp);
+
+    while (!bp_at_line_end(&tmp)) {
+        if (!isspace(bp_get_char(&tmp))) {
+            return 0;
+        }
+
+        bp_next_char(&tmp);
+    }
+
+    return 1;
 }
 
 int bp_at_first_line(const BufferPos *pos)

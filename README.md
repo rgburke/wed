@@ -145,6 +145,8 @@ as window managers.
 <M-End>                     Move to end of line
 <C-Right>                   Move to next word
 <C-Left>                    Move to previous work
+<C-Up>                      Move to next paragraph
+<C-Down>                    Move to previous paragraph
 <PageUp>                    Move up a page
 <PageDown>                  Move down a page
 <C-Home>                    Move to start of file
@@ -174,8 +176,8 @@ depending on whether line wrap is disabled or enabled.
 <C-v>                       Paste text
 <C-z>                       Undo
 <C-y>                       Redo
-<C-S-Up>                    Move current line (or selected lines) up
-<C-S-Down>                  Move current line (or selected lines) down
+<M-C-Up>                    Move current line (or selected lines) up
+<M-C-Down>                  Move current line (or selected lines) down
 <C-d>                       Duplicate current line (or selected lines)
 <C-j>                       Join (selected) lines
 ```

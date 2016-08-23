@@ -1177,29 +1177,44 @@ Status bf_to_prev_word(Buffer *buffer, int is_select)
     return STATUS_SUCCESS;
 }
 
-Status bf_to_buffer_start(Buffer *buffer, int is_select)
+Status bf_to_next_paragraph(Buffer *buffer, int is_select)
 {
     bf_default_movement_selection_handler(buffer, is_select, NULL);
-
     BufferPos *pos = &buffer->pos;
-    pos->offset = 0;
-    pos->line_no = 1;
-    pos->col_no = 1;
+    int prev_line_whitespace = bp_on_whitespace_line(pos);
 
-    bf_update_line_col_offset(buffer, pos);
+    while (bp_next_line(pos)) {
+        if (bp_on_whitespace_line(pos)) {
+            prev_line_whitespace = 1;
+        } else if (prev_line_whitespace) {
+            bf_advance_bp_to_line_offset(buffer, pos, is_select);
+            break;
+        } else {
+            prev_line_whitespace = 0;
+        }
+    }
 
     return STATUS_SUCCESS;
 }
 
-Status bf_to_buffer_end(Buffer *buffer, int is_select)
+Status bf_to_prev_paragraph(Buffer *buffer, int is_select)
 {
     bf_default_movement_selection_handler(buffer, is_select, NULL);
-
     BufferPos *pos = &buffer->pos;
-    pos->offset = gb_length(pos->data);
-    pos->line_no = gb_lines(pos->data) + 1;
-    pos->col_no = 1;
-    bp_recalc_col(pos);
+    bp_prev_line(pos);
+    int prev_line_whitespace = bp_on_whitespace_line(pos);
+
+    while (bp_prev_line(pos)) {
+        if (!bp_on_whitespace_line(pos)) {
+            prev_line_whitespace = 0;
+        } else if (!prev_line_whitespace) {
+            bp_next_line(pos);
+            bf_advance_bp_to_line_offset(buffer, pos, is_select);
+            break;
+        } else {
+            prev_line_whitespace = 1;
+        }
+    }
 
     return STATUS_SUCCESS;
 }
@@ -1227,6 +1242,33 @@ Status bf_change_page(Buffer *buffer, Direction direction)
                                                   0, 0));
         bf_set_is_draw_dirty(buffer, 1);
     }
+
+    return STATUS_SUCCESS;
+}
+
+Status bf_to_buffer_start(Buffer *buffer, int is_select)
+{
+    bf_default_movement_selection_handler(buffer, is_select, NULL);
+
+    BufferPos *pos = &buffer->pos;
+    pos->offset = 0;
+    pos->line_no = 1;
+    pos->col_no = 1;
+
+    bf_update_line_col_offset(buffer, pos);
+
+    return STATUS_SUCCESS;
+}
+
+Status bf_to_buffer_end(Buffer *buffer, int is_select)
+{
+    bf_default_movement_selection_handler(buffer, is_select, NULL);
+
+    BufferPos *pos = &buffer->pos;
+    pos->offset = gb_length(pos->data);
+    pos->line_no = gb_lines(pos->data) + 1;
+    pos->col_no = 1;
+    bp_recalc_col(pos);
 
     return STATUS_SUCCESS;
 }

@@ -68,6 +68,8 @@ static Status cm_bp_to_prev_word(const CommandArgs *);
 static Status cm_bp_to_buffer_start(const CommandArgs *);
 static Status cm_bp_to_buffer_end(const CommandArgs *);
 static Status cm_bp_change_page(const CommandArgs *);
+static Status cm_bp_to_next_paragraph(const CommandArgs *);
+static Status cm_bp_to_prev_paragraph(const CommandArgs *);
 static Status cm_bp_goto_matching_bracket(const CommandArgs *);
 static Status cm_buffer_insert_char(const CommandArgs *);
 static Status cm_buffer_delete_char(const CommandArgs *);
@@ -140,9 +142,11 @@ static const CommandDefinition cm_commands[] = {
     [CMD_BP_TO_HARD_LINE_END]            = { NULL    , cm_bp_to_hard_line_end           , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
     [CMD_BP_TO_NEXT_WORD]                = { NULL    , cm_bp_to_next_word               , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
     [CMD_BP_TO_PREV_WORD]                = { NULL    , cm_bp_to_prev_word               , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_NEXT_PARAGRAPH]           = { NULL    , cm_bp_to_next_paragraph          , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_TO_PREV_PARAGRAPH]           = { NULL    , cm_bp_to_prev_paragraph          , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
+    [CMD_BP_CHANGE_PAGE]                 = { NULL    , cm_bp_change_page                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
     [CMD_BP_TO_BUFFER_START]             = { NULL    , cm_bp_to_buffer_start            , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
     [CMD_BP_TO_BUFFER_END]               = { NULL    , cm_bp_to_buffer_end              , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_CHANGE_PAGE]                 = { NULL    , cm_bp_change_page                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
     [CMD_BP_GOTO_MATCHING_BRACKET]       = { NULL    , cm_bp_goto_matching_bracket      , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOVE },
     [CMD_BUFFER_INSERT_CHAR]             = { NULL    , cm_buffer_insert_char            , CMDSIG(1, VAL_TYPE_STR)              , CMDT_BUFFER_MOD  },
     [CMD_BUFFER_INDENT]                  = { NULL    , cm_buffer_indent                 , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOD  },
@@ -201,10 +205,12 @@ static const OperationDefinition cm_operations[] = {
     [OP_MOVE_END_OF_LINE] = { "<wed-move-end-of-line>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_HARD_LINE_END },
     [OP_MOVE_NEXT_WORD] = { "<wed-move-next-word>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_NEXT_WORD },
     [OP_MOVE_PREV_WORD] = { "<wed-move-prev-word>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_PREV_WORD },
-    [OP_MOVE_BUFFER_START] = { "<wed-move-buffer-start>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_BUFFER_START },
-    [OP_MOVE_BUFFER_END] = { "<wed-move-buffer-end>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_BUFFER_END },
+    [OP_MOVE_PREV_PARAGRAPH] = { "<wed-move-prev-paragraph>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_PREV_PARAGRAPH },
+    [OP_MOVE_NEXT_PARAGRAPH] = { "<wed-move-next-paragraph>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_NEXT_PARAGRAPH },
     [OP_MOVE_PREV_PAGE] = { "<wed-move-prev-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BP_CHANGE_PAGE },
     [OP_MOVE_NEXT_PAGE] = { "<wed-move-next-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BP_CHANGE_PAGE },
+    [OP_MOVE_BUFFER_START] = { "<wed-move-buffer-start>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_BUFFER_START },
+    [OP_MOVE_BUFFER_END] = { "<wed-move-buffer-end>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_BUFFER_END },
     [OP_MOVE_SELECT_PREV_LINE] = { "<wed-move-select-prev-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_LINE },
     [OP_MOVE_SELECT_NEXT_LINE] = { "<wed-move-select-next-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_LINE },
     [OP_MOVE_SELECT_NEXT_CHAR] = { "<wed-move-select-next-char>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR },
@@ -215,10 +221,12 @@ static const OperationDefinition cm_operations[] = {
     [OP_MOVE_SELECT_END_OF_LINE] = { "<wed-move-select-end-of-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_HARD_LINE_END },
     [OP_MOVE_SELECT_NEXT_WORD] = { "<wed-move-select-next-word>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_NEXT_WORD },
     [OP_MOVE_SELECT_PREV_WORD] = { "<wed-move-select-prev-word>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_PREV_WORD },
-    [OP_MOVE_SELECT_BUFFER_START] = { "<wed-move-select-buffer-start>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_START },
-    [OP_MOVE_SELECT_BUFFER_END] = { "<wed-move-select-buffer-end>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_END },
+    [OP_MOVE_SELECT_PREV_PARAGRAPH] = { "<wed-move-select-prev-paragraph>", OM_STANDARD, { INT_VAL_STRUCT(1) }, 1, CMD_BP_TO_PREV_PARAGRAPH },
+    [OP_MOVE_SELECT_NEXT_PARAGRAPH] = { "<wed-move-select-next-paragraph>", OM_STANDARD, { INT_VAL_STRUCT(1) }, 1, CMD_BP_TO_NEXT_PARAGRAPH },
     [OP_MOVE_SELECT_PREV_PAGE] = { "<wed-move-select-prev-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_PAGE },
     [OP_MOVE_SELECT_NEXT_PAGE] = { "<wed-move-select-next-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_PAGE },
+    [OP_MOVE_SELECT_BUFFER_START] = { "<wed-move-select-buffer-start>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_START },
+    [OP_MOVE_SELECT_BUFFER_END] = { "<wed-move-select-buffer-end>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_END },
     [OP_MOVE_MATCHING_BRACKET] = { "<wed-move-matching-bracket>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BP_GOTO_MATCHING_BRACKET },
     [OP_INDENT] = { "<wed-indent>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_BUFFER_INDENT },
     [OP_UNINDENT] = { "<wed-unindent>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_BUFFER_INDENT },
@@ -282,10 +290,12 @@ static const KeyMapping cm_key_mappings[] = {
     { KMT_OPERATION, "<M-End>",       { OP_MOVE_END_OF_LINE                 } },
     { KMT_OPERATION, "<C-Right>",     { OP_MOVE_NEXT_WORD                   } },
     { KMT_OPERATION, "<C-Left>",      { OP_MOVE_PREV_WORD                   } },
-    { KMT_OPERATION, "<C-Home>",      { OP_MOVE_BUFFER_START                } },
-    { KMT_OPERATION, "<C-End>",       { OP_MOVE_BUFFER_END                  } },
+    { KMT_OPERATION, "<C-Up>",        { OP_MOVE_PREV_PARAGRAPH              } },
+    { KMT_OPERATION, "<C-Down>",      { OP_MOVE_NEXT_PARAGRAPH              } },
     { KMT_OPERATION, "<PageUp>",      { OP_MOVE_PREV_PAGE                   } },
     { KMT_OPERATION, "<PageDown>",    { OP_MOVE_NEXT_PAGE                   } },
+    { KMT_OPERATION, "<C-Home>",      { OP_MOVE_BUFFER_START                } },
+    { KMT_OPERATION, "<C-End>",       { OP_MOVE_BUFFER_END                  } },
     { KMT_OPERATION, "<S-Up>",        { OP_MOVE_SELECT_PREV_LINE            } },
     { KMT_OPERATION, "<S-Down>",      { OP_MOVE_SELECT_NEXT_LINE            } },
     { KMT_OPERATION, "<S-Right>",     { OP_MOVE_SELECT_NEXT_CHAR            } },
@@ -296,10 +306,12 @@ static const KeyMapping cm_key_mappings[] = {
     { KMT_OPERATION, "<M-S-End>",     { OP_MOVE_SELECT_END_OF_LINE          } },
     { KMT_OPERATION, "<C-S-Right>",   { OP_MOVE_SELECT_NEXT_WORD            } },
     { KMT_OPERATION, "<C-S-Left>",    { OP_MOVE_SELECT_PREV_WORD            } },
-    { KMT_OPERATION, "<C-S-Home>",    { OP_MOVE_SELECT_BUFFER_START         } },
-    { KMT_OPERATION, "<C-S-End>",     { OP_MOVE_SELECT_BUFFER_END           } },
+    { KMT_OPERATION, "<C-S-Up>",      { OP_MOVE_SELECT_PREV_PARAGRAPH       } },
+    { KMT_OPERATION, "<C-S-Down>",    { OP_MOVE_SELECT_NEXT_PARAGRAPH       } },
     { KMT_OPERATION, "<S-PageUp>",    { OP_MOVE_SELECT_PREV_PAGE            } },
     { KMT_OPERATION, "<S-PageDown>",  { OP_MOVE_SELECT_NEXT_PAGE            } },
+    { KMT_OPERATION, "<C-S-Home>",    { OP_MOVE_SELECT_BUFFER_START         } },
+    { KMT_OPERATION, "<C-S-End>",     { OP_MOVE_SELECT_BUFFER_END           } },
     { KMT_OPERATION, "<C-b>",         { OP_MOVE_MATCHING_BRACKET            } },
     { KMT_OPERATION, "<Tab>",         { OP_INDENT                           } },
     { KMT_OPERATION, "<S-Tab>",       { OP_UNINDENT                         } },
@@ -319,8 +331,8 @@ static const KeyMapping cm_key_mappings[] = {
     { KMT_OPERATION, "<C-v>",         { OP_PASTE                            } },
     { KMT_OPERATION, "<C-z>",         { OP_UNDO                             } },
     { KMT_OPERATION, "<C-y>",         { OP_REDO                             } },
-    { KMT_OPERATION, "<C-S-Up>",      { OP_MOVE_LINES_UP                    } },
-    { KMT_OPERATION, "<C-S-Down>",    { OP_MOVE_LINES_DOWN                  } },
+    { KMT_OPERATION, "<M-C-Up>",      { OP_MOVE_LINES_UP                    } },
+    { KMT_OPERATION, "<M-C-Down>",    { OP_MOVE_LINES_DOWN                  } },
     { KMT_OPERATION, "<C-d>",         { OP_DUPLICATE                        } },
     { KMT_OPERATION, "<C-j>",         { OP_JOIN_LINES                       } },
     { KMT_OPERATION, "<C-s>",         { OP_SAVE                             } },
@@ -760,6 +772,22 @@ static Status cm_bp_change_page(const CommandArgs *cmd_args)
     Session *sess = cmd_args->sess;
     Value param = cmd_args->args[0];
     return bf_change_page(sess->active_buffer, IVAL(param));
+}
+
+static Status cm_bp_to_next_paragraph(const CommandArgs *cmd_args)
+{
+    assert(cmd_args->arg_num == 1);
+    Session *sess = cmd_args->sess;
+    Value param = cmd_args->args[0];
+    return bf_to_next_paragraph(sess->active_buffer, IVAL(param));
+}
+
+static Status cm_bp_to_prev_paragraph(const CommandArgs *cmd_args)
+{
+    assert(cmd_args->arg_num == 1);
+    Session *sess = cmd_args->sess;
+    Value param = cmd_args->args[0];
+    return bf_to_prev_paragraph(sess->active_buffer, IVAL(param));
 }
 
 static Status cm_bp_goto_matching_bracket(const CommandArgs *cmd_args)

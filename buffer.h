@@ -159,9 +159,11 @@ Status bf_bp_to_screen_line_end(Buffer *, BufferPos *,
                                 int is_select, int is_cursor);
 Status bf_to_next_word(Buffer *, int is_select);
 Status bf_to_prev_word(Buffer *, int is_select);
+Status bf_to_next_paragraph(Buffer *, int is_select);
+Status bf_to_prev_paragraph(Buffer *, int is_select);
+Status bf_change_page(Buffer *, Direction);
 Status bf_to_buffer_start(Buffer *, int is_select);
 Status bf_to_buffer_end(Buffer *, int is_select);
-Status bf_change_page(Buffer *, Direction);
 Status bf_add_new_mark(Buffer *, BufferPos *, MarkProperties);
 Status bf_insert_character(Buffer *, const char *character, int advance_cursor);
 Status bf_insert_string(Buffer *, const char *string, 
