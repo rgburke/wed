@@ -185,7 +185,7 @@ static Status rp_ts_replace(Buffer *buffer, const char *rep_text,
                             size_t rep_length)
 {
     return bf_replace_string(buffer, buffer->search.opt.pattern_len,
-                             rep_text, rep_length, 1);
+                             rep_text, rep_length, buffer->search.opt.forward);
 }
 
 static Status rp_rs_replace(Buffer *buffer, const char *rep_text,
@@ -199,7 +199,7 @@ static Status rp_rs_replace(Buffer *buffer, const char *rep_text,
     
     if (regex_replace->back_ref_occurrences == 0) {
         return bf_replace_string(buffer, regex_search->match_length,
-                                 rep_text, rep_length, 1);
+                                 rep_text, rep_length, search->opt.forward);
     }
 
     size_t new_rep_length;
@@ -218,7 +218,8 @@ static Status rp_rs_replace(Buffer *buffer, const char *rep_text,
                                  new_rep_length, rep_text, rep_length);
 
     Status status = bf_replace_string(buffer, regex_search->match_length,
-                                      new_rep_text, new_rep_length, 1);
+                                      new_rep_text, new_rep_length, 
+                                      search->opt.forward);
 
     free(new_rep_text);
 

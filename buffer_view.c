@@ -40,6 +40,7 @@ static void bv_set_cell(Cell *, size_t offset, size_t col_no, size_t col_width,
 static void bv_populate_buffer_data(const Buffer *);
 static void bv_clear_view(BufferView *);
 static void bv_populate_syntax_data(const Session *, Buffer *);
+static void bv_populate_search_match_data(Buffer *);
 static void bv_populate_selection_data(Buffer *);
 static void bv_populate_colorcolumn_data(Buffer *);
 static void bv_populate_cursor_data(Buffer *);
@@ -117,6 +118,7 @@ void bv_update_view(const Session *sess, Buffer *buffer)
         bv_populate_syntax_data(sess, buffer);
     }
 
+    bv_populate_search_match_data(buffer);
     bv_populate_selection_data(buffer);
     bv_populate_colorcolumn_data(buffer);
     bv_populate_cursor_data(buffer);
@@ -657,6 +659,44 @@ static void bv_populate_syntax_data(const Session *sess, Buffer *buffer)
 
             if (syn_match != NULL) {
                 cell->token = syn_match->token;
+            }
+        }
+    }
+}
+
+static void bv_populate_search_match_data(Buffer *buffer)
+{
+    const SearchMatches *matches = &buffer->search.matches;
+
+    if (matches->match_num == 0) {
+        return;
+    }
+
+    BufferView *bv = buffer->bv;
+    size_t range_index = 0;
+    const Range *range = &matches->match_ranges[range_index];
+    Line *line;
+    Cell *cell;
+
+    for (size_t row = 0; row < bv->rows_drawn; row++) {
+        line = &bv->lines[row];
+
+        for (size_t col = 0; col < bv->cols; col++) {
+            cell = &line->cells[col]; 
+
+            if (cell->text_len == 0 || cell->offset == (size_t)-1) {
+                continue;
+            }
+
+            while (cell->offset >= range->end.offset &&
+                    ++range_index < matches->match_num) {
+                range = &matches->match_ranges[range_index];
+            }
+
+            if (range_index >= matches->match_num) {
+                return;
+            } else if (bf_offset_in_range(range, cell->offset)) {
+                cell->attr |= CA_SEARCH_MATCH;
             }
         }
     }

@@ -92,8 +92,7 @@ int se_set_active_buffer(Session *, size_t buffer_index);
 Buffer *se_get_buffer(const Session *, size_t buffer_index);
 int se_remove_buffer(Session *, Buffer *);
 Status se_make_prompt_active(Session *, PromptType, const char *prompt_text,
-                             List *history, int has_prompt_completer,
-                             int show_last_cmd);
+                             List *history, int show_last_cmd);
 int se_end_prompt(Session *);
 int se_prompt_active(const Session *);
 void se_exclude_command_type(Session *, CommandType);

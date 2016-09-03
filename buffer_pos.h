@@ -47,6 +47,13 @@ typedef struct {
     MarkProperties prop;
 } Mark;
 
+/* Represent selected text in a buffer,
+ * start is inclusive, end is exclusive */
+typedef struct {
+    BufferPos start;
+    BufferPos end;
+} Range;
+
 int bp_init(BufferPos *, const GapBuffer *, const FileFormat *,
             const HashMap *config);
 Mark *bp_new_mark(BufferPos *, MarkProperties);

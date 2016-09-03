@@ -28,6 +28,7 @@
 #include "config.h"
 #include "build_config.h"
 #include "tui.h"
+#include "prompt_completer.h"
 
 #define MAX_EMPTY_BUFFER_NAME_SIZE 20
 #define FILE_TYPE_FILE_BUF_SIZE 128
@@ -406,14 +407,14 @@ int se_remove_buffer(Session *sess, Buffer *to_remove)
 
 Status se_make_prompt_active(Session *sess, PromptType prompt_type, 
                              const char *prompt_text, List *history,
-                             int has_prompt_completer, int show_last_cmd)
+                             int show_last_cmd)
 {
     RETURN_IF_FAIL(pr_reset_prompt(sess->prompt, prompt_type, prompt_text, 
                                    history, show_last_cmd));
 
     sess->key_map.active_op_modes[OM_PROMPT] = 1;
 
-    if (has_prompt_completer) {
+    if (pc_has_prompt_completer(prompt_type)) {
         sess->key_map.active_op_modes[OM_PROMPT_COMPLETER] = 1;
     }
 

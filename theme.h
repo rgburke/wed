@@ -32,6 +32,8 @@ typedef enum {
     SC_ERROR_MESSAGE,
     SC_BUFFER_END,
     SC_COLORCOLUMN,
+    SC_SEARCH_MATCH,
+    SC_PRIMARY_SEARCH_MATCH,
     SC_ENTRY_NUM
 } ScreenComponent;
 

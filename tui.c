@@ -334,7 +334,7 @@ static int ti_draw_buffer_cell(WINDOW *win, const Cell *cell)
 {
     attr_t attr = A_NORMAL;
 
-    if (cell->attr & CA_SELECTION) {
+    if (cell->attr & CA_SELECTION && !(cell->attr & CA_SEARCH_MATCH)) {
         attr |= A_REVERSE;
     }
 
@@ -342,6 +342,12 @@ static int ti_draw_buffer_cell(WINDOW *win, const Cell *cell)
         attr |= SC_COLOR_PAIR(SC_ERROR_MESSAGE);
     } else if (cell->attr & CA_COLORCOLUMN) {
         attr |= SC_COLOR_PAIR(SC_COLORCOLUMN);
+    } else if (cell->attr & CA_SEARCH_MATCH) {
+        if (cell->attr & CA_SELECTION) {
+            attr |= SC_COLOR_PAIR(SC_PRIMARY_SEARCH_MATCH);
+        } else {
+            attr |= SC_COLOR_PAIR(SC_SEARCH_MATCH);
+        }
     } else if ((cell->attr & CA_BUFFER_END) || (cell->attr & CA_WRAP)) {
         attr |= SC_COLOR_PAIR(SC_BUFFER_END);
     } else {

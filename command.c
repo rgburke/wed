@@ -92,7 +92,8 @@ static Status cm_buffer_save_as(const CommandArgs *);
 static Status cm_save_file_prompt(Session *, char **file_path_ptr);
 static void cm_generate_find_prompt(const BufferSearch *,
                                     char prompt_text[MAX_CMD_PROMPT_LENGTH]);
-static Status cm_prepare_search(Session *, const BufferPos *start_pos);
+static Status cm_prepare_search(Session *, const BufferPos *start_pos,
+                                int allow_find_all);
 static Status cm_buffer_find(const CommandArgs *);
 static Status cm_buffer_find_next(const CommandArgs *);
 static Status cm_buffer_toggle_search_direction(const CommandArgs *);
@@ -167,7 +168,6 @@ static const CommandDefinition cm_commands[] = {
     [CMD_BUFFER_SAVE_FILE]               = { NULL    , cm_buffer_save_file              , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
     [CMD_BUFFER_SAVE_AS]                 = { NULL    , cm_buffer_save_as                , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
     [CMD_BUFFER_FIND]                    = { NULL    , cm_buffer_find                   , CMDSIG(1, VAL_TYPE_INT)              , CMDT_CMD_INPUT   },
-    [CMD_BUFFER_FIND_NEXT]               = { NULL    , cm_buffer_find_next              , CMDSIG(1, VAL_TYPE_INT)              , CMDT_CMD_INPUT   },
     [CMD_BUFFER_TOGGLE_SEARCH_TYPE]      = { NULL    , cm_buffer_toggle_search_type     , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
     [CMD_BUFFER_TOGGLE_SEARCH_CASE]      = { NULL    , cm_buffer_toggle_search_case     , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
     [CMD_BUFFER_TOGGLE_SEARCH_DIRECTION] = { NULL    , cm_buffer_toggle_search_direction, CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
@@ -253,8 +253,6 @@ static const OperationDefinition cm_operations[] = {
     [OP_SAVE] = { "<wed-save>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_SAVE_FILE },
     [OP_SAVE_AS] = { "<wed-save-as>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_SAVE_AS },
     [OP_FIND] = { "<wed-find>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_FIND },
-    [OP_FIND_NEXT] = { "<wed-find-next>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_FIND_NEXT },
-    [OP_FIND_PREV] = { "<wed-find-prev>", OM_STANDARD, { INT_VAL_STRUCT(1) }, 1, CMD_BUFFER_FIND_NEXT },
     [OP_FIND_REPLACE] = { "<wed-find-replace>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_REPLACE },
     [OP_GOTO_LINE] = { "<wed-goto-line>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_GOTO_LINE },
     [OP_OPEN] = { "<wed-open>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_SESSION_OPEN_FILE },
@@ -338,8 +336,6 @@ static const KeyMapping cm_key_mappings[] = {
     { KMT_OPERATION, "<C-s>",         { OP_SAVE                             } },
     { KMT_OPERATION, "<M-C-s>",       { OP_SAVE_AS                          } },
     { KMT_OPERATION, "<C-f>",         { OP_FIND                             } },
-    { KMT_OPERATION, "<F3>",          { OP_FIND_NEXT                        } },
-    { KMT_OPERATION, "<F15>",         { OP_FIND_PREV                        } },
     { KMT_OPERATION, "<C-h>",         { OP_FIND_REPLACE                     } },
     { KMT_OPERATION, "<C-r>",         { OP_FIND_REPLACE                     } },
     { KMT_OPERATION, "<C-g>",         { OP_GOTO_LINE                        } },
@@ -1073,7 +1069,8 @@ static void cm_generate_find_prompt(const BufferSearch *search,
              direction, case_sensitive);
 }
 
-static Status cm_prepare_search(Session *sess, const BufferPos *start_pos)
+static Status cm_prepare_search(Session *sess, const BufferPos *start_pos,
+                                int allow_find_all)
 {
     Buffer *buffer = sess->active_buffer;
 
@@ -1121,7 +1118,14 @@ static Status cm_prepare_search(Session *sess, const BufferPos *start_pos)
         }
     }
 
-    status = bs_reinit(&buffer->search, start_pos, pattern, pattern_len);
+    if (buffer->search.opt.pattern == NULL || buffer->search.invalid ||
+        strcmp(buffer->search.opt.pattern, pattern) != 0) {
+        status = bs_reinit(&buffer->search, start_pos, pattern, pattern_len);
+
+        if (STATUS_IS_SUCCESS(status) && allow_find_all) {
+            status = bs_find_all(&buffer->search, &buffer->pos);
+        }
+    }
 
     free(pattern);
 
@@ -1131,14 +1135,24 @@ static Status cm_prepare_search(Session *sess, const BufferPos *start_pos)
 static Status cm_buffer_find(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
+    Buffer *buffer = sess->active_buffer;
 
-    RETURN_IF_FAIL(cm_prepare_search(sess, NULL));
+    while (1) {
+        RETURN_IF_FAIL(cm_prepare_search(sess, NULL, 1));
 
-    if (pr_prompt_cancelled(sess->prompt)) {
-        return STATUS_SUCCESS;
+        if (pr_prompt_cancelled(sess->prompt)) {
+            break;
+        }
+
+        RETURN_IF_FAIL(cm_buffer_find_next(cmd_args));
+
+        sess->ui->update(sess->ui);
     }
 
-    return cm_buffer_find_next(cmd_args);
+    bs_reset(&buffer->search, NULL);
+    buffer->search.invalid = 1;
+
+    return STATUS_SUCCESS;
 }
 
 static Status cm_buffer_find_next(const CommandArgs *cmd_args)
@@ -1177,7 +1191,16 @@ static Status cm_buffer_find_next(const CommandArgs *cmd_args)
             }
 
             status = bf_set_bp(buffer, &buffer->search.last_match_pos);
+
+            if (STATUS_IS_SUCCESS(status)) {
+                bf_select_continue(buffer);
+                bp_advance_to_offset(&buffer->select_start,
+                                     buffer->pos.offset + 
+                                     bs_match_length(&buffer->search));
+            }
         } else {
+            bf_select_reset(buffer);
+
             char msg[MAX_MSG_SIZE];
             const char *pattern = buffer->search.opt.pattern;
 
@@ -1227,6 +1250,7 @@ static Status cm_buffer_toggle_search_type(const CommandArgs *cmd_args)
     }
 
     Buffer *buffer = sess->active_buffer->next;
+    buffer->search.invalid = 1;
 
     if (buffer->search.search_type == BST_TEXT) {
         buffer->search.search_type = BST_REGEX;
@@ -1251,6 +1275,7 @@ static Status cm_buffer_toggle_search_case(const CommandArgs *cmd_args)
 
     Buffer *buffer = sess->active_buffer->next;
     buffer->search.opt.case_insensitive ^= 1;
+    buffer->search.invalid = 1;
 
     char prompt_text[MAX_CMD_PROMPT_LENGTH];
     cm_generate_find_prompt(&buffer->search, prompt_text);
@@ -1307,7 +1332,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
     Buffer *buffer = sess->active_buffer;
-    RETURN_IF_FAIL(cm_prepare_search(sess, NULL));
+    RETURN_IF_FAIL(cm_prepare_search(sess, NULL, 0));
 
     if (pr_prompt_cancelled(sess->prompt) ||
         buffer->search.opt.pattern == NULL) {
@@ -1914,7 +1939,6 @@ static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type,
 {
     RETURN_IF_FAIL(se_make_prompt_active(sess, prompt_type,
                                          prompt_text, history,
-                                         pc_has_prompt_completer(prompt_type),
                                          show_last_cmd));
 
     CommandType disabled_cmd_types = CMDT_CMD_INPUT | CMDT_SESS_MOD;

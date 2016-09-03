@@ -52,13 +52,6 @@ typedef enum {
     DIRECTION_WITH_SELECT = 1 << 3
 } Direction;
 
-/* Represent selected text in a buffer,
- * start is inclusive, end is exclusive */
-typedef struct {
-    BufferPos start;
-    BufferPos end;
-} Range;
-
 /* Store cut/copied text when using wed-clipboard is not possible */
 typedef struct {
     FileFormat file_format;

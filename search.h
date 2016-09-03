@@ -26,10 +26,22 @@
 #include "regex_search.h"
 #include "search_util.h"
 
+/* Limit the number of matches that can be found when bs_find_all is called.
+ * A static limit avoids the need to repeatedly allocate memory and also acts
+ * as a guard against searches which generate a large number of matches */
+#define MAX_SEARCH_MATCH_NUM 1000
+
 typedef enum {
     BST_TEXT,
     BST_REGEX
 } BufferSearchType;
+
+/* Store search matches */
+typedef struct {
+    Range match_ranges[MAX_SEARCH_MATCH_NUM]; /* Array of matches */
+    size_t match_num; /* Number of matches in positions array */
+    size_t current_match_index; /* The current match displayed */
+} SearchMatches;
 
 /* Search structure which abstracts text
  * and regex searches */
@@ -45,12 +57,18 @@ struct BufferSearch {
      * i.e. During find a replace when the search has an explicit end */
     int wrapped; /* Has search wrapped */
     int finished; /* Has entire buffer been searched */
+    int invalid; /* Set to true when a search has been marked invalid
+                    due to changed options e.g. case sensitivity has been
+                    toggled. When true the search will need to be 
+                    reinitialised */
     /* Searches are either text or regex based. The structures in the 
      * union below contain the search type specific data */
     union {
         TextSearch text;
         RegexSearch regex;
     } type;
+    /* When bs_find_all is called matches are stored in this structure */
+    SearchMatches matches;
 };
 
 typedef struct BufferSearch BufferSearch;
@@ -65,5 +83,6 @@ void bs_free(BufferSearch *);
 Status bs_find_next(BufferSearch *, const BufferPos *start_pos,
                     int *found_match);
 size_t bs_match_length(const BufferSearch *);
+Status bs_find_all(BufferSearch *, const BufferPos *current_pos);
 
 #endif

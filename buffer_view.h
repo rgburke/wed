@@ -43,7 +43,8 @@ typedef enum {
     CA_WRAP = 1 << 4, /* Displays a wrap character */
     CA_COLORCOLUMN = 1 << 5, /* Is on colorcolumn */
     CA_NEW_LINE = 1 << 6, /* Cell represents new line character */
-    CA_LINE_END = 1 << 7 /* Empty cells after a new line */
+    CA_LINE_END = 1 << 7, /* Empty cells after a new line */
+    CA_SEARCH_MATCH = 1 << 8 /* Regions that match the current search */
 } CellAttribute;
 
 /* Structure representing each cell in a window */

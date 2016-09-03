@@ -189,8 +189,6 @@ depending on whether line wrap is disabled or enabled.
 <M-C-s>                     Save as
 <C-^>                       Save all
 <C-f>                       Find
-<F3>                        Find next
-<S-F3>                      Find previous
 <C-h> or <C-r>              Replace
 <C-o>                       Open file
 <C-n>                       New

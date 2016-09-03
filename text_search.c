@@ -119,6 +119,7 @@ Status ts_reinit(TextSearch *search, const SearchOptions *opt)
 void ts_free(TextSearch *search)
 {
     free(search->pattern);
+    search->pattern = NULL;
 }
 
 Status ts_find_next(TextSearch *search, const SearchOptions *opt,
@@ -222,7 +223,7 @@ static int ts_find_prev_str(const GapBuffer *buffer, size_t point,
     while (point > limit) {
         search_length = MIN(point - limit, SEARCH_BUFFER_SIZE);
         point -= search_length;
-        search_length = MIN(search_length + search->pattern_len - 2,
+        search_length = MIN(search_length + search->pattern_len - 1,
                             buffer_len - point);
         search_point = point;
 
@@ -294,7 +295,7 @@ static int ts_find_next_str(const GapBuffer *buffer, size_t point,
         }
     }
 
-    if (point + search->pattern_len > limit) {
+    if (point + search->pattern_len > limit || limit < buffer->gap_start) {
         return 0;
     }
 

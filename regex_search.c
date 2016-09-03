@@ -79,9 +79,15 @@ void rs_free(RegexSearch *search)
     }
 
 #if WED_PCRE_VERSION_GE_8_20 && !defined(__MACH__)
-    pcre_free_study(search->study);
+    if (search->study != NULL) {
+        pcre_free_study(search->study);
+        search->study = NULL;
+    }
 #endif
-    pcre_free(search->regex);
+    if (search->regex != NULL) {
+        pcre_free(search->regex);
+        search->regex = NULL;
+    }
 }
 
 Status rs_reinit(RegexSearch *search, const SearchOptions *opt)

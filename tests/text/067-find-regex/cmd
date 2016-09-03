@@ -1,1 +1,1 @@
-<wed-find><wed-toggle-search-type>_\w+_\d{2}\.<wed-prompt-submit>!
+<wed-find><wed-toggle-search-type>_\w+_\d{2}\.<wed-prompt-submit><wed-prompt-cancel>!
