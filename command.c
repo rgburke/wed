@@ -93,7 +93,7 @@ static Status cm_save_file_prompt(Session *, char **file_path_ptr);
 static void cm_generate_find_prompt(const BufferSearch *,
                                     char prompt_text[MAX_CMD_PROMPT_LENGTH]);
 static Status cm_prepare_search(Session *, const BufferPos *start_pos,
-                                int allow_find_all);
+                                int allow_find_all, int select_last_entry);
 static Status cm_buffer_find(const CommandArgs *);
 static Status cm_buffer_find_next(const CommandArgs *);
 static Status cm_buffer_toggle_search_direction(const CommandArgs *);
@@ -118,9 +118,7 @@ static Status cm_determine_buffer(Session *, const char *input,
 static Status cm_suspend(const CommandArgs *);
 static Status cm_session_end(const CommandArgs *);
 
-static Status cm_cmd_input_prompt(Session *, PromptType,
-                                  const char *prompt_text, List *history,
-                                  int show_last_cmd);
+static Status cm_cmd_input_prompt(Session *, const PromptOpt *);
 static QuestionRespose cm_question_prompt(Session *, PromptType,
                                           const char *question,
                                           QuestionRespose allowed_answers,
@@ -1012,7 +1010,15 @@ static Status cm_buffer_save_as(const CommandArgs *cmd_args)
 
 static Status cm_save_file_prompt(Session *sess, char **file_path_ptr)
 {
-    cm_cmd_input_prompt(sess, PT_SAVE_FILE, "Save As:", NULL, 0);
+    PromptOpt prompt_opt = {
+        .prompt_type = PT_SAVE_FILE,
+        .prompt_text = "Save As:",
+        .history = NULL,
+        .show_last_entry = 0,
+        .select_last_entry = 0
+    };
+
+    cm_cmd_input_prompt(sess, &prompt_opt);
 
     if (pr_prompt_cancelled(sess->prompt)) {
         return STATUS_SUCCESS;
@@ -1070,14 +1076,22 @@ static void cm_generate_find_prompt(const BufferSearch *search,
 }
 
 static Status cm_prepare_search(Session *sess, const BufferPos *start_pos,
-                                int allow_find_all)
+                                int allow_find_all, int select_last_entry)
 {
     Buffer *buffer = sess->active_buffer;
 
     char prompt_text[MAX_CMD_PROMPT_LENGTH];
     cm_generate_find_prompt(&buffer->search, prompt_text);
 
-    cm_cmd_input_prompt(sess, PT_FIND, prompt_text, sess->search_history, 1);
+    PromptOpt prompt_opt = {
+        .prompt_type = PT_FIND,
+        .prompt_text = prompt_text,
+        .history = sess->search_history,
+        .show_last_entry = 1,
+        .select_last_entry = select_last_entry
+    };
+
+    cm_cmd_input_prompt(sess, &prompt_opt);
 
     if (pr_prompt_cancelled(sess->prompt)) {
         return STATUS_SUCCESS;
@@ -1136,9 +1150,10 @@ static Status cm_buffer_find(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
     Buffer *buffer = sess->active_buffer;
+    int iter = 0;
 
     while (1) {
-        RETURN_IF_FAIL(cm_prepare_search(sess, NULL, 1));
+        RETURN_IF_FAIL(cm_prepare_search(sess, NULL, 1, iter++ == 0));
 
         if (pr_prompt_cancelled(sess->prompt)) {
             break;
@@ -1286,8 +1301,15 @@ static Status cm_buffer_toggle_search_case(const CommandArgs *cmd_args)
 static Status cm_prepare_replace(Session *sess, char **rep_text_ptr,
                                  size_t *rep_length)
 {
-    cm_cmd_input_prompt(sess, PT_REPLACE, "Replace With:",
-                        sess->replace_history, 1);
+    PromptOpt prompt_opt = {
+        .prompt_type = PT_REPLACE,
+        .prompt_text = "Replace With:",
+        .history = sess->replace_history,
+        .show_last_entry = 1,
+        .select_last_entry = 1
+    };
+
+    cm_cmd_input_prompt(sess, &prompt_opt);
 
     if (pr_prompt_cancelled(sess->prompt)) {
         return STATUS_SUCCESS;
@@ -1332,7 +1354,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
     Buffer *buffer = sess->active_buffer;
-    RETURN_IF_FAIL(cm_prepare_search(sess, NULL, 0));
+    RETURN_IF_FAIL(cm_prepare_search(sess, NULL, 0, 1));
 
     if (pr_prompt_cancelled(sess->prompt) ||
         buffer->search.opt.pattern == NULL) {
@@ -1469,7 +1491,15 @@ static Status cm_buffer_goto_line(const CommandArgs *cmd_args)
     Buffer *prompt_buffer = pr_get_prompt_buffer(sess->prompt);
     bf_set_mask(prompt_buffer, &line_no_regex);
 
-    cm_cmd_input_prompt(sess, PT_GOTO, "Line:", sess->lineno_history, 0);
+    PromptOpt prompt_opt = {
+        .prompt_type = PT_GOTO,
+        .prompt_text = "Line:",
+        .history = sess->lineno_history,
+        .show_last_entry = 0,
+        .select_last_entry = 0
+    };
+
+    cm_cmd_input_prompt(sess, &prompt_opt);
 
     bf_remove_mask(prompt_buffer);
 
@@ -1509,7 +1539,15 @@ static Status cm_session_open_file(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
 
-    cm_cmd_input_prompt(sess, PT_OPEN_FILE, "Open:", NULL, 0);
+    PromptOpt prompt_opt = {
+        .prompt_type = PT_OPEN_FILE,
+        .prompt_text = "Open:",
+        .history = NULL,
+        .show_last_entry = 0,
+        .select_last_entry = 0
+    };
+
+    cm_cmd_input_prompt(sess, &prompt_opt);
 
     if (pr_prompt_cancelled(sess->prompt)) {
         return STATUS_SUCCESS;
@@ -1688,7 +1726,15 @@ static Status cm_session_run_command(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
 
-    cm_cmd_input_prompt(sess, PT_COMMAND, "Command:", sess->command_history, 0);
+    PromptOpt prompt_opt = {
+        .prompt_type = PT_COMMAND,
+        .prompt_text = "Command:",
+        .history = sess->command_history,
+        .show_last_entry = 0,
+        .select_last_entry = 0
+    };
+
+    cm_cmd_input_prompt(sess, &prompt_opt);
 
     if (pr_prompt_cancelled(sess->prompt)) {
         return STATUS_SUCCESS;
@@ -1754,7 +1800,15 @@ static Status cm_session_change_buffer(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
 
-    cm_cmd_input_prompt(sess, PT_BUFFER, "Buffer:", sess->buffer_history, 0);
+    PromptOpt prompt_opt = {
+        .prompt_type = PT_BUFFER,
+        .prompt_text = "Buffer:",
+        .history = sess->buffer_history,
+        .show_last_entry = 0,
+        .select_last_entry = 0
+    };
+
+    cm_cmd_input_prompt(sess, &prompt_opt);
 
     if (pr_prompt_cancelled(sess->prompt)) {
         return STATUS_SUCCESS;
@@ -1903,8 +1957,16 @@ static QuestionRespose cm_question_prompt(Session *sess, PromptType prompt_type,
 {
     QuestionRespose response = QR_NONE;
 
+    PromptOpt prompt_opt = {
+        .prompt_type = prompt_type,
+        .prompt_text = question,
+        .history = NULL,
+        .show_last_entry = 0,
+        .select_last_entry = 0
+    };
+
     do {
-        cm_cmd_input_prompt(sess, prompt_type, question, NULL, 0);
+        cm_cmd_input_prompt(sess, &prompt_opt);
 
         if (pr_prompt_cancelled(sess->prompt)) {
             return QR_CANCEL;
@@ -1933,13 +1995,9 @@ static QuestionRespose cm_question_prompt(Session *sess, PromptType prompt_type,
     return response;
 }
 
-static Status cm_cmd_input_prompt(Session *sess, PromptType prompt_type, 
-                                  const char *prompt_text, List *history,
-                                  int show_last_cmd)
+static Status cm_cmd_input_prompt(Session *sess, const PromptOpt *prompt_opt)
 {
-    RETURN_IF_FAIL(se_make_prompt_active(sess, prompt_type,
-                                         prompt_text, history,
-                                         show_last_cmd));
+    RETURN_IF_FAIL(se_make_prompt_active(sess, prompt_opt));
 
     CommandType disabled_cmd_types = CMDT_CMD_INPUT | CMDT_SESS_MOD;
     se_exclude_command_type(sess, disabled_cmd_types);

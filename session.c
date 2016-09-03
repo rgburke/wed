@@ -405,16 +405,13 @@ int se_remove_buffer(Session *sess, Buffer *to_remove)
     return 1;
 }
 
-Status se_make_prompt_active(Session *sess, PromptType prompt_type, 
-                             const char *prompt_text, List *history,
-                             int show_last_cmd)
+Status se_make_prompt_active(Session *sess, const PromptOpt *prompt_opt)
 {
-    RETURN_IF_FAIL(pr_reset_prompt(sess->prompt, prompt_type, prompt_text, 
-                                   history, show_last_cmd));
+    RETURN_IF_FAIL(pr_reset_prompt(sess->prompt, prompt_opt));
 
     sess->key_map.active_op_modes[OM_PROMPT] = 1;
 
-    if (pc_has_prompt_completer(prompt_type)) {
+    if (pc_has_prompt_completer(prompt_opt->prompt_type)) {
         sess->key_map.active_op_modes[OM_PROMPT_COMPLETER] = 1;
     }
 

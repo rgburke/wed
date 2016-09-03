@@ -62,33 +62,35 @@ void pr_free(Prompt *prompt, int free_prompt_buffer)
 }
 
 /* This function sets up the prompt so it's ready to be shown */
-Status pr_reset_prompt(Prompt *prompt, PromptType prompt_type, 
-                       const char *prompt_text, List *history,
-                       int show_last_cmd)
+Status pr_reset_prompt(Prompt *prompt, const PromptOpt *prompt_opt)
 {
-    RETURN_IF_FAIL(pr_set_prompt_text(prompt, prompt_text));
+    RETURN_IF_FAIL(pr_set_prompt_text(prompt, prompt_opt->prompt_text));
 
-    prompt->prompt_type = prompt_type;
+    prompt->prompt_type = prompt_opt->prompt_type;
     prompt->cancelled = 0;
-    prompt->history = history;
+    prompt->history = prompt_opt->history;
     pr_clear_suggestions(prompt);
 
     const char *prompt_content = "";
 
-    if (history != NULL) {
+    if (prompt->history != NULL) {
         /* If user presses <Up> prompt->history_index
          * will be decremented by 1 to show the last
          * entry in history */
-        prompt->history_index = list_size(history);
+        prompt->history_index = list_size(prompt->history);
 
-        if (show_last_cmd && prompt->history_index > 0) {
-            prompt_content = list_get(history, --prompt->history_index); 
+        if (prompt_opt->show_last_entry && prompt->history_index > 0) {
+            prompt_content = list_get(prompt->history, --prompt->history_index); 
         }
     }
 
     RETURN_IF_FAIL(bf_reset_with_text(prompt->prompt_buffer, prompt_content));
 
-    return bf_select_all_text(prompt->prompt_buffer);
+    if (prompt_opt->show_last_entry && prompt_opt->select_last_entry) {
+        return bf_select_all_text(prompt->prompt_buffer);
+    }
+
+    return STATUS_SUCCESS;
 }
 
 Status pr_set_prompt_text(Prompt *prompt, const char *prompt_text)

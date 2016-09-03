@@ -36,6 +36,16 @@ typedef enum {
     PT_ENTRY_NUM
 } PromptType;
 
+/* Prompt configuration */
+typedef struct {
+    PromptType prompt_type; /* Specify prompt type */
+    const char *prompt_text; /* Prompt text to display */
+    List *history; /* List to use for prompt history */
+    int show_last_entry; /* Populate prompt with last history entry */
+    int select_last_entry; /* Select prompt text if populated with
+                              last entry */
+} PromptOpt; 
+
 /* Structure for controlling prompt */
 typedef struct {
     Buffer *prompt_buffer; /* Used for prompt input e.g. Find & Replace,
@@ -54,8 +64,7 @@ typedef struct {
 
 Prompt *pr_new(Buffer *prompt_buffer);
 void pr_free(Prompt *, int free_prompt_buffer);
-Status pr_reset_prompt(Prompt *, PromptType, const char *prompt_text,
-                       List *history, int show_last_cmd);
+Status pr_reset_prompt(Prompt *, const PromptOpt *prompt_opt);
 Status pr_set_prompt_text(Prompt *, const char *prompt_text);
 Buffer *pr_get_prompt_buffer(const Prompt *);
 PromptType pr_get_prompt_type(const Prompt *);
