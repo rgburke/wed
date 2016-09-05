@@ -344,6 +344,76 @@ level.
 Global only variables can be set in the wed command prompt (e.g. theme) as
 there is no ambiguity regarding the level they apply at.
 
+#### Config Commands
+
+Config commands also allow the behaviour of wed to be customised but with
+greater flexibility than config variables. Commands are invoked using the
+syntax:
+
+```
+cmd arg1 arg2 ...
+```
+
+The table below lists the commands currently available in wed and their
+properties:
+
+```
+Command | Arguments                | Description
+--------|--------------------------|----------------------------------------------------
+echo    | variable                 | Displays arguments in the status bar
+map     | string KEYS, string KEYS | Maps a sequence of keys to another sequence of keys
+unmap   | string KEYS              | Unmaps a previously created key mapping
+```
+
+##### echo
+
+The `echo` command displays any arguments in the status bar. For example,
+running `echo "Hello"` will display the text `Hello` in the status bar. Config
+variables can be interpolated by `echo`, so running `echo ln tw` will print
+`lineno=true. tabwidth=4`.
+
+##### map
+
+The `map` command allows custom keybindings to be created. For example the
+following command maps the key sequence `<C-p>h` to the key sequence `hello`:
+
+```
+map <C-p>h hello
+```
+
+When the sequence `<C-p>h` is entered the text `hello` will be entered into
+the buffer. A more advanced example is the following map:
+
+```
+map <C-p>f <C-f><C-v><Enter><Escape>
+```
+
+When the sequence `<C-p>f` is entered the text currently in the clipboard is
+searched for and selected if found. Key mappings are recursive so the following
+maps:
+
+```
+map a b; map b c
+```
+
+will cause a `c` to be entered whenever an `a` is pressed. The shortest key
+sequence is matched so a mapping will only work if a substring mapping doesn't
+already exist:
+
+```
+map <C-p>a <Home>
+Map <C-p>aa <End>  # This mapping will never run as <C-p>a will be matched first
+```
+
+##### unmap
+
+Key mappings created with the `map` can be undone using the `unmap` command:
+
+```
+map x y  # Pressing x will enter a y
+unmap x  # Pressing x will enter an x again
+```
+
 #### Config Definitions
 
 Config definitions allow objects to be defined which can be referenced by
