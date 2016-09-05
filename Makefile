@@ -49,6 +49,10 @@ LIBWED=wedlib.a
 BINARY=wed
 WEDCLIPBOARD=wed-clipboard
 
+WEDRUNTIMEDIR=wedruntime
+MANFILE=doc/man/wed.1
+RELEASEDIR=$(BINARY)-$(WED_VERSION)
+
 .PHONY: all
 all: $(BINARY)
 
@@ -127,10 +131,10 @@ install:
 	@install -m755 -s $(BINARY) $(DESTDIR)$(PREFIX)/bin
 	@install -m755 '$(WEDCLIPBOARD)' $(DESTDIR)$(PREFIX)/bin
 	@install -m755 -d $(DESTDIR)$(WEDRUNTIME)	
-	@cp -fr wedruntime/* $(DESTDIR)$(WEDRUNTIME)
+	@cp -fr $(WEDRUNTIMEDIR)/* $(DESTDIR)$(WEDRUNTIME)
 	@find $(DESTDIR)$(WEDRUNTIME) -type f -exec chmod 644 {} \;
 	@mkdir -p $(DESTDIR)$(PREFIX)/share/man/man1
-	@sed 's/VERSION/$(WED_VERSION)/g' doc/man/wed.1 | gzip > $(DESTDIR)$(PREFIX)/share/man/man1/wed.1.gz
+	@sed 's/VERSION/$(WED_VERSION)/g' $(MANFILE) | gzip > $(DESTDIR)$(PREFIX)/share/man/man1/wed.1.gz
 	@chmod 644 $(DESTDIR)$(PREFIX)/share/man/man1/wed.1.gz
 
 .PHONY: uninstall
@@ -140,3 +144,12 @@ uninstall:
 	@rm -f '$(DESTDIR)$(PREFIX)/bin/$(WEDCLIPBOARD)'
 	@rm -fr $(DESTDIR)$(WEDRUNTIME)
 	@rm -f $(DESTDIR)$(PREFIX)/share/man/man1/wed.1.gz
+
+.PHONY: release
+release:
+	./configure --static
+	$(MAKE) clean
+	$(MAKE)
+	tar --transform 's:^:$(RELEASEDIR)/:' -czf $(RELEASEDIR).tar.gz	\
+		$(BINARY) $(WEDCLIPBOARD) $(WEDRUNTIMEDIR) $(MANFILE) \
+		README.md config.mk Makefile
