@@ -27,6 +27,21 @@ most basic tasks reading wed documentation should be unnecessary.
 
 ## Quick Start
 
+### Linux Binary
+
+A prebuilt static Linux binary is available [here](https://github.com/rgburke/wed/releases/download/v0.2/wed-v0.2-linux-x86_64.tar.gz).
+To install this binary run:
+
+```
+tar -xzf wed-v0.2-linux-x86_64.tar.gz
+cd wed-v0.2
+sudo make install
+```
+
+To uninstall wed run `sudo make uninstall`.
+
+### Build From Source
+
 The following libraries and tools are required to build wed:
 
   - ncursesw
@@ -590,6 +605,8 @@ activebuffertabbar    | Active buffer in the tab bar
 statusbar             | Bar at the bottom of the screen showing position info
 errormessage          | Error messages that display on error
 bufferend             | The ~ characters that appear below the end of a buffer
+searchmatch           | Text that matches the current search term
+primarysearchmatch    | The currently selected search match
 ```
 
 The colors available to `fgcolor` and `bgcolor` in wed are:
@@ -938,24 +955,6 @@ Read the [Immediate Tasks](#immediate-tasks) and [Future Tasks](#future-tasks)
 sections above for ideas. If you want to take on a large piece of work please
 contact me beforehand just to discuss the idea and implementation.
 
-Over prescriptive and complex rules don't help involvement and contribution.
-However for the benefit of all there have to be certain standards for
-readability, consistency and maintainability. Existing code has been written
-to the standards below and all updates and new code should also abide by them,
-even if you don't agree with them:
-
- - Use spaces instead of tabs. Indentation is 4 spaces.
- - Use snake_case for variable and function names.
- - Typedef structs, unions and enums. Use CamelCase for names. 
- - Use 1TBS style.
- - 80 character line width. Exceptions are allowed where it hurts readability.
- - Enum entries should be upper case and have a unique prefix.
- - wed is compiled using c99, so no need for c89 style variable declarations.
- - Namespace global variables and functions with a two letter file id.
- - Add tests where possible for any new code.
- - Ensure there are no compiler warnings.
-
-Look through the code base and the meaning of the rules above should be clear.
 Please try and keep any changes you make consistent with the existing style of
 the code.
 
