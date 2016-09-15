@@ -346,6 +346,7 @@ static const KeyMapping cm_key_mappings[] = {
     { KMT_OPERATION, "<C-^>",         { OP_SAVE_ALL                         } },
     { KMT_OPERATION, "<C-w>",         { OP_CLOSE                            } },
     { KMT_OPERATION, "<C-\\>",        { OP_CMD                              } },
+    { KMT_OPERATION, "<C-e>",         { OP_CMD                              } },
     { KMT_OPERATION, "<C-_>",         { OP_CHANGE_BUFFER                    } },
     { KMT_OPERATION, "<M-z>",         { OP_SUSPEND                          } },
     { KMT_OPERATION, "<Escape>",      { OP_EXIT                             } },

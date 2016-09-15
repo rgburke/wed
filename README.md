@@ -211,7 +211,7 @@ depending on whether line wrap is disabled or enabled.
 <M-C-Right> or <M-Right>    Next tab
 <M-C-Left> or <M-Left>      Previous tab
 <C-_>                       Change file
-<C-\>                       Run wed command
+<C-e> or <C-\>              Run wed command
 <M-z>                       Suspend
 <Escape> or <M-c>           Exit
 ```
@@ -711,8 +711,6 @@ before looking at the [Future Tasks](#future-tasks) section.
   - Set session or buffer level variable using ":" syntax. i.e. `s:ln=0;` to
     turn off line numbers at global level.
   - Add ability to filter file through external commands e.g. sort
-  - Highlight search matches (already done in when doing a replace). A further
-    step would be to highlight all matches currently visible on screen.
   - Write unsaved changes to swap file. Swap files can then be used to
     recover lost changes or warn user file is open in another instance of wed.
   - Check if file has changed before writing and prompt user for action i.e.
@@ -726,9 +724,6 @@ before looking at the [Future Tasks](#future-tasks) section.
       `\1 = "special"; \2 = "constant";`.
     - Allow nested groups e.g. A c string can contain format specifiers, which
       could be assigned a different token type for contrasting colouring.
-  - Add file\_content regex variable to filetype definition. This variable
-    allows a filetype match to be determined by applying the file\_content
-    regex against the file content.
   - Create directory hierarchy for files which don't exist when writing them to
     disk e.g. for `wed /my/made/up/path.txt` running `<C-s>` should work.
   - Add add context aware info bar under command prompt in a similar fashion 
@@ -811,15 +806,17 @@ typedef struct Cursor Cursor;
 struct Cursor {
     BufferPos pos;
     BufferPos select_pos;
+    Cursor *prev;
     Cursor *next;
 };
 ```
 
-Cursor's could be stored in a linked list allowing for quick insertion and
-deletion of any cursor. Each `Cursor` has a `select_pos` member so that each
-cursor tracks its own selection. Existing operations could be modified to loop
-through each cursor and then perform their action. For example, the bf\_insert
-function would now simply loop through each cursor and perform the insertion.
+Cursor's could be stored in a doubly linked list allowing for quick insertion
+and deletion of any cursor. Each `Cursor` has a `select_pos` member so that
+each cursor tracks its own selection. Existing operations could be modified to
+loop through each cursor and then perform their action. For example, the
+bf\_insert function would now simply loop through each cursor and perform the
+insertion.
 
 Further key bindings would need to be introduced to allow the creation and
 deletion of Cursors. For example, a key combination to create cursors on each
