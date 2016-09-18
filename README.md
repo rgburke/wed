@@ -159,9 +159,9 @@ as window managers.
 <End>                       Move to end of (screen) line
 <M-End>                     Move to end of line
 <C-Right>                   Move to next word
-<C-Left>                    Move to previous work
-<C-Up>                      Move to next paragraph
-<C-Down>                    Move to previous paragraph
+<C-Left>                    Move to previous word
+<C-Up>                      Move to previous paragraph
+<C-Down>                    Move to next paragraph
 <PageUp>                    Move up a page
 <PageDown>                  Move down a page
 <C-Home>                    Move to start of file
@@ -378,6 +378,7 @@ Command | Arguments                | Description
 echo    | variable                 | Displays arguments in the status bar
 map     | string KEYS, string KEYS | Maps a sequence of keys to another sequence of keys
 unmap   | string KEYS              | Unmaps a previously created key mapping
+help    | none                     | Display basic help information
 ```
 
 ##### echo

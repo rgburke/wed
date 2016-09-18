@@ -47,6 +47,7 @@ static Status cf_is_valid_var(ConfigEntity, ConfigLevel, ConfigVariable,
                               ConfigVariableDescriptor **var_ptr);
 static const ConfigVariableDescriptor *cf_get_variable(const HashMap *config,
                                                        ConfigVariable);
+static const char *cf_get_config_level_str(ConfigLevel);
 static Status cf_tabwidth_validator(ConfigEntity, Value);
 static Status cf_filetype_validator(ConfigEntity, Value);
 static Status cf_filetype_on_change_event(ConfigEntity, Value, Value);
@@ -60,20 +61,20 @@ static Status cf_sdt_validator(ConfigEntity, Value);
 static Status cf_colorcolumn_validator(ConfigEntity, Value);
 
 static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
-    [CV_LINEWRAP] = { "linewrap" , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL },
-    [CV_LINENO] = { "lineno" , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL },
-    [CV_TABWIDTH] = { "tabwidth" , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8) , cf_tabwidth_validator , NULL },
-    [CV_WEDRUNTIME] = { "wedruntime", "wrt", CL_SESSION , STR_VAL_STRUCT(WEDRUNTIME), NULL , NULL },
-    [CV_FILETYPE] = { "filetype" , "ft" , CL_BUFFER , STR_VAL_STRUCT("") , cf_filetype_validator , cf_filetype_on_change_event },
-    [CV_SYNTAX] = { "syntax" , "sy" , CL_SESSION , BOOL_VAL_STRUCT(1) , NULL , NULL },
-    [CV_SYNTAXTYPE] = { "syntaxtype", "st" , CL_BUFFER , STR_VAL_STRUCT("") , cf_syntaxtype_validator, cf_syntaxtype_on_change_event },
-    [CV_THEME] = { "theme" , "th" , CL_SESSION , STR_VAL_STRUCT("default") , cf_theme_validator , cf_theme_on_change_event },
-    [CV_EXPANDTAB] = { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0) , NULL , NULL },
-    [CV_AUTOINDENT] = { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL },
-    [CV_FILEFORMAT] = { "fileformat", "ff" , CL_BUFFER , STR_VAL_STRUCT("unix") , cf_fileformat_validator, cf_fileformat_on_change_event },
-    [CV_SYNTAXDEFTYPE] = { "syntaxdeftype", "sdt", CL_SESSION, STR_VAL_STRUCT(WED_DEFAULT_SDT), cf_sdt_validator, NULL },
-    [CV_SHDATADIR] = { "shdatadir", "shdd", CL_SESSION, STR_VAL_STRUCT(""), NULL, NULL },
-    [CV_COLORCOLUMN] = { "colorcolumn", "cc", CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(0), cf_colorcolumn_validator, NULL }
+    [CV_LINEWRAP] = { "linewrap" , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL, "Enables/Disables line wrap" },
+    [CV_LINENO] = { "lineno" , "ln" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL, "Enables/Disables line numbers" },
+    [CV_TABWIDTH] = { "tabwidth" , "tw" , CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(8) , cf_tabwidth_validator , NULL, "Sets tab character screen width" },
+    [CV_EXPANDTAB] = { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0) , NULL , NULL, "Enables/Disables expanding tab characters into spaces" },
+    [CV_AUTOINDENT] = { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL, "Enables/Disables autoindent" },
+    [CV_COLORCOLUMN] = { "colorcolumn", "cc", CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(0), cf_colorcolumn_validator, NULL, "Sets column number to be highlighted" },
+    [CV_WEDRUNTIME] = { "wedruntime", "wrt", CL_SESSION , STR_VAL_STRUCT(WEDRUNTIME), NULL , NULL, "Config definition location directory" },
+    [CV_SYNTAX] = { "syntax" , "sy" , CL_SESSION , BOOL_VAL_STRUCT(1) , NULL , NULL, "Enables/Disables syntax highlighting" },
+    [CV_THEME] = { "theme" , "th" , CL_SESSION , STR_VAL_STRUCT("default") , cf_theme_validator , cf_theme_on_change_event, "Set the active theme" },
+    [CV_SYNTAXDEFTYPE] = { "syntaxdeftype", "sdt", CL_SESSION, STR_VAL_STRUCT(WED_DEFAULT_SDT), cf_sdt_validator, NULL, "Syntax definition type to use" },
+    [CV_SHDATADIR] = { "shdatadir", "shdd", CL_SESSION, STR_VAL_STRUCT(""), NULL, NULL, "Directory path containing language definition files" },
+    [CV_FILETYPE] = { "filetype" , "ft" , CL_BUFFER , STR_VAL_STRUCT("") , cf_filetype_validator , cf_filetype_on_change_event, "Sets the type of the current file" },
+    [CV_SYNTAXTYPE] = { "syntaxtype", "st" , CL_BUFFER , STR_VAL_STRUCT("") , cf_syntaxtype_validator, cf_syntaxtype_on_change_event, "Set the syntax definition to use for highlighting" },
+    [CV_FILEFORMAT] = { "fileformat", "ff" , CL_BUFFER , STR_VAL_STRUCT("unix") , cf_fileformat_validator, cf_fileformat_on_change_event, "Sets line endings used by file" }
 };
 
 static const size_t cf_var_num = ARRAY_SIZE(cf_default_config,
@@ -499,6 +500,52 @@ const char *cf_string(const HashMap *config, ConfigVariable config_var)
     assert(var->default_value.type == VAL_TYPE_STR);
 
     return SVAL(var->default_value);
+}
+
+Status cf_generate_variable_table(HelpTable *help_table)
+{
+    if (!hp_init_help_table(help_table, cf_var_num + 1, 5)) {
+        return OUT_OF_MEMORY("Unable to create variable table");
+    }
+
+    const char ***var_table = help_table->table;
+
+    var_table[0][0] = "Name";
+    var_table[0][1] = "Short Name";
+    var_table[0][2] = "Level";
+    var_table[0][3] = "Type";
+    var_table[0][4] = "Description";
+
+    const ConfigVariableDescriptor *var;
+
+    for (size_t k = 0; k < cf_var_num; k++) {
+        var = &cf_default_config[k];
+
+        var_table[k + 1][0] = var->name;
+        var_table[k + 1][1] = var->short_name;
+        var_table[k + 1][2] = cf_get_config_level_str(var->config_levels);
+        var_table[k + 1][3] = va_value_type_string(var->default_value.type);
+        var_table[k + 1][4] = var->description;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static const char *cf_get_config_level_str(ConfigLevel config_levels)
+{
+    if (config_levels & CL_SESSION) {
+        if (config_levels & CL_BUFFER) {
+            return "Session & Buffer";
+        } else {
+            return "Session";
+        }
+    } else if (config_levels & CL_BUFFER) {
+        return "Buffer";
+    }
+
+    assert(!"Invalid ConfigLevel value");
+
+    return "";
 }
 
 static Status cf_tabwidth_validator(ConfigEntity entity, Value value)

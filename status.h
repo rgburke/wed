@@ -46,6 +46,9 @@
                                    } \
                                } while (0)
 
+#define OUT_OF_MEMORY(msg) \
+    st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - " msg)
+
 #define MAX_ERROR_MSG_SIZE 1024
 #define MAX_MSG_SIZE 1024
 

@@ -23,6 +23,7 @@
 #include "status.h"
 #include "value.h"
 #include "radix_tree.h"
+#include "help.h"
 
 struct Session;
 
@@ -89,7 +90,8 @@ typedef enum {
     CMD_SESSION_END,
     CMD_SESSION_ECHO,
     CMD_SESSION_MAP,
-    CMD_SESSION_UNMAP
+    CMD_SESSION_UNMAP,
+    CMD_SESSION_HELP
 } Command;
 
 /* Operations are instances of commands i.e. they define a command with
@@ -226,13 +228,17 @@ typedef struct {
     CommandSignature command_signature; /* Arg info */
     CommandType command_type; /* High level categorisation of 
                                  what this command does */
+    const char *arg_description; /* Description of the arguments this command
+                                    expects */
+    const char *description; /* Description of the action this command
+                                performs */
 } CommandDefinition;
 
 #define CMD_NO_ARGS { INT_VAL_STRUCT(0) }
 
 /* Modes in which key bindings can be defined */
 typedef enum {
-    OM_STANDARD, /* Normal buffer is open */
+    OM_NORMAL, /* Normal buffer is open */
     OM_PROMPT, /* Prompt is open */
     OM_PROMPT_COMPLETER, /* Prompt with auto complete functionality is open */
     OM_USER, /* User defined mappings */
@@ -270,6 +276,7 @@ typedef struct {
     Value args[MAX_CMD_ARG_NUM]; /* Arguments to Command */
     size_t arg_num; /* Argument number */
     Command command; /* The Command to be called */
+    const char *description; /* Description of what operation does */
 } OperationDefinition;
 
 int cm_init_key_map(KeyMap *);
@@ -279,5 +286,7 @@ int cm_is_valid_operation(const struct Session *, const char *key,
                           size_t key_len, int *is_prefix);
 Status cm_do_command(Command cmd, CommandArgs *cmd_args);
 int cm_get_command(const char *function_name, Command *cmd);
+Status cm_generate_keybinding_table(HelpTable *);
+Status cm_generate_command_table(HelpTable *);
 
 #endif

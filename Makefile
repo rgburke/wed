@@ -14,7 +14,7 @@ STATIC_SOURCES=wed.c buffer.c util.c input.c session.c \
 	file_type.c regex_util.c syntax.c theme.c prompt.c           \
 	prompt_completer.c search_util.c external_command.c          \
 	clipboard.c radix_tree.c buffer_view.c tui.c tabbed_view.c   \
-	syntax_manager.c wed_syntax.c
+	syntax_manager.c wed_syntax.c help.c
 GENERATED_SOURCES=config_parse.c config_scan.c
 GNU_SOURCE_HIGHLIGHT_SOURCES=gnu_source_highlight_syntax.c
 GNU_SOURCE_HIGHLIGHT_CXX_SOURCES=gnu_source_highlight.cc

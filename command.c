@@ -55,6 +55,7 @@ static KeyMapping *cm_new_key_mapping(KeyMappingType, const char *key,
                                       Operation, const char *keystr);
 static void cm_free_key_mapping(KeyMapping *);
 static Status cm_run_command(const CommandDefinition *, CommandArgs *);
+static const char *cm_get_op_mode_str(OperationMode);
 
 static Status cm_nop(const CommandArgs *);
 static Status cm_bp_change_line(const CommandArgs *);
@@ -128,150 +129,152 @@ static Status cm_run_prompt_completion(const CommandArgs *);
 static Status cm_session_echo(const CommandArgs *);
 static Status cm_session_map(const CommandArgs *);
 static Status cm_session_unmap(const CommandArgs *);
+static Status cm_session_help(const CommandArgs *);
 
 /* Allow the following to exceed 80 columns.
  * This format is easier to read and maipulate in visual block mode in vim */
 static const CommandDefinition cm_commands[] = {
-    [CMD_NOP]                            = { NULL    , cm_nop                           , CMDSIG_NO_ARGS                       , CMDT_NOP         },
-    [CMD_BP_CHANGE_LINE]                 = { NULL    , cm_bp_change_line                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_CHANGE_CHAR]                 = { NULL    , cm_bp_change_char                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_LINE_START]               = { NULL    , cm_bp_to_line_start              , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_HARD_LINE_START]          = { NULL    , cm_bp_to_hard_line_start         , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_LINE_END]                 = { NULL    , cm_bp_to_line_end                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_HARD_LINE_END]            = { NULL    , cm_bp_to_hard_line_end           , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_NEXT_WORD]                = { NULL    , cm_bp_to_next_word               , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_PREV_WORD]                = { NULL    , cm_bp_to_prev_word               , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_NEXT_PARAGRAPH]           = { NULL    , cm_bp_to_next_paragraph          , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_PREV_PARAGRAPH]           = { NULL    , cm_bp_to_prev_paragraph          , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_CHANGE_PAGE]                 = { NULL    , cm_bp_change_page                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_BUFFER_START]             = { NULL    , cm_bp_to_buffer_start            , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_TO_BUFFER_END]               = { NULL    , cm_bp_to_buffer_end              , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE },
-    [CMD_BP_GOTO_MATCHING_BRACKET]       = { NULL    , cm_bp_goto_matching_bracket      , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOVE },
-    [CMD_BUFFER_INSERT_CHAR]             = { NULL    , cm_buffer_insert_char            , CMDSIG(1, VAL_TYPE_STR)              , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_INDENT]                  = { NULL    , cm_buffer_indent                 , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_DELETE_CHAR]             = { NULL    , cm_buffer_delete_char            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_BACKSPACE]               = { NULL    , cm_buffer_backspace              , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_DELETE_WORD]             = { NULL    , cm_buffer_delete_word            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_DELETE_PREV_WORD]        = { NULL    , cm_buffer_delete_prev_word       , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_INSERT_LINE]             = { NULL    , cm_buffer_insert_line            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_SELECT_ALL_TEXT]         = { NULL    , cm_buffer_select_all_text        , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_COPY_SELECTED_TEXT]      = { NULL    , cm_buffer_copy_selected_text     , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_CUT_SELECTED_TEXT]       = { NULL    , cm_buffer_cut_selected_text      , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_PASTE_TEXT]              = { NULL    , cm_buffer_paste_text             , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_UNDO]                    = { NULL    , cm_buffer_undo                   , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_REDO]                    = { NULL    , cm_buffer_redo                   , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_VERT_MOVE_LINES]         = { NULL    , cm_buffer_vert_move_lines        , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_DUPLICATE_SELECTION]     = { NULL    , cm_buffer_duplicate_selection    , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_JOIN_LINES]              = { NULL    , cm_buffer_join_lines             , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD  },
-    [CMD_BUFFER_SAVE_FILE]               = { NULL    , cm_buffer_save_file              , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
-    [CMD_BUFFER_SAVE_AS]                 = { NULL    , cm_buffer_save_as                , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
-    [CMD_BUFFER_FIND]                    = { NULL    , cm_buffer_find                   , CMDSIG(1, VAL_TYPE_INT)              , CMDT_CMD_INPUT   },
-    [CMD_BUFFER_TOGGLE_SEARCH_TYPE]      = { NULL    , cm_buffer_toggle_search_type     , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
-    [CMD_BUFFER_TOGGLE_SEARCH_CASE]      = { NULL    , cm_buffer_toggle_search_case     , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
-    [CMD_BUFFER_TOGGLE_SEARCH_DIRECTION] = { NULL    , cm_buffer_toggle_search_direction, CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
-    [CMD_BUFFER_REPLACE]                 = { NULL    , cm_buffer_replace                , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
-    [CMD_PREVIOUS_PROMPT_ENTRY]          = { NULL    , cm_previous_prompt_entry         , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
-    [CMD_NEXT_PROMPT_ENTRY]              = { NULL    , cm_next_prompt_entry             , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
-    [CMD_PROMPT_INPUT_FINISHED]          = { NULL    , cm_prompt_input_finished         , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
-    [CMD_CANCEL_PROMPT]                  = { NULL    , cm_cancel_prompt                 , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
-    [CMD_RUN_PROMPT_COMPLETION]          = { NULL    , cm_run_prompt_completion         , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD     },
-    [CMD_BUFFER_GOTO_LINE]               = { NULL    , cm_buffer_goto_line              , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
-    [CMD_SESSION_OPEN_FILE]              = { NULL    , cm_session_open_file             , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
-    [CMD_SESSION_ADD_EMPTY_BUFFER]       = { NULL    , cm_session_add_empty_buffer      , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD    },
-    [CMD_SESSION_CHANGE_TAB]             = { NULL    , cm_session_change_tab            , CMDSIG(1, VAL_TYPE_INT)              , CMDT_SESS_MOD    },
-    [CMD_SESSION_SAVE_ALL]               = { NULL    , cm_session_save_all              , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD    },
-    [CMD_SESSION_CLOSE_BUFFER]           = { NULL    , cm_session_close_buffer          , CMDSIG(1, VAL_TYPE_INT)              , CMDT_CMD_INPUT   },
-    [CMD_SESSION_RUN_COMMAND]            = { NULL    , cm_session_run_command           , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
-    [CMD_SESSION_CHANGE_BUFFER]          = { NULL    , cm_session_change_buffer         , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT   },
-    [CMD_SUSPEND]                        = { NULL    , cm_suspend                       , CMDSIG_NO_ARGS                       , CMDT_SUSPEND     },
-    [CMD_SESSION_END]                    = { NULL    , cm_session_end                   , CMDSIG_NO_ARGS                       , CMDT_EXIT        },
+    [CMD_NOP]                            = { NULL    , cm_nop                           , CMDSIG_NO_ARGS                       , CMDT_NOP,         NULL, NULL },
+    [CMD_BP_CHANGE_LINE]                 = { NULL    , cm_bp_change_line                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_CHANGE_CHAR]                 = { NULL    , cm_bp_change_char                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_TO_LINE_START]               = { NULL    , cm_bp_to_line_start              , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_TO_HARD_LINE_START]          = { NULL    , cm_bp_to_hard_line_start         , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_TO_LINE_END]                 = { NULL    , cm_bp_to_line_end                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_TO_HARD_LINE_END]            = { NULL    , cm_bp_to_hard_line_end           , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_TO_NEXT_WORD]                = { NULL    , cm_bp_to_next_word               , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_TO_PREV_WORD]                = { NULL    , cm_bp_to_prev_word               , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_TO_NEXT_PARAGRAPH]           = { NULL    , cm_bp_to_next_paragraph          , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_TO_PREV_PARAGRAPH]           = { NULL    , cm_bp_to_prev_paragraph          , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_CHANGE_PAGE]                 = { NULL    , cm_bp_change_page                , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_TO_BUFFER_START]             = { NULL    , cm_bp_to_buffer_start            , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_TO_BUFFER_END]               = { NULL    , cm_bp_to_buffer_end              , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BP_GOTO_MATCHING_BRACKET]       = { NULL    , cm_bp_goto_matching_bracket      , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BUFFER_INSERT_CHAR]             = { NULL    , cm_buffer_insert_char            , CMDSIG(1, VAL_TYPE_STR)              , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_INDENT]                  = { NULL    , cm_buffer_indent                 , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_DELETE_CHAR]             = { NULL    , cm_buffer_delete_char            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_BACKSPACE]               = { NULL    , cm_buffer_backspace              , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_DELETE_WORD]             = { NULL    , cm_buffer_delete_word            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_DELETE_PREV_WORD]        = { NULL    , cm_buffer_delete_prev_word       , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_INSERT_LINE]             = { NULL    , cm_buffer_insert_line            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_SELECT_ALL_TEXT]         = { NULL    , cm_buffer_select_all_text        , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_COPY_SELECTED_TEXT]      = { NULL    , cm_buffer_copy_selected_text     , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_CUT_SELECTED_TEXT]       = { NULL    , cm_buffer_cut_selected_text      , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_PASTE_TEXT]              = { NULL    , cm_buffer_paste_text             , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_UNDO]                    = { NULL    , cm_buffer_undo                   , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_REDO]                    = { NULL    , cm_buffer_redo                   , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_VERT_MOVE_LINES]         = { NULL    , cm_buffer_vert_move_lines        , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_DUPLICATE_SELECTION]     = { NULL    , cm_buffer_duplicate_selection    , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_JOIN_LINES]              = { NULL    , cm_buffer_join_lines             , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
+    [CMD_BUFFER_SAVE_FILE]               = { NULL    , cm_buffer_save_file              , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT,   NULL, NULL },
+    [CMD_BUFFER_SAVE_AS]                 = { NULL    , cm_buffer_save_as                , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT,   NULL, NULL },
+    [CMD_BUFFER_FIND]                    = { NULL    , cm_buffer_find                   , CMDSIG(1, VAL_TYPE_INT)              , CMDT_CMD_INPUT,   NULL, NULL },
+    [CMD_BUFFER_TOGGLE_SEARCH_TYPE]      = { NULL    , cm_buffer_toggle_search_type     , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD,     NULL, NULL },
+    [CMD_BUFFER_TOGGLE_SEARCH_CASE]      = { NULL    , cm_buffer_toggle_search_case     , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD,     NULL, NULL },
+    [CMD_BUFFER_TOGGLE_SEARCH_DIRECTION] = { NULL    , cm_buffer_toggle_search_direction, CMDSIG_NO_ARGS                       , CMDT_CMD_MOD,     NULL, NULL },
+    [CMD_BUFFER_REPLACE]                 = { NULL    , cm_buffer_replace                , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT,   NULL, NULL },
+    [CMD_PREVIOUS_PROMPT_ENTRY]          = { NULL    , cm_previous_prompt_entry         , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD,     NULL, NULL },
+    [CMD_NEXT_PROMPT_ENTRY]              = { NULL    , cm_next_prompt_entry             , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD,     NULL, NULL },
+    [CMD_PROMPT_INPUT_FINISHED]          = { NULL    , cm_prompt_input_finished         , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD,     NULL, NULL },
+    [CMD_CANCEL_PROMPT]                  = { NULL    , cm_cancel_prompt                 , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD,     NULL, NULL },
+    [CMD_RUN_PROMPT_COMPLETION]          = { NULL    , cm_run_prompt_completion         , CMDSIG_NO_ARGS                       , CMDT_CMD_MOD,     NULL, NULL },
+    [CMD_BUFFER_GOTO_LINE]               = { NULL    , cm_buffer_goto_line              , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT,   NULL, NULL },
+    [CMD_SESSION_OPEN_FILE]              = { NULL    , cm_session_open_file             , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT,   NULL, NULL },
+    [CMD_SESSION_ADD_EMPTY_BUFFER]       = { NULL    , cm_session_add_empty_buffer      , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    NULL, NULL },
+    [CMD_SESSION_CHANGE_TAB]             = { NULL    , cm_session_change_tab            , CMDSIG(1, VAL_TYPE_INT)              , CMDT_SESS_MOD,    NULL, NULL },
+    [CMD_SESSION_SAVE_ALL]               = { NULL    , cm_session_save_all              , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    NULL, NULL },
+    [CMD_SESSION_CLOSE_BUFFER]           = { NULL    , cm_session_close_buffer          , CMDSIG(1, VAL_TYPE_INT)              , CMDT_CMD_INPUT,   NULL, NULL },
+    [CMD_SESSION_RUN_COMMAND]            = { NULL    , cm_session_run_command           , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT,   NULL, NULL },
+    [CMD_SESSION_CHANGE_BUFFER]          = { NULL    , cm_session_change_buffer         , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT,   NULL, NULL },
+    [CMD_SUSPEND]                        = { NULL    , cm_suspend                       , CMDSIG_NO_ARGS                       , CMDT_SUSPEND,     NULL, NULL },
+    [CMD_SESSION_END]                    = { NULL    , cm_session_end                   , CMDSIG_NO_ARGS                       , CMDT_EXIT,        NULL, NULL },
     /* Commands that by default are not mapped to key bindings and are instead exposed as functions */
-    [CMD_SESSION_ECHO]                   = { "echo"  , cm_session_echo                  , CMDSIG_VAR_ARGS                      , CMDT_SESS_MOD    },
-    [CMD_SESSION_MAP]                    = { "map"   , cm_session_map                   , CMDSIG(2, VAL_TYPE_STR, VAL_TYPE_STR), CMDT_SESS_MOD    },
-    [CMD_SESSION_UNMAP]                  = { "unmap" , cm_session_unmap                 , CMDSIG(1, VAL_TYPE_STR)              , CMDT_SESS_MOD    }
+    [CMD_SESSION_ECHO]                   = { "echo"  , cm_session_echo                  , CMDSIG_VAR_ARGS                      , CMDT_SESS_MOD,    "variable", "Displays arguments in the status bar" },
+    [CMD_SESSION_MAP]                    = { "map"   , cm_session_map                   , CMDSIG(2, VAL_TYPE_STR, VAL_TYPE_STR), CMDT_SESS_MOD,    "string KEYS, string KEYS", "Maps a sequence of keys to another sequence of keys" },
+    [CMD_SESSION_UNMAP]                  = { "unmap" , cm_session_unmap                 , CMDSIG(1, VAL_TYPE_STR)              , CMDT_SESS_MOD,    "string KEYS", "Unmaps a previously created key mapping" },
+    [CMD_SESSION_HELP]                   = { "help"  , cm_session_help                  , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    "none", "Display basic help information" }
 };
 
 static const OperationDefinition cm_operations[] = {
-    [OP_NOP]            = { "<wed-nop>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_NOP },
-    [OP_MOVE_PREV_LINE] = { "<wed-move-prev-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BP_CHANGE_LINE },
-    [OP_MOVE_NEXT_LINE] = { "<wed-move-next-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BP_CHANGE_LINE },
-    [OP_MOVE_NEXT_CHAR] = { "<wed-move-next-char>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_BP_CHANGE_CHAR },
-    [OP_MOVE_PREV_CHAR] = { "<wed-move-prev-char>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_BP_CHANGE_CHAR },
-    [OP_MOVE_START_OF_SCREEN_LINE] = { "<wed-move-start-of-screen-line>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_LINE_START },
-    [OP_MOVE_START_OF_LINE] = { "<wed-move-start-of-line>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_HARD_LINE_START },
-    [OP_MOVE_END_OF_SCREEN_LINE] = { "<wed-move-end-of-screen-line>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_LINE_END },
-    [OP_MOVE_END_OF_LINE] = { "<wed-move-end-of-line>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_HARD_LINE_END },
-    [OP_MOVE_NEXT_WORD] = { "<wed-move-next-word>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_NEXT_WORD },
-    [OP_MOVE_PREV_WORD] = { "<wed-move-prev-word>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_PREV_WORD },
-    [OP_MOVE_PREV_PARAGRAPH] = { "<wed-move-prev-paragraph>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_PREV_PARAGRAPH },
-    [OP_MOVE_NEXT_PARAGRAPH] = { "<wed-move-next-paragraph>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_NEXT_PARAGRAPH },
-    [OP_MOVE_PREV_PAGE] = { "<wed-move-prev-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BP_CHANGE_PAGE },
-    [OP_MOVE_NEXT_PAGE] = { "<wed-move-next-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BP_CHANGE_PAGE },
-    [OP_MOVE_BUFFER_START] = { "<wed-move-buffer-start>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_BUFFER_START },
-    [OP_MOVE_BUFFER_END] = { "<wed-move-buffer-end>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_BUFFER_END },
-    [OP_MOVE_SELECT_PREV_LINE] = { "<wed-move-select-prev-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_LINE },
-    [OP_MOVE_SELECT_NEXT_LINE] = { "<wed-move-select-next-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_LINE },
-    [OP_MOVE_SELECT_NEXT_CHAR] = { "<wed-move-select-next-char>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR },
-    [OP_MOVE_SELECT_PREV_CHAR] = { "<wed-move-select-prev-char>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_LEFT | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR },
-    [OP_MOVE_SELECT_START_OF_SCREEN_LINE] = { "<wed-move-select-start-of-screen-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_LINE_START },
-    [OP_MOVE_SELECT_START_OF_LINE] = { "<wed-move-select-start-of-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_HARD_LINE_START },
-    [OP_MOVE_SELECT_END_OF_SCREEN_LINE] = { "<wed-move-select-end-of-screen-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_LINE_END },
-    [OP_MOVE_SELECT_END_OF_LINE] = { "<wed-move-select-end-of-line>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_HARD_LINE_END },
-    [OP_MOVE_SELECT_NEXT_WORD] = { "<wed-move-select-next-word>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_NEXT_WORD },
-    [OP_MOVE_SELECT_PREV_WORD] = { "<wed-move-select-prev-word>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_PREV_WORD },
-    [OP_MOVE_SELECT_PREV_PARAGRAPH] = { "<wed-move-select-prev-paragraph>", OM_STANDARD, { INT_VAL_STRUCT(1) }, 1, CMD_BP_TO_PREV_PARAGRAPH },
-    [OP_MOVE_SELECT_NEXT_PARAGRAPH] = { "<wed-move-select-next-paragraph>", OM_STANDARD, { INT_VAL_STRUCT(1) }, 1, CMD_BP_TO_NEXT_PARAGRAPH },
-    [OP_MOVE_SELECT_PREV_PAGE] = { "<wed-move-select-prev-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_PAGE },
-    [OP_MOVE_SELECT_NEXT_PAGE] = { "<wed-move-select-next-page>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_PAGE },
-    [OP_MOVE_SELECT_BUFFER_START] = { "<wed-move-select-buffer-start>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_START },
-    [OP_MOVE_SELECT_BUFFER_END] = { "<wed-move-select-buffer-end>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_END },
-    [OP_MOVE_MATCHING_BRACKET] = { "<wed-move-matching-bracket>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BP_GOTO_MATCHING_BRACKET },
-    [OP_INDENT] = { "<wed-indent>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_BUFFER_INDENT },
-    [OP_UNINDENT] = { "<wed-unindent>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_BUFFER_INDENT },
-    [OP_DELETE] = { "<wed-delete>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_DELETE_CHAR },
-    [OP_BACKSPACE] = { "<wed-backspace>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_BACKSPACE },
-    [OP_DELETE_NEXT_WORD] = { "<wed-delete-next-word>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_DELETE_WORD },
-    [OP_DELETE_PREV_WORD] = { "<wed-delete-prev-word>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_DELETE_PREV_WORD },
-    [OP_INSERT_NEWLINE] = { "<wed-insert-newline>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_INSERT_LINE },
-    [OP_INSERT_SPACE] = { "<wed-insert-space>", OM_STANDARD, { STR_VAL_STRUCT(" ") }, 1, CMD_BUFFER_INSERT_CHAR },
-    [OP_INSERT_KPDIV] = { "<wed-insert-kpdiv>", OM_STANDARD, { STR_VAL_STRUCT("/") }, 1, CMD_BUFFER_INSERT_CHAR },
-    [OP_INSERT_KPMULT] = { "<wed-insert-kpmult>", OM_STANDARD, { STR_VAL_STRUCT("*") }, 1, CMD_BUFFER_INSERT_CHAR },
-    [OP_INSERT_KPMINUS] = { "<wed-insert-kpminus>", OM_STANDARD, { STR_VAL_STRUCT("-") }, 1, CMD_BUFFER_INSERT_CHAR },
-    [OP_INSERT_KPPLUS] = { "<wed-insert-kpplus>", OM_STANDARD, { STR_VAL_STRUCT("+") }, 1, CMD_BUFFER_INSERT_CHAR },
-    [OP_SELECT_ALL] = { "<wed-select-all>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_SELECT_ALL_TEXT },
-    [OP_COPY] = { "<wed-copy>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_COPY_SELECTED_TEXT },
-    [OP_CUT] = { "<wed-cut>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_CUT_SELECTED_TEXT },
-    [OP_PASTE] = { "<wed-paste>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_PASTE_TEXT },
-    [OP_UNDO] = { "<wed-undo>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_UNDO },
-    [OP_REDO] = { "<wed-redo>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_REDO },
-    [OP_MOVE_LINES_UP] = { "<wed-move-lines-up>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BUFFER_VERT_MOVE_LINES },
-    [OP_MOVE_LINES_DOWN] = { "<wed-move-lines-down>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BUFFER_VERT_MOVE_LINES },
-    [OP_DUPLICATE] = { "<wed-duplicate>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_DUPLICATE_SELECTION },
-    [OP_JOIN_LINES] = { "<wed-join-lines>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_JOIN_LINES },
-    [OP_SAVE] = { "<wed-save>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_SAVE_FILE },
-    [OP_SAVE_AS] = { "<wed-save-as>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_SAVE_AS },
-    [OP_FIND] = { "<wed-find>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_FIND },
-    [OP_FIND_REPLACE] = { "<wed-find-replace>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_REPLACE },
-    [OP_GOTO_LINE] = { "<wed-goto-line>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_BUFFER_GOTO_LINE },
-    [OP_OPEN] = { "<wed-open>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_SESSION_OPEN_FILE },
-    [OP_NEW] = { "<wed-new>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_SESSION_ADD_EMPTY_BUFFER },
-    [OP_NEXT_BUFFER] = { "<wed-next-buffer>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_SESSION_CHANGE_TAB },
-    [OP_PREV_BUFFER] = { "<wed-prev-buffer>", OM_STANDARD, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_SESSION_CHANGE_TAB },
-    [OP_SAVE_ALL] = { "<wed-save-all>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_SESSION_SAVE_ALL },
-    [OP_CLOSE] = { "<wed-close>", OM_STANDARD, { INT_VAL_STRUCT(0) }, 1, CMD_SESSION_CLOSE_BUFFER },
-    [OP_CMD] = { "<wed-cmd>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_SESSION_RUN_COMMAND },
-    [OP_CHANGE_BUFFER] = { "<wed-change-buffer>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_SESSION_CHANGE_BUFFER },
-    [OP_SUSPEND] = { "<wed-suspend>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_SUSPEND },
-    [OP_EXIT] = { "<wed-exit>", OM_STANDARD, CMD_NO_ARGS, 0, CMD_SESSION_END },
-    [OP_TOGGLE_SEARCH_TYPE] = { "<wed-toggle-search-type>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_BUFFER_TOGGLE_SEARCH_TYPE },
-    [OP_TOGGLE_SEARCH_CASE_SENSITIVITY] = { "<wed-toggle-search-case-sensitivity>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_BUFFER_TOGGLE_SEARCH_CASE },
-    [OP_TOGGLE_SEARCH_DIRECTION] = { "<wed-toggle-search-direction>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_BUFFER_TOGGLE_SEARCH_DIRECTION },
-    [OP_PROMPT_PREV_ENTRY] = { "<wed-prompt-prev-entry>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_PREVIOUS_PROMPT_ENTRY },
-    [OP_PROMPT_NEXT_ENTRY] = { "<wed-prompt-next-entry>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_NEXT_PROMPT_ENTRY },
-    [OP_PROMPT_SUBMIT] = { "<wed-prompt-submit>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_PROMPT_INPUT_FINISHED },
-    [OP_PROMPT_CANCEL] = { "<wed-prompt-cancel>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_CANCEL_PROMPT },
-    [OP_PROMPT_COMPLETE] = { "<wed-prompt-complete>", OM_PROMPT_COMPLETER, CMD_NO_ARGS, 0, CMD_RUN_PROMPT_COMPLETION },
-    [OP_PROMPT_COMPLETE_PREV] = { "<wed-prompt-complete-prev>", OM_PROMPT_COMPLETER, CMD_NO_ARGS, 0, CMD_RUN_PROMPT_COMPLETION }
+    [OP_NOP]            = { "<wed-nop>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_NOP, "No operation" },
+    [OP_MOVE_PREV_LINE] = { "<wed-move-prev-line>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BP_CHANGE_LINE, "Move up a (screen) line" },
+    [OP_MOVE_NEXT_LINE] = { "<wed-move-next-line>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BP_CHANGE_LINE, "Move down a (screen) line" },
+    [OP_MOVE_NEXT_CHAR] = { "<wed-move-next-char>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_BP_CHANGE_CHAR, "Move right one character" },
+    [OP_MOVE_PREV_CHAR] = { "<wed-move-prev-char>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_BP_CHANGE_CHAR, "Move left one character" },
+    [OP_MOVE_START_OF_SCREEN_LINE] = { "<wed-move-start-of-screen-line>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_LINE_START, "Move to start of (screen) line" },
+    [OP_MOVE_START_OF_LINE] = { "<wed-move-start-of-line>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_HARD_LINE_START, "Move to start of line" },
+    [OP_MOVE_END_OF_SCREEN_LINE] = { "<wed-move-end-of-screen-line>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_LINE_END, "Move to end of (screen) line" },
+    [OP_MOVE_END_OF_LINE] = { "<wed-move-end-of-line>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_HARD_LINE_END, "Move to end of line" },
+    [OP_MOVE_NEXT_WORD] = { "<wed-move-next-word>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_NEXT_WORD, "Move to next word" },
+    [OP_MOVE_PREV_WORD] = { "<wed-move-prev-word>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_PREV_WORD, "Move to previous word" },
+    [OP_MOVE_PREV_PARAGRAPH] = { "<wed-move-prev-paragraph>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_PREV_PARAGRAPH, "Move to previous paragraph" },
+    [OP_MOVE_NEXT_PARAGRAPH] = { "<wed-move-next-paragraph>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_NEXT_PARAGRAPH, "Move to next paragraph" },
+    [OP_MOVE_PREV_PAGE] = { "<wed-move-prev-page>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BP_CHANGE_PAGE, "Move up a page" },
+    [OP_MOVE_NEXT_PAGE] = { "<wed-move-next-page>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BP_CHANGE_PAGE, "Move down a page" },
+    [OP_MOVE_BUFFER_START] = { "<wed-move-buffer-start>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_BUFFER_START, "Move to start of file" },
+    [OP_MOVE_BUFFER_END] = { "<wed-move-buffer-end>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BP_TO_BUFFER_END, "Move to end of file" },
+    [OP_MOVE_SELECT_PREV_LINE] = { "<wed-move-select-prev-line>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_UP | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_LINE, "Select up a (screen) line" },
+    [OP_MOVE_SELECT_NEXT_LINE] = { "<wed-move-select-next-line>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_LINE, "Select down a (screen) line" },
+    [OP_MOVE_SELECT_NEXT_CHAR] = { "<wed-move-select-next-char>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_RIGHT | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR, "Select right one character" },
+    [OP_MOVE_SELECT_PREV_CHAR] = { "<wed-move-select-prev-char>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_LEFT | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_CHAR, "Select left one character" },
+    [OP_MOVE_SELECT_START_OF_SCREEN_LINE] = { "<wed-move-select-start-of-screen-line>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_LINE_START, "Select to start of (screen) line" },
+    [OP_MOVE_SELECT_START_OF_LINE] = { "<wed-move-select-start-of-line>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_HARD_LINE_START, "Select to start of line" },
+    [OP_MOVE_SELECT_END_OF_SCREEN_LINE] = { "<wed-move-select-end-of-screen-line>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_LINE_END, "Select to end of (screen) line" },
+    [OP_MOVE_SELECT_END_OF_LINE] = { "<wed-move-select-end-of-line>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_HARD_LINE_END, "Select to end of line" },
+    [OP_MOVE_SELECT_NEXT_WORD] = { "<wed-move-select-next-word>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_NEXT_WORD, "Select to next word" },
+    [OP_MOVE_SELECT_PREV_WORD] = { "<wed-move-select-prev-word>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_PREV_WORD, "Select to previous word" },
+    [OP_MOVE_SELECT_PREV_PARAGRAPH] = { "<wed-move-select-prev-paragraph>", OM_NORMAL, { INT_VAL_STRUCT(1) }, 1, CMD_BP_TO_PREV_PARAGRAPH, "Select to previous paragraph" },
+    [OP_MOVE_SELECT_NEXT_PARAGRAPH] = { "<wed-move-select-next-paragraph>", OM_NORMAL, { INT_VAL_STRUCT(1) }, 1, CMD_BP_TO_NEXT_PARAGRAPH, "Select to next paragraph" },
+    [OP_MOVE_SELECT_PREV_PAGE] = { "<wed-move-select-prev-page>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_UP | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_PAGE, "Select up a page" },
+    [OP_MOVE_SELECT_NEXT_PAGE] = { "<wed-move-select-next-page>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_DOWN | DIRECTION_WITH_SELECT) }, 1, CMD_BP_CHANGE_PAGE, "Select down a page" },
+    [OP_MOVE_SELECT_BUFFER_START] = { "<wed-move-select-buffer-start>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_START, "Select to start of file" },
+    [OP_MOVE_SELECT_BUFFER_END] = { "<wed-move-select-buffer-end>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_END, "Select to end of file" },
+    [OP_MOVE_MATCHING_BRACKET] = { "<wed-move-matching-bracket>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BP_GOTO_MATCHING_BRACKET, "Move to matching bracket" },
+    [OP_INDENT] = { "<wed-indent>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_BUFFER_INDENT, "Indent selected text" },
+    [OP_UNINDENT] = { "<wed-unindent>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_BUFFER_INDENT, "Unindent selected text" },
+    [OP_DELETE] = { "<wed-delete>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_DELETE_CHAR, "Delete next character" },
+    [OP_BACKSPACE] = { "<wed-backspace>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_BACKSPACE, "Delete previous character" },
+    [OP_DELETE_NEXT_WORD] = { "<wed-delete-next-word>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_DELETE_WORD, "Delete next word" },
+    [OP_DELETE_PREV_WORD] = { "<wed-delete-prev-word>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_DELETE_PREV_WORD, "Delete previous word" },
+    [OP_INSERT_NEWLINE] = { "<wed-insert-newline>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_INSERT_LINE, "Insert new line" },
+    [OP_INSERT_SPACE] = { "<wed-insert-space>", OM_NORMAL, { STR_VAL_STRUCT(" ") }, 1, CMD_BUFFER_INSERT_CHAR, "Insert space" },
+    [OP_INSERT_KPDIV] = { "<wed-insert-kpdiv>", OM_NORMAL, { STR_VAL_STRUCT("/") }, 1, CMD_BUFFER_INSERT_CHAR, "Insert forward slash" },
+    [OP_INSERT_KPMULT] = { "<wed-insert-kpmult>", OM_NORMAL, { STR_VAL_STRUCT("*") }, 1, CMD_BUFFER_INSERT_CHAR, "Insert star" },
+    [OP_INSERT_KPMINUS] = { "<wed-insert-kpminus>", OM_NORMAL, { STR_VAL_STRUCT("-") }, 1, CMD_BUFFER_INSERT_CHAR, "Insert minus" },
+    [OP_INSERT_KPPLUS] = { "<wed-insert-kpplus>", OM_NORMAL, { STR_VAL_STRUCT("+") }, 1, CMD_BUFFER_INSERT_CHAR, "Insert plus" },
+    [OP_SELECT_ALL] = { "<wed-select-all>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_SELECT_ALL_TEXT, "Select all text" },
+    [OP_COPY] = { "<wed-copy>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_COPY_SELECTED_TEXT, "Copy selected text" },
+    [OP_CUT] = { "<wed-cut>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_CUT_SELECTED_TEXT, "Cut selected text" },
+    [OP_PASTE] = { "<wed-paste>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_PASTE_TEXT, "Paste text" },
+    [OP_UNDO] = { "<wed-undo>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_UNDO, "Undo" },
+    [OP_REDO] = { "<wed-redo>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_REDO, "Redo" },
+    [OP_MOVE_LINES_UP] = { "<wed-move-lines-up>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_UP) }, 1, CMD_BUFFER_VERT_MOVE_LINES, "Move current line (or selected lines) up" },
+    [OP_MOVE_LINES_DOWN] = { "<wed-move-lines-down>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_DOWN) }, 1, CMD_BUFFER_VERT_MOVE_LINES, "Move current line (or selected lines) down" },
+    [OP_DUPLICATE] = { "<wed-duplicate>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_DUPLICATE_SELECTION, "Duplicate current line (or selected lines)" },
+    [OP_JOIN_LINES] = { "<wed-join-lines>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_JOIN_LINES, "Join (selected) lines" },
+    [OP_SAVE] = { "<wed-save>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_SAVE_FILE, "Save" },
+    [OP_SAVE_AS] = { "<wed-save-as>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_SAVE_AS, "Save as" },
+    [OP_FIND] = { "<wed-find>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_BUFFER_FIND, "Find" },
+    [OP_FIND_REPLACE] = { "<wed-find-replace>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_REPLACE, "Replace" },
+    [OP_GOTO_LINE] = { "<wed-goto-line>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_GOTO_LINE, "Goto line" },
+    [OP_OPEN] = { "<wed-open>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SESSION_OPEN_FILE, "Open file" },
+    [OP_NEW] = { "<wed-new>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SESSION_ADD_EMPTY_BUFFER, "New file" },
+    [OP_NEXT_BUFFER] = { "<wed-next-buffer>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_SESSION_CHANGE_TAB, "Next tab" },
+    [OP_PREV_BUFFER] = { "<wed-prev-buffer>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_SESSION_CHANGE_TAB, "Previous tab" },
+    [OP_SAVE_ALL] = { "<wed-save-all>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SESSION_SAVE_ALL, "Save all" },
+    [OP_CLOSE] = { "<wed-close>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_SESSION_CLOSE_BUFFER, "Close file" },
+    [OP_CMD] = { "<wed-cmd>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SESSION_RUN_COMMAND, "Open wed command prompt" },
+    [OP_CHANGE_BUFFER] = { "<wed-change-buffer>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SESSION_CHANGE_BUFFER, "Change file" },
+    [OP_SUSPEND] = { "<wed-suspend>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SUSPEND, "Suspend" },
+    [OP_EXIT] = { "<wed-exit>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SESSION_END, "Exit" },
+    [OP_TOGGLE_SEARCH_TYPE] = { "<wed-toggle-search-type>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_BUFFER_TOGGLE_SEARCH_TYPE, "Toggle search type" },
+    [OP_TOGGLE_SEARCH_CASE_SENSITIVITY] = { "<wed-toggle-search-case-sensitivity>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_BUFFER_TOGGLE_SEARCH_CASE, "Toggle search case sensitivity" },
+    [OP_TOGGLE_SEARCH_DIRECTION] = { "<wed-toggle-search-direction>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_BUFFER_TOGGLE_SEARCH_DIRECTION, "Toggle search direction" },
+    [OP_PROMPT_PREV_ENTRY] = { "<wed-prompt-prev-entry>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_PREVIOUS_PROMPT_ENTRY, "Previous prompt entry" },
+    [OP_PROMPT_NEXT_ENTRY] = { "<wed-prompt-next-entry>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_NEXT_PROMPT_ENTRY, "Subsequent prompt entry" },
+    [OP_PROMPT_SUBMIT] = { "<wed-prompt-submit>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_PROMPT_INPUT_FINISHED, "Submit" },
+    [OP_PROMPT_CANCEL] = { "<wed-prompt-cancel>", OM_PROMPT, CMD_NO_ARGS, 0, CMD_CANCEL_PROMPT, "Quit prompt" },
+    [OP_PROMPT_COMPLETE] = { "<wed-prompt-complete>", OM_PROMPT_COMPLETER, CMD_NO_ARGS, 0, CMD_RUN_PROMPT_COMPLETION, "Complete entered text, then cycle through suggestions on subsequent presses" },
+    [OP_PROMPT_COMPLETE_PREV] = { "<wed-prompt-complete-prev>", OM_PROMPT_COMPLETER, CMD_NO_ARGS, 0, CMD_RUN_PROMPT_COMPLETION, "Complete entered text, then cycle through suggestions in reverse on subsequent presses" }
 };
 
 /* Default wed keybindings */
@@ -419,7 +422,7 @@ int cm_init_key_map(KeyMap *key_map)
         }
     }
 
-    key_map->active_op_modes[OM_STANDARD] = 1;
+    key_map->active_op_modes[OM_NORMAL] = 1;
 
     return 1;
 }
@@ -655,6 +658,94 @@ int cm_get_command(const char *function_name, Command *cmd)
     }
 
     return 0;
+}
+
+Status cm_generate_keybinding_table(HelpTable *help_table)
+{
+    const size_t key_mapping_num = ARRAY_SIZE(cm_key_mappings, KeyMapping);
+
+    if (!hp_init_help_table(help_table, key_mapping_num + 1, 4)) {
+        return OUT_OF_MEMORY("Unable to create key table");
+    }
+
+    const char ***key_table = help_table->table;
+
+    key_table[0][0] = "Key";
+    key_table[0][1] = "Operation";
+    key_table[0][2] = "Mode";
+    key_table[0][3] = "Description";
+
+    const KeyMapping *key_mapping;
+    const OperationDefinition *op_def;
+
+    for (size_t k = 0; k < key_mapping_num; k++) {
+        key_mapping = &cm_key_mappings[k]; 
+        op_def = &cm_operations[key_mapping->value.op];
+        key_table[k + 1][0] = key_mapping->key;
+        key_table[k + 1][1] = op_def->name;
+        key_table[k + 1][2] = cm_get_op_mode_str(op_def->op_mode);
+        key_table[k + 1][3] = op_def->description;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static const char *cm_get_op_mode_str(OperationMode op_mode)
+{
+    switch (op_mode) {
+        case OM_NORMAL:
+            return "Normal";
+        case OM_PROMPT:
+            return "Prompt";
+        case OM_PROMPT_COMPLETER:
+            return "Prompt";
+        case OM_USER:
+            return "User";
+        default:
+            break;
+    }
+
+    assert(!"Invalid OperationMode value");
+
+    return "";
+}
+
+Status cm_generate_command_table(HelpTable *help_table)
+{
+    const size_t command_num = ARRAY_SIZE(cm_commands, CommandDefinition);
+    size_t function_num = 0;
+
+    for (size_t k = 0; k < command_num; k++) {
+        if (cm_commands[k].function_name != NULL) {
+            function_num++;
+        }
+    }
+
+    if (!hp_init_help_table(help_table, function_num + 1, 3)) {
+        return OUT_OF_MEMORY("Unable to create command table");
+    }
+
+    const char ***cmd_table = help_table->table;
+
+    cmd_table[0][0] = "Command";
+    cmd_table[0][1] = "Arguments";
+    cmd_table[0][2] = "Description";
+
+    const CommandDefinition *cmd_def;
+    size_t function_index = 1;
+
+    for (size_t k = 0; k < command_num; k++) {
+        if (cm_commands[k].function_name != NULL) {
+            cmd_def = &cm_commands[k];
+
+            cmd_table[function_index][0] = cmd_def->function_name;
+            cmd_table[function_index][1] = cmd_def->arg_description;
+            cmd_table[function_index][2] = cmd_def->description;
+            function_index++;
+        }
+    }
+
+    return STATUS_SUCCESS;
 }
 
 static Status cm_nop(const CommandArgs *cmd_args)
@@ -2187,3 +2278,22 @@ static Status cm_session_unmap(const CommandArgs *cmd_args)
 
     return status;
 }
+
+static Status cm_session_help(const CommandArgs *cmd_args)
+{
+    RETURN_IF_FAIL(cm_session_add_empty_buffer(cmd_args));
+
+    Session *sess = cmd_args->sess;
+    Buffer *buffer = sess->active_buffer;
+
+    bc_disable(&buffer->changes);
+
+    Status status = hp_generate_help_text(buffer);
+
+    bc_enable(&buffer->changes);
+
+    bf_to_buffer_start(buffer, 0);
+
+    return status;
+}
+

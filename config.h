@@ -59,17 +59,17 @@ typedef enum {
     CV_LINEWRAP,
     CV_LINENO,
     CV_TABWIDTH,
-    CV_WEDRUNTIME,
-    CV_FILETYPE,
-    CV_SYNTAX,
-    CV_SYNTAXTYPE,
-    CV_THEME,
     CV_EXPANDTAB,
     CV_AUTOINDENT,
-    CV_FILEFORMAT,
+    CV_COLORCOLUMN,
+    CV_WEDRUNTIME,
+    CV_SYNTAX,
+    CV_THEME,
     CV_SYNTAXDEFTYPE,
     CV_SHDATADIR,
-    CV_COLORCOLUMN,
+    CV_FILETYPE,
+    CV_SYNTAXTYPE,
+    CV_FILEFORMAT,
     CV_ENTRY_NUM
 } ConfigVariable;
 
@@ -95,6 +95,7 @@ typedef struct {
      * function fires after the variable has been set so the return status
      * of this function doesn't have any effect on the variable */
     Status (*on_change_event)(ConfigEntity, Value old_val, Value new_val);
+    const char *description; /* Describes what the variable represents */
 } ConfigVariableDescriptor;
 
 int cf_str_to_var(const char *str, ConfigVariable *);
@@ -112,5 +113,6 @@ Status cf_print_var(ConfigEntity, ConfigLevel, const char *var_name);
 int cf_bool(const HashMap *config, ConfigVariable);
 long cf_int(const HashMap *config, ConfigVariable);
 const char *cf_string(const HashMap *config, ConfigVariable);
+Status cf_generate_variable_table(HelpTable *);
 
 #endif
