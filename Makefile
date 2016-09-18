@@ -1,6 +1,6 @@
 include config.mk
 
-WED_VERSION_DEFAULT=v0.1
+WED_VERSION_DEFAULT=v0.2
 WED_VERSION_LONG=$(shell git describe --long --tags --dirty --always \
 				   2>/dev/null || echo '$(WED_VERSION_DEFAULT)')
 WED_VERSION=$(shell git describe --tags --abbrev=0 2>/dev/null || \
