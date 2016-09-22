@@ -33,18 +33,68 @@ const char *va_get_value_type(Value value)
 
 const char *va_value_type_string(ValueType value_type)
 {
-    static const char *value_types[] = {
-        [VAL_TYPE_BOOL]          = "Boolean",
-        [VAL_TYPE_INT]           = "Integer",
-        [VAL_TYPE_FLOAT]         = "Float",
-        [VAL_TYPE_STR]           = "String",
-        [VAL_TYPE_REGEX]         = "Regex",
-        [VAL_TYPE_SHELL_COMMAND] = "Shell Command"
-    };
+    switch (value_type) {
+        case VAL_TYPE_BOOL:
+            return "Boolean";
+        case VAL_TYPE_INT:
+            return "Integer";
+        case VAL_TYPE_FLOAT:
+            return "Float";
+        case VAL_TYPE_STR:
+            return "String";
+        case VAL_TYPE_REGEX:
+            return "Regex";
+        case VAL_TYPE_SHELL_COMMAND:
+            return "Shell Command";
+        default:
+            break;
+    }
 
-    assert(value_type < ARRAY_SIZE(value_types, const char *));
+    assert(!"Invalid value type");
 
-    return value_types[value_type];
+    return "";
+}
+
+const char *va_multi_value_type_string(ValueType value_types)
+{
+    static char value_type_str[1024] = { 0 };
+    size_t offset = 0;
+
+    if (value_types & VAL_TYPE_BOOL) {
+        offset += snprintf(value_type_str + offset,
+                           sizeof(value_type_str) - offset,
+                           "%s%s", (offset > 0 ? " or " : ""), "Boolean");
+    }
+    if (value_types & VAL_TYPE_INT) {
+        offset += snprintf(value_type_str + offset,
+                           sizeof(value_type_str) - offset,
+                           "%s%s", (offset > 0 ? " or " : ""), "Integer");
+    }
+    if (value_types & VAL_TYPE_FLOAT) {
+        offset += snprintf(value_type_str + offset,
+                           sizeof(value_type_str) - offset,
+                           "%s%s", (offset > 0 ? " or " : ""), "Float");
+    }
+    if (value_types & VAL_TYPE_STR) {
+        offset += snprintf(value_type_str + offset,
+                           sizeof(value_type_str) - offset,
+                           "%s%s", (offset > 0 ? " or " : ""), "String");
+    }
+    if (value_types & VAL_TYPE_REGEX) {
+        offset += snprintf(value_type_str + offset,
+                           sizeof(value_type_str) - offset,
+                           "%s%s", (offset > 0 ? " or " : ""), "Regex");
+    }
+    if (value_types & VAL_TYPE_SHELL_COMMAND) {
+        offset += snprintf(value_type_str + offset,
+                           sizeof(value_type_str) - offset,
+                           "%s%s", (offset > 0 ? " or " : ""),
+                           "Shell Command");
+    }
+
+    assert(offset > 0);
+
+    return value_type_str;
 }
 
 Status va_deep_copy_value(Value value, Value *new_val)

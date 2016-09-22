@@ -23,12 +23,12 @@
 
 /* Value types supported by the Value struct */
 typedef enum {
-    VAL_TYPE_BOOL,
-    VAL_TYPE_INT,
-    VAL_TYPE_FLOAT,
-    VAL_TYPE_STR,
-    VAL_TYPE_REGEX,
-    VAL_TYPE_SHELL_COMMAND
+    VAL_TYPE_BOOL          = 1 << 0,
+    VAL_TYPE_INT           = 1 << 1,
+    VAL_TYPE_FLOAT         = 1 << 2,
+    VAL_TYPE_STR           = 1 << 3,
+    VAL_TYPE_REGEX         = 1 << 4,
+    VAL_TYPE_SHELL_COMMAND = 1 << 5
 } ValueType;
 
 /* Regex in string form */
@@ -83,6 +83,7 @@ typedef struct {
 
 const char *va_get_value_type(Value);
 const char *va_value_type_string(ValueType);
+const char *va_multi_value_type_string(ValueType);
 Status va_deep_copy_value(Value value, Value *new_val);
 char *va_to_string(Value);
 const char *va_str_val(Value);
