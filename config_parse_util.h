@@ -134,6 +134,7 @@ int cp_convert_to_bool_value(const char *svalue, Value *);
 int cp_convert_to_int_value(const char *svalue, Value *);
 int cp_convert_to_string_value(const char *svalue, Value *);
 int cp_convert_to_regex_value(const char *rvalue, Value *);
+int cp_convert_to_shell_command_value(const char *cmd_value, Value *);
 int cp_add_statement_to_list(ASTNode *statememt_list, ASTNode *statememt);
 int cp_add_value_to_list(ASTNode *val_list, ASTNode *val);
 int cp_eval_ast(Session *, ConfigLevel, ASTNode *);

@@ -516,7 +516,7 @@ static Status bc_tc_apply(TextChange *text_change, Buffer *buffer, int redo)
 
         RETURN_IF_FAIL(bf_set_bp(buffer, &text_change->pos));
         RETURN_IF_FAIL(bf_insert_string(buffer, text_change->str,
-                                        text_change->str_len, 1));
+                                        text_change->str_len, 0));
 
         /* The text is now stored in the buffer so we can free it */
         free(text_change->str);

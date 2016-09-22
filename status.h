@@ -46,6 +46,13 @@
                                    } \
                                } while (0)
 
+#define GOTO_IF_FAIL(status,label) do { \
+                                       Status _wed_status = (status);\
+                                       if (!STATUS_IS_SUCCESS(_wed_status)) { \
+                                           goto label; \
+                                       } \
+                                   } while (0)
+
 #define OUT_OF_MEMORY(msg) \
     st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - " msg)
 
@@ -111,7 +118,8 @@ typedef enum {
     ERR_INVALID_COLORCOLUMN,
     ERR_UNABLE_TO_INITIALISE_TERMEKEY,
     ERR_INVALID_KEY_MAPPING,
-    ERR_LUA_ERROR
+    ERR_LUA_ERROR,
+    ERR_SHELL_COMMAND_ERROR
 } ErrorCode;
 
 /* Structure used to represent success or failure */

@@ -81,7 +81,8 @@ static const char *st_default_error_messages[] = {
     [ERR_INVALID_COLORCOLUMN]                 = "Invalid colorcolumn value",
     [ERR_UNABLE_TO_INITIALISE_TERMEKEY]       = "Unable to initialise termkey",
     [ERR_INVALID_KEY_MAPPING]                 = "Invalid key mapping",
-    [ERR_LUA_ERROR]                           = "Lua error"
+    [ERR_LUA_ERROR]                           = "Lua error",
+    [ERR_SHELL_COMMAND_ERROR]                 = "Shell command error"
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

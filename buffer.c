@@ -1417,7 +1417,7 @@ static void bf_update_mark(Mark *mark, const BufferPos *change_pos,
     }
 
     assert(mark_pos->offset <= gb_length(mark_pos->data));
-    assert(!(mark->prop & MP_ADJUST_OFFSET_ONLY) ||
+    assert(mark->prop & MP_ADJUST_OFFSET_ONLY ||
            mark_pos->line_no <= gb_lines(mark_pos->data) + 1);
 }
 

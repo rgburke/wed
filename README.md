@@ -294,12 +294,13 @@ single separate line. All text after a `#` is ignored as a comment. The
 different type's are:
 
 ```
-Type       | Pattern
------------|-------------------------
-bool       | true|false|1|0
-int        | (-|\+)?\d+
-string     | "(\\.|[^\\"])+"
-regex      | \/(\\\/|[^\/])*\/[imsx]*
+Type          | Pattern
+--------------|-------------------------
+bool          | true|false|1|0
+int           | (-|\+)?\d+
+string        | "(\\.|[^\\"])+"
+regex         | \/(\\\/|[^\/])*\/[imsx]*
+shell command | !.+$
 ```
 
 If a string contains no spaces, reserved characters or escaped characters
@@ -379,6 +380,7 @@ echo    | variable                 | Displays arguments in the status bar
 map     | string KEYS, string KEYS | Maps a sequence of keys to another sequence of keys
 unmap   | string KEYS              | Unmaps a previously created key mapping
 help    | none                     | Display basic help information
+filter  | shell command CMD        | Filter buffer through shell command
 ```
 
 ##### echo
@@ -429,6 +431,31 @@ Key mappings created with the `map` can be undone using the `unmap` command:
 map x y  # Pressing x will enter a y
 unmap x  # Pressing x will enter an x again
 ```
+
+##### help
+
+The help command displays generated information on key bindings, commands and
+config variables.
+
+##### filter
+
+The filter command allows the content of a buffer to be filtered through an
+external shell command. For example:
+
+```
+filter !sort
+```
+
+will filter the content of the buffer through the sort command, which will
+sort each line in the buffer. Another example is to delete all lines
+containing the word test:
+
+```
+filter !sed /test/d
+```
+
+The filter command makes the power of the Unix shell commands available in wed
+allowing many complex operations to be performed on a buffer.
 
 #### Config Definitions
 

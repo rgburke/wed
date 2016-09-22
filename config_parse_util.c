@@ -420,6 +420,33 @@ int cp_convert_to_regex_value(const char *rvalue, Value *value)
     return 1;
 }
 
+int cp_convert_to_shell_command_value(const char *cmd_value, Value *value)
+{
+    if (cmd_value == NULL || value == NULL) {
+        return 0;
+    }
+
+    size_t length = strlen(cmd_value);
+
+    if (length < 2 || cmd_value[0] != '!') {
+        return 0;
+    }
+
+    char *processed = malloc(length);
+
+    if (processed == NULL) {
+        return 0;
+    }
+
+    memcpy(processed, cmd_value + 1, length - 1);
+
+    processed[length - 1] = '\0';
+
+    *value = CMD_VAL(processed);
+
+    return 1;
+}
+
 /* Add statement onto the end of statement linked list */
 int cp_add_statement_to_list(ASTNode *statememt_list, ASTNode *statememt)
 {

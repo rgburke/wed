@@ -54,6 +54,8 @@ true|false                    { yylval.string = strdup(yytext);
                                 return TKN_REGEX;   }
 [[:alpha:]_]+                 { yylval.string = strdup(yytext);
                                 return TKN_NAME;    }
+![^\n]+                       { yylval.string = strdup(yytext);
+                                return TKN_SHELL_COMMAND; }
 "="                           { return TKN_ASSIGN;        }
 ";"                           { return TKN_SEMI_COLON;    }
 "{"                           { return TKN_LEFT_BRACKET;  }

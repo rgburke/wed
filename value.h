@@ -27,7 +27,8 @@ typedef enum {
     VAL_TYPE_INT,
     VAL_TYPE_FLOAT,
     VAL_TYPE_STR,
-    VAL_TYPE_REGEX
+    VAL_TYPE_REGEX,
+    VAL_TYPE_SHELL_COMMAND
 } ValueType;
 
 /* Regex in string form */
@@ -59,20 +60,26 @@ typedef struct {
 #define REGEX_VAL_STRUCT(rvalue,rmod) \
 { .type = VAL_TYPE_REGEX, \
   .val = { .rval = { .regex_pattern = (rvalue), .modifiers = (rmod) } } }
+#define CMD_VAL_STRUCT(cmdvalue) \
+        { .type = VAL_TYPE_SHELL_COMMAND, .val = { .sval = (cmdvalue) } }
 
 #define BOOL_VAL(bvalue)       (Value) BOOL_VAL_STRUCT(bvalue)
 #define INT_VAL(ivalue)        (Value) INT_VAL_STRUCT(ivalue)
 #define STR_VAL(svalue)        (Value) STR_VAL_STRUCT(svalue)
 #define REGEX_VAL(rvalue,rmod) (Value) REGEX_VAL_STRUCT(rvalue,rmod)
+#define CMD_VAL(cmdvalue)      (Value) CMD_VAL_STRUCT(cmdvalue)
 
 #define BVAL(value) IVAL(value)
 #define IVAL(value) (value).val.ival
 #define FVAL(value) (value).val.fval
 #define SVAL(value) (value).val.sval
 #define RVAL(value) (value).val.rval
+#define CVAL(value) (value).val.sval
 
 #define STR_BASED_VAL(value) \
-    ((value).type == VAL_TYPE_STR || (value).type == VAL_TYPE_REGEX)
+    ((value).type == VAL_TYPE_STR || \
+     (value).type == VAL_TYPE_REGEX || \
+     (value).type == VAL_TYPE_SHELL_COMMAND)
 
 const char *va_get_value_type(Value);
 const char *va_value_type_string(ValueType);

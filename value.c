@@ -34,11 +34,12 @@ const char *va_get_value_type(Value value)
 const char *va_value_type_string(ValueType value_type)
 {
     static const char *value_types[] = {
-        [VAL_TYPE_BOOL]  = "Boolean",
-        [VAL_TYPE_INT]   = "Integer",
-        [VAL_TYPE_FLOAT] = "Float",
-        [VAL_TYPE_STR]   = "String",
-        [VAL_TYPE_REGEX] = "Regex"
+        [VAL_TYPE_BOOL]          = "Boolean",
+        [VAL_TYPE_INT]           = "Integer",
+        [VAL_TYPE_FLOAT]         = "Float",
+        [VAL_TYPE_STR]           = "String",
+        [VAL_TYPE_REGEX]         = "Regex",
+        [VAL_TYPE_SHELL_COMMAND] = "Shell Command"
     };
 
     assert(value_type < ARRAY_SIZE(value_types, const char *));
@@ -71,6 +72,8 @@ Status va_deep_copy_value(Value value, Value *new_val)
         *new_val = STR_VAL(str_val);
     } else if (value.type == VAL_TYPE_REGEX) {
         *new_val = REGEX_VAL(str_val, RVAL(value).modifiers);
+    } else if (value.type == VAL_TYPE_SHELL_COMMAND) {
+        *new_val = CMD_VAL(str_val);
     }
 
     return STATUS_SUCCESS;
@@ -109,6 +112,8 @@ char *va_to_string(Value value)
             }
         case VAL_TYPE_REGEX:
             return strdup(RVAL(value).regex_pattern);
+        case VAL_TYPE_SHELL_COMMAND:
+            return strdup(CVAL(value));
         default:
             assert(!"Invalid value type");
             break;
@@ -123,6 +128,8 @@ const char *va_str_val(Value value)
         return SVAL(value);
     } else if (value.type == VAL_TYPE_REGEX) {
         return RVAL(value).regex_pattern;
+    } else if (value.type == VAL_TYPE_SHELL_COMMAND) {
+        return CVAL(value);
     }
 
     assert(!"Invalid value type");
@@ -140,5 +147,7 @@ void va_free_value(Value value)
         free(SVAL(value));
     } else if (value.type == VAL_TYPE_REGEX) {
         free(RVAL(value).regex_pattern);
+    } else if (value.type == VAL_TYPE_SHELL_COMMAND) {
+        free(CVAL(value));
     }
 }

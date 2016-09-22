@@ -47,7 +47,7 @@ int yylex(Session *, const char *file_path);
 
 /* Free discarded tokens */
 %destructor { free($$); } TKN_INTEGER TKN_STRING TKN_BOOLEAN TKN_REGEX
-                          TKN_NAME TKN_UNQUOTED_STRING
+                          TKN_NAME TKN_UNQUOTED_STRING TKN_SHELL_COMMAND
 %destructor { cp_free_ast($$); } value value_list identifier expression
                                  statememt statememt_list statement_block
 
@@ -57,6 +57,7 @@ int yylex(Session *, const char *file_path);
 %token<string> TKN_BOOLEAN "boolean"
 %token<string> TKN_REGEX "regex"
 %token<string> TKN_NAME "identifier"
+%token<string> TKN_SHELL_COMMAND "shell command"
 %token<string> TKN_UNQUOTED_STRING "unquoted string"
 %token TKN_ASSIGN "="
 %token TKN_SEMI_COLON ";"
@@ -157,9 +158,13 @@ value: TKN_INTEGER {
            Value value; cp_convert_to_bool_value($1, &value);
            $$ = (ASTNode *)cp_new_valuenode(&@1, value); free($1);
        }
-     | TKN_REGEX   {
+     | TKN_REGEX {
            Value value; cp_convert_to_regex_value($1, &value);
            $$ = (ASTNode *)cp_new_valuenode(&@1, value); free($1);
+       }
+     | TKN_SHELL_COMMAND {
+            Value value; cp_convert_to_shell_command_value($1, &value);
+            $$ = (ASTNode *)cp_new_valuenode(&@1, value); free($1);
        }
      | TKN_UNQUOTED_STRING {
            Value value = STR_VAL(strdup($1));

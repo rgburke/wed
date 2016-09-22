@@ -130,6 +130,7 @@ static Status cm_session_echo(const CommandArgs *);
 static Status cm_session_map(const CommandArgs *);
 static Status cm_session_unmap(const CommandArgs *);
 static Status cm_session_help(const CommandArgs *);
+static Status cm_buffer_filter(const CommandArgs *);
 
 /* Allow the following to exceed 80 columns.
  * This format is easier to read and maipulate in visual block mode in vim */
@@ -191,7 +192,8 @@ static const CommandDefinition cm_commands[] = {
     [CMD_SESSION_ECHO]                   = { "echo"  , cm_session_echo                  , CMDSIG_VAR_ARGS                      , CMDT_SESS_MOD,    "variable", "Displays arguments in the status bar" },
     [CMD_SESSION_MAP]                    = { "map"   , cm_session_map                   , CMDSIG(2, VAL_TYPE_STR, VAL_TYPE_STR), CMDT_SESS_MOD,    "string KEYS, string KEYS", "Maps a sequence of keys to another sequence of keys" },
     [CMD_SESSION_UNMAP]                  = { "unmap" , cm_session_unmap                 , CMDSIG(1, VAL_TYPE_STR)              , CMDT_SESS_MOD,    "string KEYS", "Unmaps a previously created key mapping" },
-    [CMD_SESSION_HELP]                   = { "help"  , cm_session_help                  , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    "none", "Display basic help information" }
+    [CMD_SESSION_HELP]                   = { "help"  , cm_session_help                  , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    "none", "Display basic help information" },
+    [CMD_BUFFER_FILTER]                  = { "filter", cm_buffer_filter                 , CMDSIG(1, VAL_TYPE_SHELL_COMMAND)    , CMDT_BUFFER_MOD,  "shell command CMD", "Filter buffer through shell command" }
 };
 
 static const OperationDefinition cm_operations[] = {
@@ -1842,7 +1844,12 @@ static Status cm_session_run_command(const CommandArgs *cmd_args)
     Status status = se_add_cmd_to_history(sess, input);
 
     if (STATUS_IS_SUCCESS(status) && *input != '\0') {
-        status = cp_parse_config_string(sess, CL_BUFFER, input);
+        size_t input_len = strlen(input);
+        char *processed = malloc(input_len + 2);
+        memcpy(processed, input, input_len);
+        processed[input_len] = '\n';
+        processed[input_len + 1] ='\0';
+        status = cp_parse_config_string(sess, CL_BUFFER, processed);
     }
 
     free(input);
@@ -1866,26 +1873,8 @@ static Status cm_next_prompt_entry(const CommandArgs *cmd_args)
 
 static Status cm_prompt_input_finished(const CommandArgs *cmd_args)
 {
-    Status status = STATUS_SUCCESS;
-    Session *sess = cmd_args->sess;
-
-    if (pr_get_prompt_type(sess->prompt) == PT_COMMAND &&
-        bf_length(sess->active_buffer) > 0) {
-        BufferPos *pos = &sess->active_buffer->pos;
-        bp_to_buffer_end(pos);
-
-        BufferPos last_char_pos = *pos;
-        bp_prev_char(&last_char_pos);
-        char last_char = bp_get_char(&last_char_pos);
-
-        if (last_char != ';') {
-            status = bf_insert_character(sess->active_buffer, ";", 1);
-        }
-    }
-
     *cmd_args->finished = 1;
-
-    return status;
+    return STATUS_SUCCESS;
 }
 
 static Status cm_session_change_buffer(const CommandArgs *cmd_args)
@@ -2293,6 +2282,98 @@ static Status cm_session_help(const CommandArgs *cmd_args)
     bc_enable(&buffer->changes);
 
     bf_to_buffer_start(buffer, 0);
+
+    return status;
+}
+
+static Status cm_buffer_filter(const CommandArgs *cmd_args)
+{
+    Session *sess = cmd_args->sess;
+    Buffer *buffer = sess->active_buffer;
+    Value cmd = cmd_args->args[0];
+    BufferPos orig_pos = buffer->pos;
+    Buffer *err_buffer = NULL;
+
+    BufferInputStream bis;
+    BufferOutputStream bos;
+    BufferOutputStream bes;
+
+    memset(&bis, 0 ,sizeof(BufferInputStream));
+    memset(&bos, 0 ,sizeof(BufferOutputStream));
+    memset(&bes, 0 ,sizeof(BufferOutputStream));
+
+    Range range;
+    bf_select_all_text(buffer);
+    
+    if (!bf_get_range(buffer, &range)) {
+        range = (Range) {
+            .start = buffer->pos,
+            .end = buffer->pos
+        };
+    }
+    
+    bf_to_buffer_start(buffer, 0);
+
+    RETURN_IF_FAIL(bf_get_buffer_input_stream(&bis, buffer, &range));
+
+    Status status = bf_get_buffer_output_stream(&bos, buffer, &buffer->pos, 1);
+    GOTO_IF_FAIL(status, cleanup);
+
+    err_buffer = bf_new_empty("cmderror", sess->config);
+
+    if (err_buffer == NULL) {
+        goto cleanup;
+    }
+
+    status = bf_get_buffer_output_stream(&bes, err_buffer, &err_buffer->pos, 0);
+    GOTO_IF_FAIL(status, cleanup);
+
+    status = bc_start_grouped_changes(&buffer->changes);
+    GOTO_IF_FAIL(status, cleanup);
+
+    int cmd_status;
+    status = ec_run_command(CVAL(cmd), (InputStream *)&bis,
+                            (OutputStream *)&bos, (OutputStream *)&bes,
+                            &cmd_status);
+
+    GOTO_IF_FAIL(status, cleanup);
+
+    BufferPos write_pos = bos.write_pos;
+    bf_set_bp(buffer, &write_pos);
+    bf_to_buffer_end(buffer, 1);
+    status = bf_delete(buffer, 0);
+    GOTO_IF_FAIL(status, cleanup);
+    orig_pos = bp_init_from_line_col(orig_pos.line_no, orig_pos.col_no,
+                                     &buffer->pos);
+    bf_set_bp(buffer, &orig_pos);
+
+    if (!ec_cmd_successfull(cmd_status)) {
+        char *error = bf_to_string(err_buffer);
+        error = error == NULL ? "" : error;
+        status = st_get_error(ERR_SHELL_COMMAND_ERROR,
+                              "Error when running command \"%s\": %s",
+                              CVAL(cmd), error);
+        free(error);
+    }
+
+cleanup:
+    bc_end_grouped_changes(&buffer->changes);
+
+    if (bis.buffer != NULL) {
+        bis.is.close((InputStream *)&bis);
+    }
+
+    if (bos.buffer != NULL) {
+        bos.os.close((OutputStream *)&bos);
+    }
+
+    if (bes.buffer != NULL) {
+        bes.os.close((OutputStream *)&bes);
+    }
+
+    if (err_buffer != NULL) {
+        bf_free(err_buffer);
+    }
 
     return status;
 }
