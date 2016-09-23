@@ -1,17 +1,21 @@
 language: c
 
-compiler:
-  - gcc
-  - clang
-
 sudo: required
 
 matrix:
   include:
     - os: linux
       dist: precise
+      compiler: gcc
+    - os: linux
+      dist: precise
+      compiler: clang
     - os: osx
       osx_image: beta-xcode6.2
+      compiler: gcc
+    - os: osx
+      osx_image: beta-xcode6.2
+      compiler: clang
 
 before_install:
   - if [ "$TRAVIS_OS_NAME" = 'osx' ]; then
