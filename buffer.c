@@ -549,9 +549,16 @@ static Status bf_output_stream_write(OutputStream *os, const char buf[],
     BufferOutputStream *bos = (BufferOutputStream *)os;
     BufferPos pos = bos->buffer->pos;
     bos->buffer->pos = bos->write_pos;
+    size_t replace_len;
 
-    Status status = bf_replace_string(bos->buffer,
-                                      bos->replace_mode ? buf_len : 0,
+    if (bos->replace_mode) {
+        size_t max_replace_len = bf_length(bos->buffer) - bos->write_pos.offset;
+        replace_len = MIN(max_replace_len, buf_len);
+    } else {
+        replace_len = 0;
+    }
+
+    Status status = bf_replace_string(bos->buffer, replace_len,
                                       buf, buf_len, 1);
 
     if (STATUS_IS_SUCCESS(status)) {
