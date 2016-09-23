@@ -11,6 +11,7 @@ compiler:
 sudo: required
 
 osx_image: beta-xcode6.2
+dist: precise
 
 before_install:
   - if [ "$TRAVIS_OS_NAME" = 'osx' ]; then
