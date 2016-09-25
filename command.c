@@ -131,6 +131,7 @@ static Status cm_session_map(const CommandArgs *);
 static Status cm_session_unmap(const CommandArgs *);
 static Status cm_session_help(const CommandArgs *);
 static Status cm_buffer_filter(const CommandArgs *);
+static Status cm_buffer_read(const CommandArgs *);
 
 /* Allow the following to exceed 80 columns.
  * This format is easier to read and maipulate in visual block mode in vim */
@@ -193,7 +194,8 @@ static const CommandDefinition cm_commands[] = {
     [CMD_SESSION_MAP]                    = { "map"   , cm_session_map                   , CMDSIG(2, VAL_TYPE_STR, VAL_TYPE_STR), CMDT_SESS_MOD,    "string KEYS, string KEYS", "Maps a sequence of keys to another sequence of keys" },
     [CMD_SESSION_UNMAP]                  = { "unmap" , cm_session_unmap                 , CMDSIG(1, VAL_TYPE_STR)              , CMDT_SESS_MOD,    "string KEYS", "Unmaps a previously created key mapping" },
     [CMD_SESSION_HELP]                   = { "help"  , cm_session_help                  , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    "none", "Display basic help information" },
-    [CMD_BUFFER_FILTER]                  = { "filter", cm_buffer_filter                 , CMDSIG(1, VAL_TYPE_SHELL_COMMAND)    , CMDT_BUFFER_MOD,  "shell command CMD", "Filter buffer through shell command" }
+    [CMD_BUFFER_FILTER]                  = { "filter", cm_buffer_filter                 , CMDSIG(1, VAL_TYPE_SHELL_COMMAND)    , CMDT_BUFFER_MOD,  "shell command CMD", "Filter buffer through shell command" },
+    [CMD_BUFFER_READ]                    = { "read"  , cm_buffer_read                   , CMDSIG(1, VAL_TYPE_STR | VAL_TYPE_SHELL_COMMAND), CMDT_BUFFER_MOD, "read shell command CMD | string FILE", "Read command output or file content into buffer" }
 };
 
 static const OperationDefinition cm_operations[] = {
@@ -626,14 +628,15 @@ static Status cm_run_command(const CommandDefinition *cmd,
         }
 
         for (size_t k = 0; k < cmd_sig->arg_num; k++) {
-            if (cmd_args->args[k].type != cmd_sig->arg_types[k]) {
-                return
-                    st_get_error(ERR_INVALID_COMMAND_ARG_TYPE,
-                                 "Command expects argument number %zu to "
-                                 "have type %s but provided argument has "
-                                 "type %s", k + 1,
-                                 va_value_type_string(cmd_sig->arg_types[k]),
-                                 va_value_type_string(cmd_args->args[k].type));
+            if (!(cmd_args->args[k].type & cmd_sig->arg_types[k])) {
+                return st_get_error(ERR_INVALID_COMMAND_ARG_TYPE,
+                                    "Command expects argument number %zu to "
+                                    "have type %s but provided argument has "
+                                    "type %s", k + 1,
+                                    va_multi_value_type_string(
+                                        cmd_sig->arg_types[k]),
+                                    va_value_type_string(
+                                        cmd_args->args[k].type));
             }
         }
     }
@@ -2293,14 +2296,15 @@ static Status cm_buffer_filter(const CommandArgs *cmd_args)
     Value cmd = cmd_args->args[0];
     BufferPos orig_pos = buffer->pos;
     Buffer *err_buffer = NULL;
+    Status status = STATUS_SUCCESS;
 
     BufferInputStream bis;
     BufferOutputStream bos;
     BufferOutputStream bes;
 
-    memset(&bis, 0 ,sizeof(BufferInputStream));
-    memset(&bos, 0 ,sizeof(BufferOutputStream));
-    memset(&bes, 0 ,sizeof(BufferOutputStream));
+    memset(&bis, 0, sizeof(BufferInputStream));
+    memset(&bos, 0, sizeof(BufferOutputStream));
+    memset(&bes, 0, sizeof(BufferOutputStream));
 
     Range range;
     bf_select_all_text(buffer);
@@ -2314,16 +2318,17 @@ static Status cm_buffer_filter(const CommandArgs *cmd_args)
     
     bf_to_buffer_start(buffer, 0);
 
-    RETURN_IF_FAIL(bf_get_buffer_input_stream(&bis, buffer, &range));
-
-    Status status = bf_get_buffer_output_stream(&bos, buffer, &buffer->pos, 1);
-    GOTO_IF_FAIL(status, cleanup);
-
     err_buffer = bf_new_empty("cmderror", sess->config);
 
     if (err_buffer == NULL) {
         goto cleanup;
     }
+
+    status = bf_get_buffer_input_stream(&bis, buffer, &range);
+    GOTO_IF_FAIL(status, cleanup);
+
+    status = bf_get_buffer_output_stream(&bos, buffer, &buffer->pos, 1);
+    GOTO_IF_FAIL(status, cleanup);
 
     status = bf_get_buffer_output_stream(&bes, err_buffer, &err_buffer->pos, 0);
     GOTO_IF_FAIL(status, cleanup);
@@ -2373,6 +2378,80 @@ cleanup:
 
     if (err_buffer != NULL) {
         bf_free(err_buffer);
+    } else {
+        status = OUT_OF_MEMORY("Unable to create stderr stream");
+    }
+
+    return status;
+}
+
+static Status cm_buffer_read(const CommandArgs *cmd_args)
+{
+    Value source = cmd_args->args[0];
+    Session *sess = cmd_args->sess;
+    Buffer *buffer = sess->active_buffer;
+    Status status;
+
+    if (source.type == VAL_TYPE_STR) {
+        FileInfo file_info;
+        RETURN_IF_FAIL(fi_init(&file_info, SVAL(source)));
+        status = bf_read_file(buffer, &file_info);
+        fi_free(&file_info);
+    } else if (source.type == VAL_TYPE_SHELL_COMMAND) {
+        Buffer *err_buffer = NULL;
+        BufferOutputStream bos;
+        BufferOutputStream bes;
+
+        memset(&bos, 0, sizeof(BufferOutputStream));
+        memset(&bes, 0, sizeof(BufferOutputStream));
+
+        err_buffer = bf_new_empty("cmderror", sess->config);
+
+        if (err_buffer == NULL) {
+            goto cleanup;
+        }
+
+        status = bf_get_buffer_output_stream(&bos, buffer, &buffer->pos, 0);
+        GOTO_IF_FAIL(status, cleanup);
+
+        status = bf_get_buffer_output_stream(&bes, err_buffer,
+                                             &err_buffer->pos, 0);
+        GOTO_IF_FAIL(status, cleanup);
+
+        status = bc_start_grouped_changes(&buffer->changes);
+        GOTO_IF_FAIL(status, cleanup);
+
+        int cmd_status;
+
+        status = ec_run_command(CVAL(source), NULL, (OutputStream *)&bos,
+                                (OutputStream *)&bes, &cmd_status);
+        GOTO_IF_FAIL(status, cleanup);
+
+        if (!ec_cmd_successfull(cmd_status)) {
+            char *error = bf_to_string(err_buffer);
+            error = error == NULL ? "" : error;
+            status = st_get_error(ERR_SHELL_COMMAND_ERROR,
+                                  "Error when running command \"%s\": %s",
+                                  CVAL(source), error);
+            free(error);
+        }
+
+cleanup:
+        bc_end_grouped_changes(&buffer->changes);
+
+        if (bos.buffer != NULL) {
+            bos.os.close((OutputStream *)&bos);
+        }
+
+        if (bes.buffer != NULL) {
+            bes.os.close((OutputStream *)&bes);
+        }
+
+        if (err_buffer != NULL) {
+            bf_free(err_buffer);
+        } else {
+            status = OUT_OF_MEMORY("Unable to create stderr stream");
+        }
     }
 
     return status;

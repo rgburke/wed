@@ -108,6 +108,7 @@ Status bf_clear(Buffer *);
 Status bf_reset(Buffer *);
 FileFormat bf_detect_fileformat(const Buffer *);
 Status bf_load_file(Buffer *);
+Status bf_read_file(Buffer *, const FileInfo *);
 Status bf_write_file(Buffer *, const char *file_path);
 char *bf_to_string(const Buffer *);
 char *bf_join_lines_string(const Buffer *, const char *seperator);

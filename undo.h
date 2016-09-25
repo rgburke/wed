@@ -126,7 +126,7 @@ struct Buffer;
 
 void bc_init(BufferChanges *);
 void bc_free(BufferChanges *);
-Status bc_add_text_insert(BufferChanges *, size_t str_len,const BufferPos *);
+Status bc_add_text_insert(BufferChanges *, size_t str_len, const BufferPos *);
 Status bc_add_text_delete(BufferChanges *, const char *str, size_t str_len,
                           const BufferPos *);
 int bc_can_undo(const BufferChanges *);

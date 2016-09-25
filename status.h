@@ -40,18 +40,26 @@
 #define STATUS_IS_SUCCESS(status) ((status).error_code == ERR_NONE)
 
 #define RETURN_IF_FAIL(status) do { \
-                                   Status _wed_status = (status);\
+                                   Status _wed_status = (status); \
                                    if (!STATUS_IS_SUCCESS(_wed_status)) { \
                                        return _wed_status; \
                                    } \
                                } while (0)
 
 #define GOTO_IF_FAIL(status,label) do { \
-                                       Status _wed_status = (status);\
+                                       Status _wed_status = (status); \
                                        if (!STATUS_IS_SUCCESS(_wed_status)) { \
                                            goto label; \
                                        } \
                                    } while (0)
+
+#define ONLY_OVERWRITE_SUCCESS(var,exp) \
+    do { \
+        Status _wed_status = (exp); \
+        if (STATUS_IS_SUCCESS((var)) && !STATUS_IS_SUCCESS(_wed_status)) { \
+            (var) = _wed_status; \
+        } \
+    } while (0)
 
 #define OUT_OF_MEMORY(msg) \
     st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - " msg)

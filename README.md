@@ -374,13 +374,14 @@ The table below lists the commands currently available in wed and their
 properties:
 
 ```
-Command | Arguments                | Description
---------|--------------------------|----------------------------------------------------
-echo    | variable                 | Displays arguments in the status bar
-map     | string KEYS, string KEYS | Maps a sequence of keys to another sequence of keys
-unmap   | string KEYS              | Unmaps a previously created key mapping
-help    | none                     | Display basic help information
-filter  | shell command CMD        | Filter buffer through shell command
+Command | Arguments                       | Description
+--------|---------------------------------|----------------------------------------------------
+echo    | variable                        | Displays arguments in the status bar
+map     | string KEYS, string KEYS        | Maps a sequence of keys to another sequence of keys
+unmap   | string KEYS                     | Unmaps a previously created key mapping
+help    | none                            | Display basic help information
+filter  | shell command CMD               | Filter buffer through shell command
+read    | shell command CMD | string FILE | Read command output or file content into buffer
 ```
 
 ##### echo
@@ -456,6 +457,23 @@ filter !sed /test/d
 
 The filter command makes the power of the Unix shell commands available in wed
 allowing many complex operations to be performed on a buffer.
+
+##### read
+
+File content or command output can be read into the active buffer at the
+current cursor position. For example, to read the file `buffer.c` into the
+current buffer run:
+
+```
+read buffer.c
+```
+
+To read command output into the buffer supply a shell command. For example,
+to read the current Unix timestamp into the buffer run:
+
+```
+read !date +%s
+```
 
 #### Config Definitions
 

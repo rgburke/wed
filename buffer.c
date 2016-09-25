@@ -214,35 +214,57 @@ FileFormat bf_detect_fileformat(const Buffer *buffer)
     return file_format;
 }
 
-/* Loads file into buffer */
+/* Reset buffer and load configured file into buffer */
 Status bf_load_file(Buffer *buffer)
 {
-    Status status = STATUS_SUCCESS;
+    RETURN_IF_FAIL(bf_reset(buffer));
 
     if (!fi_file_exists(&buffer->file_info)) {
         /* If the file represented by this buffer doesn't exist
          * then the buffer content is empty */
-        return bf_clear(buffer);
+        return STATUS_SUCCESS;
     }
 
-    FILE *input_file = fopen(buffer->file_info.abs_path, "rb");
+    /* We don't want the inital load into the buffer to be undoable */
+    bc_disable(&buffer->changes);
+
+    Status status = bf_read_file(buffer, &buffer->file_info);
+
+    bc_enable(&buffer->changes);
+
+    return status;
+}
+
+/* Read file content info buffer at current position */
+Status bf_read_file(Buffer *buffer, const FileInfo *file_info)
+{
+    if (!fi_file_exists(file_info)) {
+        return st_get_error(ERR_FILE_DOESNT_EXIST, "File doesn't exist: %s",
+                            file_info->rel_path);
+    }
+
+    FILE *input_file = fopen(file_info->abs_path, "rb");
 
     if (input_file == NULL) {
         return st_get_error(ERR_UNABLE_TO_OPEN_FILE,
                             "Unable to open file %s for reading - %s", 
-                            buffer->file_info.file_name, strerror(errno));
+                            file_info->file_name, strerror(errno));
     } 
 
-    gb_set_point(buffer->data, 0);
-    
+    size_t old_size = bf_length(buffer);
+    size_t new_size = old_size + file_info->file_stat.st_size;
+
     /* Attempt to allocate necessary memory before loading into gap buffer */
-    if (!gb_preallocate(buffer->data, buffer->file_info.file_stat.st_size)) {
+    if (!gb_preallocate(buffer->data, new_size)) {
         return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - ",
                             "File is too large to load into memory");
     }
 
+    Status status = STATUS_SUCCESS;
     char buf[FILE_BUF_SIZE];
     size_t read;
+
+    gb_set_point(buffer->data, buffer->pos.offset);
 
     do {
         read = fread(buf, sizeof(char), FILE_BUF_SIZE, input_file);
@@ -250,7 +272,7 @@ Status bf_load_file(Buffer *buffer)
         if (ferror(input_file)) {
             status = st_get_error(ERR_UNABLE_TO_READ_FILE,
                                   "Unable to read from file %s - %s", 
-                                  buffer->file_info.file_name, strerror(errno));
+                                  file_info->file_name, strerror(errno));
             break;
         } 
 
@@ -264,7 +286,15 @@ Status bf_load_file(Buffer *buffer)
 
     fclose(input_file);
 
-    gb_set_point(buffer->data, 0);
+    size_t bytes_inserted = bf_length(buffer) - old_size;
+
+    if (bytes_inserted > 0) {
+        ONLY_OVERWRITE_SUCCESS(
+            status,
+            bc_add_text_insert(&buffer->changes, bytes_inserted, &buffer->pos)
+        );
+    }
+
     bf_set_is_draw_dirty(buffer, 1);
 
     return status;
