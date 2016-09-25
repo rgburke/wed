@@ -210,8 +210,7 @@ static Status rp_rs_replace(Buffer *buffer, const char *rep_text,
     char *new_rep_text = malloc(new_rep_length + 1);
 
     if (new_rep_text == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to allocate memory to replace");
+        return OUT_OF_MEMORY("Unable to allocate memory to replace");
     }
 
     rp_rs_replace_backreferences(buffer, regex_search, new_rep_text,

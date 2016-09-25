@@ -930,8 +930,7 @@ static void cp_process_syntax_block(Session *sess,
     wed_def = (WedSyntaxDefinition *)ws_new(sess);
 
     if (wed_def == NULL) {
-        se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                        "Unable to allocate SyntaxDefinition"));
+        se_add_error(sess, OUT_OF_MEMORY("Unable to allocate SyntaxDefinition"));
 
         goto cleanup;
     }
@@ -940,8 +939,7 @@ static void cp_process_syntax_block(Session *sess,
     SyntaxManager *sm = &sess->sm;
 
     if (!hashmap_set(sm->syn_defs, SVAL(name), wed_def)) {
-        se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                        "Unable to save SyntaxDefinition"));
+        se_add_error(sess, OUT_OF_MEMORY("Unable to save SyntaxDefinition"));
         goto cleanup;
     }
 
@@ -1045,9 +1043,7 @@ static void cp_process_theme_block(Session *sess, StatementBlockNode *stmb_node)
     Theme *theme = th_get_default_theme();
 
     if (theme == NULL) {
-        se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY,
-                                        "Out Of Memory - ",
-                                        "Unable to create Theme"));
+        se_add_error(sess, OUT_OF_MEMORY("Unable to create theme"));
         return;
     }
 

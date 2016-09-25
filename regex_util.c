@@ -164,8 +164,7 @@ Status ru_get_group(const RegexResult *result, const char *str,
     char *group_str = malloc(group_size + 1);
 
     if (group_str == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to get capture group");
+        return OUT_OF_MEMORY("Unable to get capture group");
     }
 
     memcpy(group_str + group_start, str, group_size);

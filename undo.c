@@ -161,8 +161,7 @@ static Status bc_add_text_change_to_prev(BufferChanges *changes,
             char *new_str = realloc(prev_change->str, new_str_len);
 
             if (new_str == NULL) {
-                return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                    "Unable to save undo history");
+                return OUT_OF_MEMORY("Unable to save undo history");
             }
 
             prev_change->str = new_str;
@@ -214,8 +213,7 @@ static Status bc_add_text_change(BufferChanges *changes,
     TextChange *text_change = bc_tc_new(change_type, str, str_len, pos);
 
     if (text_change == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to save text change");
+        return OUT_OF_MEMORY("Unable to save text change");
     }
 
     Change change = { .text_change = text_change };
@@ -291,8 +289,7 @@ static Status bc_add_change(BufferChanges *changes,
 
     if (buffer_change == NULL) {
         bc_free_change(change_type, change);
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to save buffer change");
+        return OUT_OF_MEMORY("Unable to save buffer change");
     }
 
     if (changes->group_changes) {
@@ -300,8 +297,7 @@ static Status bc_add_change(BufferChanges *changes,
         assert(changes->undo->change_type == BCT_GROUPED_CHANGE);
 
         if (!list_add(changes->undo->children, buffer_change)) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                "Unable to save buffer change");
+            return OUT_OF_MEMORY("Unable to save buffer change");
         }
     } else {
         /* Add the change to the top of the undo stack */
@@ -344,8 +340,7 @@ Status bc_start_grouped_changes(BufferChanges *changes)
     List *children = list_new_prealloc(LIST_CHILDREN_INIT);
 
     if (children == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to save buffer changes");
+        return OUT_OF_MEMORY("Unable to save buffer changes");
     }
 
     /* Create a new grouped change to act as a container for its children */
@@ -499,8 +494,7 @@ static Status bc_tc_apply(TextChange *text_change, Buffer *buffer, int redo)
         char *str = malloc(text_change->str_len);
 
         if (str == NULL) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                "Unable to save deleted text");
+            return OUT_OF_MEMORY("Unable to save deleted text");
         } 
 
         gb_get_range(buffer->data, text_change->pos.offset,

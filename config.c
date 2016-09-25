@@ -117,8 +117,7 @@ Status cf_init_session_config(Session *sess)
     }
 
     if (!cf_populate_config(NULL, config, CL_SESSION)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to load config");
+        return OUT_OF_MEMORY("Unable to load config");
     }
     
     se_add_error(sess, cf_load_config_if_exists(sess, CFG_SYSTEM_DIR,
@@ -257,8 +256,7 @@ void cf_load_config_def(Session *sess, ConfigType cf_type,
     char *file_name = malloc(file_path_length);
 
     if (file_name == NULL) {
-        se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - ",
-                                        "Unable to load config file"));
+        se_add_error(sess, OUT_OF_MEMORY("Unable to load config file"));
         return;
     }
 
@@ -317,8 +315,7 @@ static Status cf_path_append(const char *path, const char *append,
     char *res = concat(path, append);
 
     if (res == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
-                            "Unable to construct config path"); 
+        return OUT_OF_MEMORY("Unable to construct config path"); 
     }
 
     *result = res;

@@ -114,8 +114,7 @@ Status va_deep_copy_value(Value value, Value *new_val)
     char *str_val = strdup(curr_val);
 
     if (str_val == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to copy value");
+        return OUT_OF_MEMORY("Unable to copy value");
     }
 
     if (value.type == VAL_TYPE_STR) {

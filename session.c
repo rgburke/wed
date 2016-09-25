@@ -563,10 +563,7 @@ Status se_add_new_buffer(Session *sess, const char *file_path, int is_stdin)
     buffer = bf_new(&file_info, sess->config);
 
     if (buffer == NULL) {
-        status = st_get_error(ERR_OUT_OF_MEMORY, 
-                              "Out Of Memory - Unable to "
-                              "create buffer for file %s", 
-                              file_info.file_name);
+        status = OUT_OF_MEMORY("Unable to create buffer");
         goto cleanup;
     }
 
@@ -606,8 +603,7 @@ Status se_add_new_empty_buffer(Session *sess)
     Buffer *buffer = bf_new_empty(empty_buf_name, sess->config);
 
     if (buffer == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to create empty buffer");
+        return OUT_OF_MEMORY("Unable to create empty buffer");
     }   
 
     se_add_buffer(sess, buffer);
@@ -657,14 +653,12 @@ static Status se_add_to_history(List *history, const char *text)
     char *text_copy = strdup(text);
 
     if (text_copy == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable save search history");
+        return OUT_OF_MEMORY("Unable save search history");
     }
 
     if (!list_add(history, text_copy)) {
         free(text_copy);
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable save search history");
+        return OUT_OF_MEMORY("Unable save search history");
     }
 
     return STATUS_SUCCESS;
@@ -702,8 +696,7 @@ Status se_add_filetype_def(Session *sess, FileType *file_type)
     FileType *existing = hashmap_get(sess->filetypes, file_type->name);
 
     if (!hashmap_set(sess->filetypes, file_type->name, file_type)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to save filetype");
+        return OUT_OF_MEMORY("Unable to save filetype");
     }
 
     if (existing != NULL) {
@@ -788,8 +781,7 @@ static void se_determine_filetype(Session *sess, Buffer *buffer)
     if (key_num == 0) {
         return;
     } else if (keys == NULL) {
-        se_add_error(sess, st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                        "Unable to generate filetypes set"));
+        se_add_error(sess, OUT_OF_MEMORY("Unable to generate filetypes set"));
     }
 
     FileType *file_type;
@@ -943,8 +935,7 @@ Status se_add_theme(Session *sess, Theme *theme, const char *theme_name)
     Theme *existing = hashmap_get(sess->themes, theme_name);
 
     if (!hashmap_set(sess->themes, theme_name, theme)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to save theme definition");
+        return OUT_OF_MEMORY("Unable to save theme definition");
     }
 
     if (existing != NULL) {

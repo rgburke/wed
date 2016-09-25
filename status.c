@@ -87,10 +87,16 @@ static const char *st_default_error_messages[] = {
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)
 {
-    va_list arg_ptr;
-    va_start(arg_ptr, format);
-    Status status = st_get_custom_error(error_code, format, arg_ptr);
-    va_end(arg_ptr);
+    Status status;
+
+    if (error_code == ERR_OUT_OF_MEMORY) {
+        status = STATUS_ERROR(error_code, (char *)format, 1);
+    } else {
+        va_list arg_ptr;
+        va_start(arg_ptr, format);
+        status = st_get_custom_error(error_code, format, arg_ptr);
+        va_end(arg_ptr);
+    }
 
     return status;
 }

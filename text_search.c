@@ -85,8 +85,7 @@ Status ts_init(TextSearch *search, const SearchOptions *opt)
     search->pattern = malloc(opt->pattern_len + 1);
 
     if (search->pattern == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to copy pattern");
+        return OUT_OF_MEMORY("Unable to copy pattern");
     }
 
     memcpy(search->pattern, opt->pattern, opt->pattern_len);

@@ -55,8 +55,7 @@ static Status sl_load(SyntaxDefinition *syn_def, const char *syntax_type)
     sl_def->syntax_type = strdup(syntax_type);
 
     if (sl_def->syntax_type == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to copy syntax type");
+        return OUT_OF_MEMORY("Unable to copy syntax type");
     }
     
     return STATUS_SUCCESS;

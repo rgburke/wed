@@ -138,8 +138,7 @@ Status ls_init(LuaState *ls)
 {
     Session *sess = ls->sess;
     const char *wrt = cf_string(sess->config, CV_WEDRUNTIME);
-    Status status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                 "Unable to allocate memory for file path");
+    Status status = OUT_OF_MEMORY("Unable to allocate memory for file path");
 
 #if WED_STATIC_BUILD
     /* Load the lpeg library compiled into wed so that when wed_init.lua runs

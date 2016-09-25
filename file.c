@@ -38,10 +38,7 @@ Status fi_init(FileInfo *file_info, const char *path)
     file_info->rel_path = fi_process_path(path);
 
     if (file_info->rel_path == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, 
-                            "Out of memory - Unable to determine"
-                            " fileinfo for file %s", 
-                            path);
+        return OUT_OF_MEMORY("Unable to allocate file path");
     }
 
     file_info->file_name = basename(file_info->rel_path);
@@ -67,10 +64,7 @@ Status fi_init(FileInfo *file_info, const char *path)
 
     if (file_info->abs_path == NULL) {
         free(file_info->rel_path);
-        return st_get_error(ERR_OUT_OF_MEMORY, 
-                            "Out of memory - Unable to determine"
-                            " fileinfo for file %s", 
-                            path);
+        return OUT_OF_MEMORY("Unable to allocate file path");
     }
 
     /* Get the canonicalized absolute pathname.
@@ -119,8 +113,7 @@ Status fi_init_stdin(FileInfo *file_info, const char *path)
         file_info->abs_path = strdup(path);
 
         if (file_info->abs_path == NULL) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
-                                "Unable copy file path");
+            return OUT_OF_MEMORY("Unable copy file path");
         }
     }
 

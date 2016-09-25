@@ -59,8 +59,7 @@ Status ws_new_pattern(SyntaxPattern **syn_pattern_ptr, const Regex *regex,
     SyntaxPattern *syn_pattern = malloc(sizeof(SyntaxPattern));
 
     if (syn_pattern == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to allocate SyntaxPattern");
+        return OUT_OF_MEMORY("Unable to allocate SyntaxPattern");
     }
 
     memset(syn_pattern, 0, sizeof(SyntaxPattern));

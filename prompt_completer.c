@@ -146,8 +146,7 @@ Status pc_run_prompt_completer(const Session *sess, Prompt *prompt, int reverse)
     if (inital_input == NULL ||
         !list_add(prompt->suggestions, inital_input)) {
         free(inital_input);
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to allocated suggestions");
+        return OUT_OF_MEMORY("Unable to allocated suggestions");
     }
 
     /* At this point there should be at least one suggestion plus
@@ -211,8 +210,7 @@ static Status pc_complete_buffer(const Session *sess, List *suggestions,
             
             if (suggestion == NULL || !list_add(suggestions, suggestion)) {
                 free(suggestion);
-                return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                    "Unable to allocated suggested buffer");
+                return OUT_OF_MEMORY("Unable to allocated suggested buffer");
             }
         }
 
@@ -240,8 +238,7 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
     if (path1 == NULL || path2 == NULL) {
         free(path1);
         free(path2);
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to allocate memory for path");
+        return OUT_OF_MEMORY("Unable to allocate memory for path");
     }
 
     Status status = STATUS_SUCCESS;
@@ -287,8 +284,7 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
         canon_dir_path = concat(home_path, dir_path + 1);
 
         if (canon_dir_path == NULL) {
-            status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                 "Unable to allocated path");
+            status = OUT_OF_MEMORY("Unable to allocated path");
             goto cleanup;
         }
     } else {
@@ -353,8 +349,7 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
             }
 
             if (suggestion_path == NULL) {
-                status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                      "Unable to allocated suggested path");
+                status = OUT_OF_MEMORY("Unable to allocated suggested path");
                 goto cleanup;
             }
 
@@ -364,8 +359,7 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
             
             if (suggestion == NULL || !list_add(suggestions, suggestion)) {
                 free(suggestion);
-                status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                      "Unable to allocated suggested buffer");
+                status = OUT_OF_MEMORY("Unable to allocated suggested buffer");
                 goto cleanup;
             }
         }

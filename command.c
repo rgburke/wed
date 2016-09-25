@@ -1124,8 +1124,7 @@ static Status cm_save_file_prompt(Session *sess, char **file_path_ptr)
     char *file_path = pr_get_prompt_content(sess->prompt);
 
     if (file_path == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to process input");
+        return OUT_OF_MEMORY("Unable to process input");
     } else if (*file_path == '\0') {
         Status status = st_get_error(ERR_INVALID_FILE_PATH,
                                      "Invalid file path \"%s\"", file_path);
@@ -1137,9 +1136,7 @@ static Status cm_save_file_prompt(Session *sess, char **file_path_ptr)
     free(file_path);
 
     if (processed_path == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY,
-                            "Out of memory - "
-                            "Unable to process input");
+        return OUT_OF_MEMORY("Unable to process input");
     }
 
     *file_path_ptr = processed_path;
@@ -1197,8 +1194,7 @@ static Status cm_prepare_search(Session *sess, const BufferPos *start_pos,
     char *pattern = pr_get_prompt_content(sess->prompt);
 
     if (pattern == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to process input");
+        return OUT_OF_MEMORY("Unable to process input");
     } else if (*pattern == '\0') {
         free(pattern);
         return STATUS_SUCCESS;
@@ -1222,8 +1218,7 @@ static Status cm_prepare_search(Session *sess, const BufferPos *start_pos,
         free(pattern);
 
         if (processed_pattern == NULL) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                "Unable to process input");
+            return OUT_OF_MEMORY("Unable to process input");
         } else {
             pattern = processed_pattern;
         }
@@ -1415,8 +1410,7 @@ static Status cm_prepare_replace(Session *sess, char **rep_text_ptr,
     char *rep_text = pr_get_prompt_content(sess->prompt);
 
     if (rep_text == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to process input");
+        return OUT_OF_MEMORY("Unable to process input");
     } 
 
     *rep_length = strlen(rep_text);
@@ -1438,8 +1432,7 @@ static Status cm_prepare_replace(Session *sess, char **rep_text_ptr,
     free(rep_text);
 
     if (processed_rep_text == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to process input");
+        return OUT_OF_MEMORY("Unable to process input");
     }
 
     *rep_text_ptr = processed_rep_text;
@@ -1523,8 +1516,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
             }
 
             if (response == QR_ERROR) {
-                status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                      "Unable to process input");
+                status = OUT_OF_MEMORY("Unable to process input");
                 break;
             } else if (response == QR_CANCEL) {
                 break;
@@ -1607,8 +1599,7 @@ static Status cm_buffer_goto_line(const CommandArgs *cmd_args)
     char *input = pr_get_prompt_content(sess->prompt);
 
     if (input == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
-                            "Unable to process input");
+        return OUT_OF_MEMORY("Unable to process input");
     }
 
     Status status = se_add_lineno_to_history(sess, input);
@@ -1656,8 +1647,7 @@ static Status cm_session_open_file(const CommandArgs *cmd_args)
     char *input = pr_get_prompt_content(sess->prompt);
 
     if (input == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to process input");
+        return OUT_OF_MEMORY("Unable to process input");
     } else if (*input == '\0') {
         status = st_get_error(ERR_INVALID_FILE_PATH,
                               "Invalid file path \"%s\"", input);
@@ -1796,8 +1786,7 @@ static Status cm_session_close_buffer(const CommandArgs *cmd_args)
                                                       QR_YES | QR_NO, QR_YES);
 
         if (response == QR_ERROR) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                "Unable to process input");
+            return OUT_OF_MEMORY("Unable to process input");
         } else if (response == QR_CANCEL) {
             return STATUS_SUCCESS;
         } else if (response == QR_YES) {
@@ -1840,8 +1829,7 @@ static Status cm_session_run_command(const CommandArgs *cmd_args)
     char *input = pr_get_prompt_content(sess->prompt);
 
     if (input == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to process input");
+        return OUT_OF_MEMORY("Unable to process input");
     }
 
     Status status = se_add_cmd_to_history(sess, input);
@@ -1901,8 +1889,7 @@ static Status cm_session_change_buffer(const CommandArgs *cmd_args)
     char *input = pr_get_prompt_content(sess->prompt);
 
     if (input == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to process input");
+        return OUT_OF_MEMORY("Unable to process input");
     }
 
     Status status = se_add_buffer_to_history(sess, input);
@@ -2200,8 +2187,7 @@ static Status cm_session_map(const CommandArgs *cmd_args)
     free(map_to);
 
     if (key_mapping == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to create key mapping");
+        return OUT_OF_MEMORY("Unable to create key mapping");
     }
 
     KeyMap *key_map = &sess->key_map;
@@ -2216,8 +2202,7 @@ static Status cm_session_map(const CommandArgs *cmd_args)
     }
 
     if (!rt_insert(map, key_mapping->key, key_len, key_mapping)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to create key mapping");
+        return OUT_OF_MEMORY("Unable to create key mapping");
     }
 
     key_map->active_op_modes[OM_USER] = 1;

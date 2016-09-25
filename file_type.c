@@ -34,8 +34,7 @@ Status ft_init(FileType **file_type_ptr, const char *name,
     FileType *file_type = malloc(sizeof(FileType));
 
     if (file_type == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - " 
-                            "Unable to allocate filetype definition");
+        return OUT_OF_MEMORY("Unable to allocate filetype definition");
     }
 
     memset(file_type, 0, sizeof(FileType));
@@ -63,16 +62,14 @@ Status ft_init(FileType **file_type_ptr, const char *name,
     file_type->name = strdup(name);
 
     if (file_type->name == NULL) {
-        status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - " 
-                              "Unable to allocate filetype definition");
+        status = OUT_OF_MEMORY("Unable to allocate filetype definition");
         goto cleanup;
     }
 
     file_type->display_name = strdup(display_name);
 
     if (file_type->display_name == NULL) {
-        status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - " 
-                              "Unable to allocate filetype definition");
+        status = OUT_OF_MEMORY("Unable to allocate filetype definition");
         goto cleanup;
     }
 

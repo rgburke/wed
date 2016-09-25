@@ -34,8 +34,7 @@ Status bs_init(BufferSearch *search, const BufferPos *start_pos,
     search->opt.pattern = malloc(pattern_len + 1);
 
     if (search->opt.pattern == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to copy pattern");
+        return OUT_OF_MEMORY("Unable to copy pattern");
     }
 
     memcpy(search->opt.pattern, pattern, pattern_len);

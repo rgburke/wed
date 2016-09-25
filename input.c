@@ -123,8 +123,7 @@ static Status ip_add_keystr_input(InputBuffer *input_buffer, size_t pos,
     gb_set_point(buffer, pos);
      
     if (!gb_add(buffer, keystr, keystr_len)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to save input");
+        return OUT_OF_MEMORY("Unable to save input");
     }
 
     gb_set_point(buffer, 0);

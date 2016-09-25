@@ -256,8 +256,7 @@ Status bf_read_file(Buffer *buffer, const FileInfo *file_info)
 
     /* Attempt to allocate necessary memory before loading into gap buffer */
     if (!gb_preallocate(buffer->data, new_size)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - ",
-                            "File is too large to load into memory");
+        return OUT_OF_MEMORY("File is too large to load into memory");
     }
 
     Status status = STATUS_SUCCESS;
@@ -278,8 +277,7 @@ Status bf_read_file(Buffer *buffer, const FileInfo *file_info)
 
         /* Add text to gap buffer and advance internal point */
         if (!gb_add(buffer->data, buf, read)) {
-            status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                                  "Unable to populate buffer");
+            status = OUT_OF_MEMORY("Unable to populate buffer");
             break;
         }
     } while (read == FILE_BUF_SIZE);
@@ -336,8 +334,7 @@ Status bf_write_file(Buffer *buffer, const char *file_path)
     char *tmp_file_path = malloc(tmp_file_path_len);
 
     if (tmp_file_path == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to create temporary file path");
+        return OUT_OF_MEMORY("Unable to create temporary file path");
     }
 
     snprintf(tmp_file_path, tmp_file_path_len, "%sXXXXXX", file_path);
@@ -1316,8 +1313,7 @@ Status bf_add_new_mark(Buffer *buffer, BufferPos *pos,
     Mark *mark = bp_new_mark(pos, prop);
 
     if (mark == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable allocate mark" );
+        return OUT_OF_MEMORY("Unable allocate mark" );
     }
 
     Status status = bf_add_mark(buffer, mark);
@@ -1341,8 +1337,7 @@ static Status bf_add_mark(Buffer *buffer, Mark *mark)
     if (hashmap_get(buffer->marks, addr) != NULL) {
         return st_get_error(ERR_DUPLICATE_MARK, "Mark already tracked");
     } else if (!hashmap_set(buffer->marks, addr, mark)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to save mark" );
+        return OUT_OF_MEMORY("Unable to save mark" );
     }
 
     return STATUS_SUCCESS;
@@ -1389,8 +1384,7 @@ static Status bf_update_marks(Buffer *buffer, const BufferPos *change_pos,
     const char **mark_refs = hashmap_get_keys(buffer->marks);
 
     if (mark_refs == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to allocate mark list");
+        return OUT_OF_MEMORY("Unable to allocate mark list");
     }
 
     size_t mark_num = hashmap_size(buffer->marks);
@@ -1493,8 +1487,7 @@ static Status bf_auto_indent(Buffer *buffer, int advance_cursor)
     char *indent = malloc(indent_length + new_line_len);
 
     if (indent == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to insert character");
+        return OUT_OF_MEMORY("Unable to insert character");
     }
 
     gb_get_range(buffer->data, line_start_offset,
@@ -1586,8 +1579,7 @@ Status bf_insert_string(Buffer *buffer, const char *string,
     size_t lines_before = gb_lines(pos->data);
 
     if (!gb_insert(buffer->data, string, string_length)) {
-        status = st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                              "Unable to insert text");
+        status = OUT_OF_MEMORY("Unable to insert text");
         goto cleanup;
     }
 
@@ -1683,8 +1675,7 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
         deleted_str = malloc(byte_num);
 
         if (deleted_str == NULL) {
-            return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
-                    "Unable to save deletion");
+            return OUT_OF_MEMORY("Unable to save deletion");
         }
 
         gb_get_range(buffer->data, pos->offset, deleted_str, byte_num);
@@ -1694,8 +1685,7 @@ Status bf_delete(Buffer *buffer, size_t byte_num)
     gb_set_point(buffer->data, pos->offset);
 
     if (!gb_delete(buffer->data, byte_num)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
-                            "Unable to delete character");
+        return OUT_OF_MEMORY("Unable to delete character");
     }
 
     size_t lines_after = gb_lines(buffer->data);
@@ -1799,8 +1789,7 @@ Status bf_copy_selected_text(Buffer *buffer, TextSelection *text_selection)
     text_selection->str = malloc(range_size + 1);
 
     if (text_selection->str == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to copy selected text");
+        return OUT_OF_MEMORY("Unable to copy selected text");
     }
 
     size_t copied = gb_get_range(buffer->data, range.start.offset,
@@ -1896,8 +1885,7 @@ static Status bf_convert_fileformat(TextSelection *in_ts, TextSelection *out_ts,
     }
 
     if (out_ts->str == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to convert fileformat of text");
+        return OUT_OF_MEMORY("Unable to convert fileformat of text");
     }
 
     out_ts->str_len = strlen(out_ts->str);

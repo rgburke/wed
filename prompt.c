@@ -104,8 +104,7 @@ Status pr_set_prompt_text(Prompt *prompt, const char *prompt_text)
     prompt->prompt_text = strdup(prompt_text);
     
     if (prompt_text != NULL && prompt->prompt_text == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out of memory - "
-                            "Unable to set prompt text");
+        return OUT_OF_MEMORY("Unable to set prompt text");
     }
 
     bf_set_is_draw_dirty(prompt->prompt_buffer, 1);

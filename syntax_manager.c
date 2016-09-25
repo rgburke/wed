@@ -88,8 +88,7 @@ Status sm_load_definition(SyntaxManager *sm, Session *sess,
     SyntaxDefinition *syn_def = creator(sess);
 
     if (syn_def == NULL) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to create syntax definition");
+        return OUT_OF_MEMORY("Unable to create syntax definition");
     }
 
     Status status = syn_def->load(syn_def, syntax_type);
@@ -100,8 +99,7 @@ Status sm_load_definition(SyntaxManager *sm, Session *sess,
     }
 
     if (!hashmap_set(sm->syn_defs, syntax_type, syn_def)) {
-        return st_get_error(ERR_OUT_OF_MEMORY, "Out Of Memory - "
-                            "Unable to save syntax definition");
+        return OUT_OF_MEMORY("Unable to save syntax definition");
     }
 
     return STATUS_SUCCESS;
