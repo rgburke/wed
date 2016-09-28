@@ -132,6 +132,7 @@ static Status cm_session_unmap(const CommandArgs *);
 static Status cm_session_help(const CommandArgs *);
 static Status cm_buffer_filter(const CommandArgs *);
 static Status cm_buffer_read(const CommandArgs *);
+static Status cm_session_exec(const CommandArgs *);
 
 /* Allow the following to exceed 80 columns.
  * This format is easier to read and maipulate in visual block mode in vim */
@@ -195,7 +196,8 @@ static const CommandDefinition cm_commands[] = {
     [CMD_SESSION_UNMAP]                  = { "unmap" , cm_session_unmap                 , CMDSIG(1, VAL_TYPE_STR)              , CMDT_SESS_MOD,    "string KEYS", "Unmaps a previously created key mapping" },
     [CMD_SESSION_HELP]                   = { "help"  , cm_session_help                  , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    "none", "Display basic help information" },
     [CMD_BUFFER_FILTER]                  = { "filter", cm_buffer_filter                 , CMDSIG(1, VAL_TYPE_SHELL_COMMAND)    , CMDT_BUFFER_MOD,  "shell command CMD", "Filter buffer through shell command" },
-    [CMD_BUFFER_READ]                    = { "read"  , cm_buffer_read                   , CMDSIG(1, VAL_TYPE_STR | VAL_TYPE_SHELL_COMMAND), CMDT_BUFFER_MOD, "read shell command CMD | string FILE", "Read command output or file content into buffer" }
+    [CMD_BUFFER_READ]                    = { "read"  , cm_buffer_read                   , CMDSIG(1, VAL_TYPE_STR | VAL_TYPE_SHELL_COMMAND), CMDT_BUFFER_MOD, "shell command CMD or string FILE", "Read command output or file content into buffer" },
+    [CMD_SESSION_EXEC]                   = { "exec"  , cm_session_exec                  , CMDSIG(1, VAL_TYPE_SHELL_COMMAND), CMDT_SESS_MOD, "shell command CMD", "Run shell command" }
 };
 
 static const OperationDefinition cm_operations[] = {
@@ -2438,6 +2440,30 @@ cleanup:
             status = OUT_OF_MEMORY("Unable to create stderr stream");
         }
     }
+
+    return status;
+}
+
+static Status cm_session_exec(const CommandArgs *cmd_args)
+{
+    Value cmd = cmd_args->args[0];
+    Session *sess = cmd_args->sess;
+    Status status = STATUS_SUCCESS;
+
+    sess->ui->suspend(sess->ui);
+
+    printf("\n");
+    int result = system(CVAL(cmd));
+
+    if (result == -1) {
+       status = st_get_error(ERR_SHELL_COMMAND_ERROR,
+                             "Unable to create child process");
+    } else {
+        printf("\nPress any key to continue\n");
+        getchar();
+    }
+
+    sess->ui->resume(sess->ui);
 
     return status;
 }

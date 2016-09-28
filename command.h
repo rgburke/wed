@@ -93,7 +93,8 @@ typedef enum {
     CMD_SESSION_UNMAP,
     CMD_SESSION_HELP,
     CMD_BUFFER_FILTER,
-    CMD_BUFFER_READ
+    CMD_BUFFER_READ,
+    CMD_SESSION_EXEC
 } Command;
 
 /* Operations are instances of commands i.e. they define a command with

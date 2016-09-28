@@ -382,6 +382,7 @@ unmap   | string KEYS                     | Unmaps a previously created key mapp
 help    | none                            | Display basic help information
 filter  | shell command CMD               | Filter buffer through shell command
 read    | shell command CMD | string FILE | Read command output or file content into buffer
+exec    | shell command CMD               | Run shell command
 ```
 
 ##### echo
@@ -473,6 +474,21 @@ to read the current Unix timestamp into the buffer run:
 
 ```
 read !date +%s
+```
+
+##### exec
+
+The exec command allows a shell command to be executed with its output
+displayed in weds controlling shell. For example to run the `ls` command:
+
+```
+exec !ls
+```
+
+To start a bash shell run:
+
+```
+exec !bash
 ```
 
 #### Config Definitions

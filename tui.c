@@ -41,6 +41,7 @@ static Status ti_error(UI *);
 static Status ti_update_theme(UI *);
 static Status ti_resize(UI *);
 static Status ti_suspend(UI *);
+static Status ti_resume(UI *);
 static Status ti_end(UI *);
 static Status ti_free(UI *);
 
@@ -58,6 +59,7 @@ UI *ti_new(Session *sess)
     tui->ui.update_theme = ti_update_theme;
     tui->ui.resize = ti_resize;
     tui->ui.suspend = ti_suspend;
+    tui->ui.resume = ti_resume;
     tui->ui.end = ti_end;
     tui->ui.free = ti_free;
 
@@ -499,6 +501,7 @@ static Status ti_update_theme(UI *ui)
 static Status ti_resize(UI *ui)
 {
     TUI *tui = (TUI *)ui;
+    Session *sess = tui->sess;
 
     ti_end(ui);
 
@@ -518,7 +521,7 @@ static Status ti_resize(UI *ui)
     ti_init_display(tui);
     bf_set_is_draw_dirty(tui->sess->active_buffer, 1);
 
-    if (tui->tv.is_prompt_active) {
+    if (pr_get_prompt_buffer(sess->prompt) == sess->active_buffer) {
         assert(tui->sess->active_buffer->next != NULL);
         bf_set_is_draw_dirty(tui->sess->active_buffer->next, 1);
     }
@@ -530,9 +533,21 @@ static Status ti_resize(UI *ui)
 
 static Status ti_suspend(UI *ui)
 {
-    (void)ui;
+    TUI *tui = (TUI *)ui;
     endwin();
+    termkey_stop(tui->termkey);
+
     return STATUS_SUCCESS;
+}
+
+static Status ti_resume(UI *ui)
+{
+    TUI *tui = (TUI *)ui;
+    termkey_start(tui->termkey);
+    def_shell_mode();
+    refresh();
+
+    return ti_resize(ui);
 }
 
 static Status ti_end(UI *ui)

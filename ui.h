@@ -35,7 +35,8 @@ struct UI {
     Status (*update_theme)(UI *); /* User has changed the active theme so
                                      update theme related data */
     Status (*resize)(UI *); /* The display window has been resized */
-    Status (*suspend)(UI *); /* Wed is about to be suspended */
+    Status (*suspend)(UI *); /* The display is about to be suspended */
+    Status (*resume)(UI *); /* Resume the display */
     Status (*end)(UI *); /* End UI */
     Status (*free)(UI *); /* Free any allocated memory */
 };

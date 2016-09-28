@@ -243,7 +243,7 @@ void ip_process_input(Session *sess)
                         ip_window_resize_required = 0;
                         continue;
                     } else if (ip_continue_signal) {
-                        sess->ui->resize(sess->ui);
+                        sess->ui->resume(sess->ui);
                         ip_continue_signal = 0;
                         continue;
                     } else if (ip_sigterm_signal) {
