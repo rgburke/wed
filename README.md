@@ -374,15 +374,16 @@ The table below lists the commands currently available in wed and their
 properties:
 
 ```
-Command | Arguments                       | Description
---------|---------------------------------|----------------------------------------------------
-echo    | variable                        | Displays arguments in the status bar
-map     | string KEYS, string KEYS        | Maps a sequence of keys to another sequence of keys
-unmap   | string KEYS                     | Unmaps a previously created key mapping
-help    | none                            | Display basic help information
-filter  | shell command CMD               | Filter buffer through shell command
-read    | shell command CMD | string FILE | Read command output or file content into buffer
-exec    | shell command CMD               | Run shell command
+Command | Arguments                        | Description
+--------|--------------------------------- |----------------------------------------------------
+echo    | variable                         | Displays arguments in the status bar
+map     | string KEYS, string KEYS         | Maps a sequence of keys to another sequence of keys
+unmap   | string KEYS                      | Unmaps a previously created key mapping
+help    | none                             | Display basic help information
+filter  | shell command CMD                | Filter buffer through shell command
+read    | shell command CMD or string FILE | Read command output or file content into buffer
+write   | shell command CMD or string FILE | Write buffer content to command or file
+exec    | shell command CMD                | Run shell command
 ```
 
 ##### echo
@@ -474,6 +475,23 @@ to read the current Unix timestamp into the buffer run:
 
 ```
 read !date +%s
+```
+
+##### write
+
+The write command allows buffer content to be written to the stdin of a shell
+command or to a file. For example to write the current buffer to a file named
+`test.txt` run:
+
+```
+write test.txt
+```
+
+To determine the number of lines, words and characters in a buffer the `wc`
+command can be used:
+
+```
+write !wc
 ```
 
 ##### exec

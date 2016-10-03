@@ -19,6 +19,7 @@
 #ifndef WED_COMMAND_H
 #define WED_COMMAND_H
 
+#include <stdio.h>
 #include "shared.h"
 #include "status.h"
 #include "value.h"
@@ -94,6 +95,7 @@ typedef enum {
     CMD_SESSION_HELP,
     CMD_BUFFER_FILTER,
     CMD_BUFFER_READ,
+    CMD_BUFFER_WRITE,
     CMD_SESSION_EXEC
 } Command;
 
@@ -281,6 +283,13 @@ typedef struct {
     Command command; /* The Command to be called */
     const char *description; /* Description of what operation does */
 } OperationDefinition;
+
+/* Implements an OutputStream allowing shell command output to be written
+ * to the terminal */
+typedef struct {
+    OutputStream os;
+    FILE *output_file;
+} FileOutputStream;
 
 int cm_init_key_map(KeyMap *);
 void cm_free_key_map(KeyMap *);

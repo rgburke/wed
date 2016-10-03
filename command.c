@@ -17,7 +17,6 @@
  */
 
 #include <stdlib.h>
-#include <ncurses.h>
 #include <string.h>
 #include <strings.h>
 #include <signal.h>
@@ -56,6 +55,10 @@ static KeyMapping *cm_new_key_mapping(KeyMappingType, const char *key,
 static void cm_free_key_mapping(KeyMapping *);
 static Status cm_run_command(const CommandDefinition *, CommandArgs *);
 static const char *cm_get_op_mode_str(OperationMode);
+static Status cm_file_output_stream_write(OutputStream *, const char buf[],
+                                          size_t buf_len,
+                                          size_t *bytes_written);
+static Status cm_file_output_stream_close(OutputStream *);
 
 static Status cm_nop(const CommandArgs *);
 static Status cm_bp_change_line(const CommandArgs *);
@@ -132,6 +135,7 @@ static Status cm_session_unmap(const CommandArgs *);
 static Status cm_session_help(const CommandArgs *);
 static Status cm_buffer_filter(const CommandArgs *);
 static Status cm_buffer_read(const CommandArgs *);
+static Status cm_session_write(const CommandArgs *);
 static Status cm_session_exec(const CommandArgs *);
 
 /* Allow the following to exceed 80 columns.
@@ -197,6 +201,7 @@ static const CommandDefinition cm_commands[] = {
     [CMD_SESSION_HELP]                   = { "help"  , cm_session_help                  , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    "none", "Display basic help information" },
     [CMD_BUFFER_FILTER]                  = { "filter", cm_buffer_filter                 , CMDSIG(1, VAL_TYPE_SHELL_COMMAND)    , CMDT_BUFFER_MOD,  "shell command CMD", "Filter buffer through shell command" },
     [CMD_BUFFER_READ]                    = { "read"  , cm_buffer_read                   , CMDSIG(1, VAL_TYPE_STR | VAL_TYPE_SHELL_COMMAND), CMDT_BUFFER_MOD, "shell command CMD or string FILE", "Read command output or file content into buffer" },
+    [CMD_BUFFER_WRITE]                   = { "write" , cm_session_write                 , CMDSIG(1, VAL_TYPE_STR | VAL_TYPE_SHELL_COMMAND), CMDT_SESS_MOD, "shell command CMD or string FILE", "Write buffer content to command or file" },
     [CMD_SESSION_EXEC]                   = { "exec"  , cm_session_exec                  , CMDSIG(1, VAL_TYPE_SHELL_COMMAND), CMDT_SESS_MOD, "shell command CMD", "Run shell command" }
 };
 
@@ -752,6 +757,52 @@ Status cm_generate_command_table(HelpTable *help_table)
         }
     }
 
+    return STATUS_SUCCESS;
+}
+
+Status cm_get_file_output_stream(FileOutputStream *fos, const char *file_path)
+{
+    assert(!is_null_or_empty(file_path));
+
+    FILE *output_file = fopen(file_path, "wb");
+
+    if (output_file == NULL) {
+        return st_get_error(ERR_UNABLE_TO_OPEN_FILE,
+                            "Unable to open file %s for writing: %s",
+                            file_path, strerror(errno));
+    }
+
+    *fos = (FileOutputStream) {
+        .os = {
+            .write = cm_file_output_stream_write,
+            .close = cm_file_output_stream_close
+        },
+        .output_file = output_file
+    };
+
+    return STATUS_SUCCESS;
+}
+
+static Status cm_file_output_stream_write(OutputStream *os, const char buf[],
+                                          size_t buf_len,
+                                          size_t *bytes_written)
+{
+    FileOutputStream *fos = (FileOutputStream *)os;
+    *bytes_written = fwrite(buf, sizeof(char), buf_len, fos->output_file);
+
+    if (*bytes_written != buf_len) {
+        return st_get_error(ERR_UNABLE_TO_WRITE_TO_FILE,
+                            "Unable to write to file: %s",
+                            strerror(errno));
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static Status cm_file_output_stream_close(OutputStream *os)
+{
+    FileOutputStream *fos = (FileOutputStream *)os;
+    fclose(fos->output_file);
     return STATUS_SUCCESS;
 }
 
@@ -2380,6 +2431,11 @@ static Status cm_buffer_read(const CommandArgs *cmd_args)
     Status status;
 
     if (source.type == VAL_TYPE_STR) {
+        if (is_null_or_empty(SVAL(source))) {
+            return st_get_error(ERR_INVALID_FILE_PATH,
+                                "File path cannot be empty");
+        }
+
         FileInfo file_info;
         RETURN_IF_FAIL(fi_init(&file_info, SVAL(source)));
         status = bf_read_file(buffer, &file_info);
@@ -2439,6 +2495,75 @@ cleanup:
         } else {
             status = OUT_OF_MEMORY("Unable to create stderr stream");
         }
+    }
+
+    return status;
+}
+
+static Status cm_session_write(const CommandArgs *cmd_args)
+{
+    Value dest = cmd_args->args[0];
+    Session *sess = cmd_args->sess;
+    Buffer *buffer = sess->active_buffer;
+    Status status;
+
+    if (dest.type == VAL_TYPE_STR) {
+        if (is_null_or_empty(SVAL(dest))) {
+            return st_get_error(ERR_INVALID_FILE_PATH,
+                                "File path cannot be empty");
+        }
+
+        status = bf_write_file(buffer, SVAL(dest));
+    } else if (dest.type == VAL_TYPE_SHELL_COMMAND) {
+        BufferInputStream bis;
+        FileOutputStream fos;
+        FileOutputStream fes;
+
+        memset(&bis, 0, sizeof(BufferInputStream));
+        memset(&fos, 0, sizeof(FileOutputStream));
+        memset(&fes, 0, sizeof(FileOutputStream));
+
+        Range range;
+        BufferPos pos = buffer->pos;
+        bp_to_buffer_start(&pos);
+        range.start = pos;
+        bp_to_buffer_end(&pos);
+        range.end = pos;
+
+        sess->ui->suspend(sess->ui);
+
+        status = bf_get_buffer_input_stream(&bis, buffer, &range);
+        GOTO_IF_FAIL(status, cleanup);
+
+        status = cm_get_file_output_stream(&fos, "/dev/stdout");
+        GOTO_IF_FAIL(status, cleanup);
+
+        status = cm_get_file_output_stream(&fes, "/dev/stderr");
+        GOTO_IF_FAIL(status, cleanup);
+
+        int cmd_status;
+        status = ec_run_command(CVAL(dest), (InputStream *)&bis,
+                                (OutputStream *)&fos, (OutputStream *)&fes,
+                                &cmd_status);
+        GOTO_IF_FAIL(status, cleanup);
+
+        printf("\nPress any key to continue\n");
+        getchar();
+
+cleanup:
+        if (bis.buffer != NULL) {
+            bis.is.close((InputStream *)&bis);
+        }
+
+        if (fos.output_file != NULL) {
+            fos.os.close((OutputStream *)&fos);
+        }
+
+        if (fes.output_file != NULL) {
+            fes.os.close((OutputStream *)&fes);
+        }
+
+        sess->ui->resume(sess->ui);
     }
 
     return status;
