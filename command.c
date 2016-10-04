@@ -620,8 +620,9 @@ static Status cm_run_command(const CommandDefinition *cmd,
 {
     Session *sess = cmd_args->sess;
 
-    if (se_command_type_excluded(sess, cmd->command_type)) {
-        return STATUS_SUCCESS; 
+    if (!se_initialised(sess) ||
+        se_command_type_excluded(sess, cmd->command_type)) {
+        return STATUS_SUCCESS;
     }
 
     const CommandSignature *cmd_sig = &cmd->command_signature;
