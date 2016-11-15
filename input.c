@@ -131,6 +131,19 @@ static Status ip_add_keystr_input(InputBuffer *input_buffer, size_t pos,
     return STATUS_SUCCESS;
 }
 
+Status ip_add_mouse_click_event(InputBuffer *input_buffer, const char *keystr,
+                                size_t keystr_len, MouseClickType type,
+                                size_t row, size_t col)
+{
+   input_buffer->last_mouse_click = (MouseClickEvent) {
+        .type = type,
+        .row = row,
+        .col = col
+   };
+
+   return ip_add_keystr_input_to_end(input_buffer, keystr, keystr_len);
+}
+
 static int ip_input_available(const InputBuffer *input_buffer)
 {
     GapBuffer *buffer = input_buffer->buffer;
@@ -479,7 +492,8 @@ static void ip_handle_error(Session *sess)
 static int ip_is_special_key(const TermKeyKey *key)
 {
     if (key->type == TERMKEY_TYPE_FUNCTION ||
-        key->type == TERMKEY_TYPE_KEYSYM) {
+        key->type == TERMKEY_TYPE_KEYSYM ||
+        key->type == TERMKEY_TYPE_MOUSE) {
         return 1;
     }
     
@@ -531,3 +545,9 @@ static void ip_get_monotonic_time(struct timespec *time)
     clock_gettime(CLOCK_MONOTONIC, time);
 #endif
 }
+
+MouseClickEvent ip_get_last_mouse_click_event(const InputBuffer *input_buffer)
+{
+    return input_buffer->last_mouse_click;
+}
+

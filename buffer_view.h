@@ -109,5 +109,7 @@ size_t bv_screen_col_no(const struct Buffer *, const BufferPos *);
 void bv_apply_cell_attributes(BufferView *, CellAttribute attr,
                               CellAttribute exclude_cell_attr);
 void bv_free_syntax_match_cache(BufferView *);
+int bv_convert_screen_pos_to_buffer_pos(const BufferView *,
+                                        size_t *row_ptr, size_t *col_ptr);
 
 #endif

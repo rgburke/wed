@@ -883,3 +883,31 @@ void bv_apply_cell_attributes(BufferView *bv, CellAttribute attr,
         }
     }
 }
+
+int bv_convert_screen_pos_to_buffer_pos(const BufferView *bv,
+                                        size_t *row_ptr, size_t *col_ptr)
+{
+    size_t row = *row_ptr;
+    size_t col = *col_ptr;
+
+    if (row >= bv->rows || col >= bv->cols) {
+        return 0;
+    }
+
+    const BufferPos *screen_start = &bv->screen_start;
+    size_t line_no = screen_start->line_no;
+
+    for (size_t k = 0; k < bv->rows && k <= row; k++) {
+        Line *line = &bv->lines[k];
+
+        if (line->line_no > 0) {
+            line_no = line->line_no;
+        }
+    }
+
+    *row_ptr = line_no;
+    *col_ptr = MAX(1, bv->lines[row].cells[col].col_no);
+
+    return 1;
+}
+

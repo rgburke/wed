@@ -501,14 +501,14 @@ static Status bc_tc_apply(TextChange *text_change, Buffer *buffer, int redo)
                      str, text_change->str_len);
         text_change->str = str;
 
-        RETURN_IF_FAIL(bf_set_bp(buffer, &text_change->pos));
+        RETURN_IF_FAIL(bf_set_bp(buffer, &text_change->pos, 0));
         RETURN_IF_FAIL(bf_delete(buffer, text_change->str_len));
 
         /* Redoing an insert is the same as undoing a delete */
     } else if ((redo && text_change->change_type == TCT_INSERT) || 
                (!redo && text_change->change_type == TCT_DELETE)) {
 
-        RETURN_IF_FAIL(bf_set_bp(buffer, &text_change->pos));
+        RETURN_IF_FAIL(bf_set_bp(buffer, &text_change->pos, 0));
         RETURN_IF_FAIL(bf_insert_string(buffer, text_change->str,
                                         text_change->str_len, 0));
 

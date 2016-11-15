@@ -91,6 +91,7 @@ static Status cm_buffer_vert_move_lines(const CommandArgs *);
 static Status cm_buffer_duplicate_selection(const CommandArgs *);
 static Status cm_buffer_join_lines(const CommandArgs *);
 static Status cm_buffer_indent(const CommandArgs *);
+static Status cm_buffer_mouse_click(const CommandArgs *);
 static Status cm_buffer_save_file(const CommandArgs *);
 static Status cm_buffer_save_as(const CommandArgs *);
 static Status cm_save_file_prompt(Session *, char **file_path_ptr);
@@ -156,6 +157,7 @@ static const CommandDefinition cm_commands[] = {
     [CMD_BP_TO_BUFFER_START]             = { NULL    , cm_bp_to_buffer_start            , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
     [CMD_BP_TO_BUFFER_END]               = { NULL    , cm_bp_to_buffer_end              , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOVE, NULL, NULL },
     [CMD_BP_GOTO_MATCHING_BRACKET]       = { NULL    , cm_bp_goto_matching_bracket      , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOVE, NULL, NULL },
+    [CMD_BUFFER_MOUSE_CLICK]             = { NULL    , cm_buffer_mouse_click            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
     [CMD_BUFFER_INSERT_CHAR]             = { NULL    , cm_buffer_insert_char            , CMDSIG(1, VAL_TYPE_STR)              , CMDT_BUFFER_MOD,  NULL, NULL },
     [CMD_BUFFER_INDENT]                  = { NULL    , cm_buffer_indent                 , CMDSIG(1, VAL_TYPE_INT)              , CMDT_BUFFER_MOD,  NULL, NULL },
     [CMD_BUFFER_DELETE_CHAR]             = { NULL    , cm_buffer_delete_char            , CMDSIG_NO_ARGS                       , CMDT_BUFFER_MOD,  NULL, NULL },
@@ -240,6 +242,7 @@ static const OperationDefinition cm_operations[] = {
     [OP_MOVE_SELECT_BUFFER_START] = { "<wed-move-select-buffer-start>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_START, "Select to start of file" },
     [OP_MOVE_SELECT_BUFFER_END] = { "<wed-move-select-buffer-end>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_END, "Select to end of file" },
     [OP_MOVE_MATCHING_BRACKET] = { "<wed-move-matching-bracket>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BP_GOTO_MATCHING_BRACKET, "Move to matching bracket" },
+    [OP_MOVE_TO_CLICK_POSITION] = { "<wed-mouse-click>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_MOUSE_CLICK, "Move to mouse click position" },
     [OP_INDENT] = { "<wed-indent>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_BUFFER_INDENT, "Indent selected text" },
     [OP_UNINDENT] = { "<wed-unindent>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_BUFFER_INDENT, "Unindent selected text" },
     [OP_DELETE] = { "<wed-delete>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_DELETE_CHAR, "Delete next character" },
@@ -1076,6 +1079,26 @@ static Status cm_buffer_indent(const CommandArgs *cmd_args)
     return bf_insert_character(sess->active_buffer, "\t", 1);
 }
 
+static Status cm_buffer_mouse_click(const CommandArgs *cmd_args)
+{
+    Status status = STATUS_SUCCESS;
+    Session *sess = cmd_args->sess;
+    Buffer *buffer = sess->active_buffer;
+    MouseClickEvent mouse_click = se_get_last_mouse_click_event(sess);
+    BufferPos new_pos = bp_init_from_line_col(mouse_click.row,
+                                              mouse_click.col,
+                                              &buffer->pos);
+
+    if (mouse_click.type == MCT_PRESS) {
+        status = bf_set_bp(buffer, &new_pos, 0);
+    } else if (mouse_click.type == MCT_RELEASE) {
+        bf_select_continue(buffer);
+        status = bf_set_bp(buffer, &new_pos, 1);
+    }
+
+    return status;
+}
+
 static Status cm_buffer_save_file(const CommandArgs *cmd_args)
 {
     Session *sess = cmd_args->sess;
@@ -1351,7 +1374,7 @@ static Status cm_buffer_find_next(const CommandArgs *cmd_args)
                 se_add_msg(sess, "Search wrapped");
             }
 
-            status = bf_set_bp(buffer, &buffer->search.last_match_pos);
+            status = bf_set_bp(buffer, &buffer->search.last_match_pos, 0);
 
             if (STATUS_IS_SUCCESS(status)) {
                 bf_select_continue(buffer);
@@ -1528,7 +1551,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
 
         if (found_match) {
             match_num++;
-            status = bf_set_bp(buffer, &search->last_match_pos);
+            status = bf_set_bp(buffer, &search->last_match_pos, 0);
 
             if (!STATUS_IS_SUCCESS(status)) {
                 break;
@@ -1556,7 +1579,7 @@ static Status cm_buffer_replace(const CommandArgs *cmd_args)
 
                     BufferPos buffer_start = buffer->pos;
                     bp_to_buffer_start(&buffer_start);
-                    status = bf_set_bp(buffer, &buffer_start);
+                    status = bf_set_bp(buffer, &buffer_start, 0);
 
                     if (!STATUS_IS_SUCCESS(status)) {
                         break;
@@ -2383,13 +2406,13 @@ static Status cm_buffer_filter(const CommandArgs *cmd_args)
     GOTO_IF_FAIL(status, cleanup);
 
     BufferPos write_pos = bos.write_pos;
-    bf_set_bp(buffer, &write_pos);
+    bf_set_bp(buffer, &write_pos, 0);
     bf_to_buffer_end(buffer, 1);
     status = bf_delete(buffer, 0);
     GOTO_IF_FAIL(status, cleanup);
     orig_pos = bp_init_from_line_col(orig_pos.line_no, orig_pos.col_no,
                                      &buffer->pos);
-    bf_set_bp(buffer, &orig_pos);
+    bf_set_bp(buffer, &orig_pos, 0);
 
     if (!ec_cmd_successfull(cmd_status)) {
         char *error = bf_to_string(err_buffer);

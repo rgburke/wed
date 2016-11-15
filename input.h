@@ -25,13 +25,7 @@
 
 struct Session;
 
-typedef enum {
-    IT_FD,
-    IT_KEYSTR
-} InputType;
-
 typedef struct {
-    InputType input_type;
     TermKey *termkey;
     const char *keystr_input;
     const char *iter;
@@ -49,11 +43,23 @@ typedef enum {
     IR_EOF
 } InputResult;
 
+typedef enum {
+    MCT_PRESS,
+    MCT_RELEASE
+} MouseClickType;
+
+typedef struct {
+    MouseClickType type;
+    size_t row;
+    size_t col;
+} MouseClickEvent;
+
 typedef struct {
     GapBuffer *buffer;
     InputArgument arg;
     InputResult result;
     size_t wait_time_nano;
+    MouseClickEvent last_mouse_click;
 } InputBuffer;
 
 int ip_init(InputBuffer *);
@@ -64,5 +70,9 @@ Status ip_add_keystr_input_to_start(InputBuffer *, const char *keystr,
                                     size_t keystr_len);
 Status ip_add_keystr_input_to_end(InputBuffer *, const char *keystr,
                                   size_t keystr_len);
+Status ip_add_mouse_click_event(InputBuffer *, const char *keystr,
+                                size_t keystr_len, MouseClickType,
+                                size_t row, size_t col);
+MouseClickEvent ip_get_last_mouse_click_event(const InputBuffer *);
 
 #endif

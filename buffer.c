@@ -785,7 +785,7 @@ static void bf_default_movement_selection_handler(Buffer *buffer, int is_select,
     }
 }
 
-Status bf_set_bp(Buffer *buffer, const BufferPos *pos)
+Status bf_set_bp(Buffer *buffer, const BufferPos *pos, int is_select)
 {
     assert(pos->data == buffer->data);
     assert(pos->offset <= gb_length(pos->data));
@@ -797,7 +797,9 @@ Status bf_set_bp(Buffer *buffer, const BufferPos *pos)
 
     buffer->pos = *pos;
 
-    if (bf_selection_started(buffer)) {
+    if (is_select) {
+        bf_select_continue(buffer);
+    } else if (bf_selection_started(buffer)) {
         bf_select_reset(buffer);
     }
 
@@ -2330,7 +2332,7 @@ Status bf_jump_to_matching_bracket(Buffer *buffer)
 
     BufferPos pos = bp_init_from_offset(offset, &buffer->pos);
     
-    return bf_set_bp(buffer, &pos);
+    return bf_set_bp(buffer, &pos, 0);
 }
 
 /* Duplicate line or selected lines underneath */

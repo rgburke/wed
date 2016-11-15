@@ -136,7 +136,7 @@ int bf_bp_at_screen_line_start(const Buffer *, const BufferPos *);
 int bf_bp_at_screen_line_end(const Buffer *, const BufferPos *);
 int bf_bp_move_past_buffer_extremes(const BufferPos *, Direction);
 int bf_selection_started(const Buffer *);
-Status bf_set_bp(Buffer *, const BufferPos *);
+Status bf_set_bp(Buffer *, const BufferPos *, int is_select);
 Status bf_change_line(Buffer *, BufferPos *, Direction, int is_cursor);
 Status bf_change_multi_line(Buffer *, BufferPos *, Direction, 
                             size_t offset, int is_cursor);

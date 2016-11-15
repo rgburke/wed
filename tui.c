@@ -22,11 +22,13 @@
 #include "util.h"
 
 #define SC_COLOR_PAIR(screen_comp) (COLOR_PAIR((screen_comp) + 1))
+#define WED_MOUSE_CLICK "<wed-mouse-click>"
 
 static Status ti_init(UI *);
-static Status ti_get_input(UI *);
 static void ti_init_display(TUI *);
 static short ti_get_ncurses_color(DrawColor);
+static int ti_convert_to_buffer_pos(const TUI *, int *row_ptr, int *col_ptr);
+static Status ti_get_input(UI *);
 static Status ti_update(UI *);
 static void ti_draw_buffer_tabs(TUI *);
 static void ti_draw_line_no(TUI *);
@@ -90,7 +92,7 @@ static Status ti_init(UI *ui)
         tui->cols = 80;
         return STATUS_SUCCESS;
     }
-
+    
     /* ncurses */
     initscr();
     tui->rows = LINES;
@@ -117,6 +119,7 @@ static void ti_init_display(TUI *tui)
     nl();
     keypad(stdscr, TRUE);
     curs_set(1);
+    mousemask(ALL_MOUSE_EVENTS, NULL);
 
     tui->menu_win = newwin(1, tui->cols, 0, 0); 
     tui->buffer_win = newwin(tui->rows - 2, tui->cols, 1, 0);
@@ -143,6 +146,39 @@ static short ti_get_ncurses_color(DrawColor draw_color)
     return ncurses_colors[draw_color];
 }
 
+static int ti_convert_to_buffer_pos(const TUI *tui, int *row_ptr, int *col_ptr)
+{
+    size_t row = *row_ptr;
+    size_t col = *col_ptr;
+
+    int start_row, start_col;
+    getbegyx(tui->buffer_win, start_row, start_col);
+    start_row++;
+    start_col++;
+
+    int rows, cols;
+    getmaxyx(tui->buffer_win, rows, cols);
+
+    if (row < (size_t)start_row || row >= (size_t)(start_row + rows) ||
+        col < (size_t)start_col || col >= (size_t)(start_col + cols)) {
+        return 0;
+    }
+
+    row -= start_row;
+    col -= start_col;
+
+    const BufferView *bv = tui->tv.bv;
+
+    if (!bv_convert_screen_pos_to_buffer_pos(bv, &row, &col)) {
+        return 0;
+    }
+
+    *row_ptr = row;
+    *col_ptr = col;
+
+    return 1;
+}
+
 static Status ti_get_input(UI *ui)
 {
     TUI *tui = (TUI *)ui;
@@ -153,6 +189,7 @@ static Status ti_get_input(UI *ui)
     TermKeyKey key;
     size_t keystr_len;
     size_t keys_added = 0;
+    Status status = STATUS_SUCCESS;
 
     if (input_buffer->arg == IA_INPUT_AVAILABLE_TO_READ) {
         /* Inform termkey input is available to be read */
@@ -162,9 +199,31 @@ static Status ti_get_input(UI *ui)
             keystr_len = termkey_strfkey(termkey, keystr, MAX_KEY_STR_SIZE,
                                          &key, TERMKEY_FORMAT_VIM);
 
-            RETURN_IF_FAIL(ip_add_keystr_input_to_end(input_buffer, keystr,
-                                                      keystr_len));
+            if (key.type == TERMKEY_TYPE_MOUSE) {
+                TermKeyMouseEvent event;
+                int row, col;
 
+                termkey_interpret_mouse(termkey, &key, &event, NULL,
+                                        &row, &col);
+
+                if ((event == TERMKEY_MOUSE_PRESS ||
+                     event == TERMKEY_MOUSE_RELEASE) &&
+                    ti_convert_to_buffer_pos(tui, &row, &col)) {
+
+                    MouseClickType type =
+                        event == TERMKEY_MOUSE_PRESS ? MCT_PRESS : MCT_RELEASE;
+
+                    status = ip_add_mouse_click_event(input_buffer,
+                                                      WED_MOUSE_CLICK,
+                                                      strlen(WED_MOUSE_CLICK),
+                                                      type, row, col);
+                }
+            } else {
+                status = ip_add_keystr_input_to_end(input_buffer, keystr,
+                                                    keystr_len);
+            }
+
+            RETURN_IF_FAIL(status);
             keys_added++;
         }
 
@@ -196,7 +255,7 @@ static Status ti_get_input(UI *ui)
         assert(!"Unhandled InputArgument");
     }
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
 static Status ti_update(UI *ui)
