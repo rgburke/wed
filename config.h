@@ -67,6 +67,7 @@ typedef enum {
     CV_THEME,
     CV_SYNTAXDEFTYPE,
     CV_SHDATADIR,
+    CV_MOUSE,
     CV_FILETYPE,
     CV_SYNTAXTYPE,
     CV_FILEFORMAT,

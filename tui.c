@@ -20,12 +20,13 @@
 #include <sys/ioctl.h>
 #include "tui.h"
 #include "util.h"
+#include "config.h"
 
 #define SC_COLOR_PAIR(screen_comp) (COLOR_PAIR((screen_comp) + 1))
 #define WED_MOUSE_CLICK "<wed-mouse-click>"
 
 static Status ti_init(UI *);
-static void ti_init_display(TUI *);
+static void ti_init_display(UI *);
 static short ti_get_ncurses_color(DrawColor);
 static int ti_convert_to_buffer_pos(const TUI *, int *row_ptr, int *col_ptr);
 static Status ti_get_input(UI *);
@@ -41,6 +42,7 @@ static void ti_draw_prompt(TUI *);
 static void ti_position_cursor(TUI *);
 static Status ti_error(UI *);
 static Status ti_update_theme(UI *);
+static Status ti_toggle_mouse_support(UI *);
 static Status ti_resize(UI *);
 static Status ti_suspend(UI *);
 static Status ti_resume(UI *);
@@ -59,6 +61,7 @@ UI *ti_new(Session *sess)
     tui->ui.update = ti_update;
     tui->ui.error = ti_error;
     tui->ui.update_theme = ti_update_theme;
+    tui->ui.toggle_mouse_support = ti_toggle_mouse_support;
     tui->ui.resize = ti_resize;
     tui->ui.suspend = ti_suspend;
     tui->ui.resume = ti_resume;
@@ -98,18 +101,20 @@ static Status ti_init(UI *ui)
     tui->rows = LINES;
     tui->cols = COLS;
     tv_init(&tui->tv, tui->rows, tui->cols);
-    ti_init_display(tui);
+    ti_init_display(ui);
     refresh();
 
     return STATUS_SUCCESS;
 }
 
-static void ti_init_display(TUI *tui)
+static void ti_init_display(UI *ui)
 {
+    TUI *tui = (TUI *)ui;
+
     if (has_colors()) {
         start_color();
         use_default_colors();
-        ti_update_theme((UI *)tui);
+        ti_update_theme(ui);
     }
 
     /* See ncurses man pages for
@@ -119,7 +124,11 @@ static void ti_init_display(TUI *tui)
     nl();
     keypad(stdscr, TRUE);
     curs_set(1);
-    mousemask(ALL_MOUSE_EVENTS, NULL);
+    tui->mouse_mask = ALL_MOUSE_EVENTS;
+
+    if (cf_bool(tui->sess->config, CV_MOUSE)) {
+        ti_toggle_mouse_support(ui);
+    }
 
     tui->menu_win = newwin(1, tui->cols, 0, 0); 
     tui->buffer_win = newwin(tui->rows - 2, tui->cols, 1, 0);
@@ -557,6 +566,15 @@ static Status ti_update_theme(UI *ui)
     return STATUS_SUCCESS;
 }
 
+static Status ti_toggle_mouse_support(UI *ui)
+{
+    TUI *tui = (TUI *)ui;
+
+    mousemask(tui->mouse_mask, &tui->mouse_mask);
+
+    return STATUS_SUCCESS;
+}
+
 static Status ti_resize(UI *ui)
 {
     TUI *tui = (TUI *)ui;
@@ -577,7 +595,7 @@ static Status ti_resize(UI *ui)
 
     resizeterm(win_size.ws_row, win_size.ws_col);
 
-    ti_init_display(tui);
+    ti_init_display(ui);
     bf_set_is_draw_dirty(tui->sess->active_buffer, 1);
 
     if (pr_get_prompt_buffer(sess->prompt) == sess->active_buffer) {

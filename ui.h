@@ -34,6 +34,8 @@ struct UI {
     Status (*error)(UI *); /* Display an error */
     Status (*update_theme)(UI *); /* User has changed the active theme so
                                      update theme related data */
+    Status (*toggle_mouse_support)(UI *); /* Toggle whether mouse support
+                                             is active */
     Status (*resize)(UI *); /* The display window has been resized */
     Status (*suspend)(UI *); /* The display is about to be suspended */
     Status (*resume)(UI *); /* Resume the display */

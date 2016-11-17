@@ -59,6 +59,7 @@ static Status cf_fileformat_validator(ConfigEntity, Value);
 static Status cf_fileformat_on_change_event(ConfigEntity, Value, Value);
 static Status cf_sdt_validator(ConfigEntity, Value);
 static Status cf_colorcolumn_validator(ConfigEntity, Value);
+static Status cf_mouse_on_change_event(ConfigEntity, Value, Value);
 
 static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
     [CV_LINEWRAP] = { "linewrap" , "lw" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL, "Enables/Disables line wrap" },
@@ -72,6 +73,7 @@ static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
     [CV_THEME] = { "theme" , "th" , CL_SESSION , STR_VAL_STRUCT("default") , cf_theme_validator , cf_theme_on_change_event, "Set the active theme" },
     [CV_SYNTAXDEFTYPE] = { "syntaxdeftype", "sdt", CL_SESSION, STR_VAL_STRUCT(WED_DEFAULT_SDT), cf_sdt_validator, NULL, "Syntax definition type to use" },
     [CV_SHDATADIR] = { "shdatadir", "shdd", CL_SESSION, STR_VAL_STRUCT(""), NULL, NULL, "Directory path containing language definition files" },
+    [CV_MOUSE] = { "mouse", "mo" , CL_SESSION , BOOL_VAL_STRUCT(1), NULL, cf_mouse_on_change_event, "Enables/Disables mouse support" },
     [CV_FILETYPE] = { "filetype" , "ft" , CL_BUFFER , STR_VAL_STRUCT("") , cf_filetype_validator , cf_filetype_on_change_event, "Sets the type of the current file" },
     [CV_SYNTAXTYPE] = { "syntaxtype", "st" , CL_BUFFER , STR_VAL_STRUCT("") , cf_syntaxtype_validator, cf_syntaxtype_on_change_event, "Set the syntax definition to use for highlighting" },
     [CV_FILEFORMAT] = { "fileformat", "ff" , CL_BUFFER , STR_VAL_STRUCT("unix") , cf_fileformat_validator, cf_fileformat_on_change_event, "Sets line endings used by file" }
@@ -692,5 +694,16 @@ static Status cf_colorcolumn_validator(ConfigEntity entity, Value value)
     }
 
     return STATUS_SUCCESS;
+}
+
+static Status cf_mouse_on_change_event(ConfigEntity entity, Value old_val,
+                                       Value new_val)
+{
+    (void)old_val;
+    (void)new_val;
+
+    Session *sess = entity.sess;
+
+    return sess->ui->toggle_mouse_support(sess->ui);
 }
 

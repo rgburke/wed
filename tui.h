@@ -39,6 +39,8 @@ typedef struct {
     WINDOW *status_win; /* Used to display status info and the prompt when
                            active */
     WINDOW *line_no_win; /* Used to display line numbers when active */
+    mmask_t mouse_mask; /* Previous mouse settings which can be toggled
+                           back to */
     TermKey *termkey;
 } TUI;
 
