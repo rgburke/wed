@@ -230,6 +230,14 @@ EOF
     cf_fatal 'The ncurses library is required to build wed'
 }
 
+cf_check_if_have_gpm() {
+    if cf_check_if_lib_is_present CFLAGS_BASE "$CC" gpm; then
+        return 0
+    fi
+
+    cf_fatal 'The gpm library is required to build wed'
+}
+
 cf_check_if_have_pcre() {
     cat >"$TMP_C" <<EOF
 #include <pcre.h>
@@ -660,6 +668,7 @@ main() {
     cf_check_if_have_pkg_config
     cf_add_os_specific_flags
     cf_check_if_have_ncurses
+    cf_check_if_have_gpm
     cf_check_if_have_pcre
     cf_check_if_have_rt
     cf_check_if_have_lua
