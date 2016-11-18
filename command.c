@@ -1091,7 +1091,8 @@ static Status cm_buffer_mouse_click(const CommandArgs *cmd_args)
 
     if (mouse_click.type == MCT_PRESS) {
         status = bf_set_bp(buffer, &new_pos, 0);
-    } else if (mouse_click.type == MCT_RELEASE) {
+    } else if (mouse_click.type == MCT_RELEASE ||
+               mouse_click.type == MCT_DRAG) {
         bf_select_continue(buffer);
         status = bf_set_bp(buffer, &new_pos, 1);
     }

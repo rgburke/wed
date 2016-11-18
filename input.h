@@ -44,8 +44,9 @@ typedef enum {
 } InputResult;
 
 typedef enum {
-    MCT_PRESS,
-    MCT_RELEASE
+    MCT_PRESS = TERMKEY_MOUSE_PRESS,
+    MCT_DRAG = TERMKEY_MOUSE_DRAG,
+    MCT_RELEASE = TERMKEY_MOUSE_RELEASE
 } MouseClickType;
 
 typedef struct {

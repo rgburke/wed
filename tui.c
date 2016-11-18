@@ -215,17 +215,13 @@ static Status ti_get_input(UI *ui)
                 termkey_interpret_mouse(termkey, &key, &event, NULL,
                                         &row, &col);
 
-                if ((event == TERMKEY_MOUSE_PRESS ||
-                     event == TERMKEY_MOUSE_RELEASE) &&
+                if (event != TERMKEY_MOUSE_UNKNOWN &&
                     ti_convert_to_buffer_pos(tui, &row, &col)) {
-
-                    MouseClickType type =
-                        event == TERMKEY_MOUSE_PRESS ? MCT_PRESS : MCT_RELEASE;
 
                     status = ip_add_mouse_click_event(input_buffer,
                                                       WED_MOUSE_CLICK,
                                                       strlen(WED_MOUSE_CLICK),
-                                                      type, row, col);
+                                                      event, row, col);
                 }
             } else {
                 status = ip_add_keystr_input_to_end(input_buffer, keystr,
