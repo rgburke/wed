@@ -34,6 +34,7 @@ addons:
       - flex
       - libncurses5-dev
       - libncursesw5-dev
+      - libgpm-dev
       - libpcre3-dev
       - realpath
       - libsource-highlight-dev
