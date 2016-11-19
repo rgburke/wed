@@ -231,6 +231,10 @@ EOF
 }
 
 cf_check_if_have_gpm() {
+    if [ "$OS" != 'Linux' ]; then
+        return 0
+    fi
+
     if cf_check_if_lib_is_present CFLAGS_BASE "$CC" gpm; then
         return 0
     fi
