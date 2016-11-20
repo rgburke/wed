@@ -44,15 +44,28 @@ typedef enum {
 } InputResult;
 
 typedef enum {
+    MCET_BUFFER,
+    MCET_TAB
+} MouseClickEventType;
+
+typedef enum {
     MCT_PRESS = TERMKEY_MOUSE_PRESS,
     MCT_DRAG = TERMKEY_MOUSE_DRAG,
     MCT_RELEASE = TERMKEY_MOUSE_RELEASE
 } MouseClickType;
 
 typedef struct {
-    MouseClickType type;
     size_t row;
     size_t col;
+} ClickPos;
+
+typedef struct {
+    MouseClickEventType event_type;
+    MouseClickType click_type;
+    union {
+        ClickPos click_pos;
+        size_t buffer_index;
+    } data;
 } MouseClickEvent;
 
 typedef struct {
@@ -72,8 +85,7 @@ Status ip_add_keystr_input_to_start(InputBuffer *, const char *keystr,
 Status ip_add_keystr_input_to_end(InputBuffer *, const char *keystr,
                                   size_t keystr_len);
 Status ip_add_mouse_click_event(InputBuffer *, const char *keystr,
-                                size_t keystr_len, MouseClickType,
-                                size_t row, size_t col);
-MouseClickEvent ip_get_last_mouse_click_event(const InputBuffer *);
+                                size_t keystr_len, const MouseClickEvent *);
+const MouseClickEvent *ip_get_last_mouse_click_event(const InputBuffer *);
 
 #endif

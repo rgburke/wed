@@ -111,6 +111,7 @@ static Status cm_prepare_replace(Session *, char **rep_text_ptr,
 static Status cm_session_open_file(const CommandArgs *);
 static Status cm_session_add_empty_buffer(const CommandArgs *);
 static Status cm_session_change_tab(const CommandArgs *);
+static Status cm_session_tab_mouse_click(const CommandArgs *);
 static Status cm_session_save_all(const CommandArgs *);
 static Status cm_session_close_buffer(const CommandArgs *);
 static Status cm_session_run_command(const CommandArgs *);
@@ -190,6 +191,7 @@ static const CommandDefinition cm_commands[] = {
     [CMD_SESSION_OPEN_FILE]              = { NULL    , cm_session_open_file             , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT,   NULL, NULL },
     [CMD_SESSION_ADD_EMPTY_BUFFER]       = { NULL    , cm_session_add_empty_buffer      , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    NULL, NULL },
     [CMD_SESSION_CHANGE_TAB]             = { NULL    , cm_session_change_tab            , CMDSIG(1, VAL_TYPE_INT)              , CMDT_SESS_MOD,    NULL, NULL },
+    [CMD_SESSION_TAB_MOUSE_CLICK]        = { NULL    , cm_session_tab_mouse_click       , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    NULL, NULL },
     [CMD_SESSION_SAVE_ALL]               = { NULL    , cm_session_save_all              , CMDSIG_NO_ARGS                       , CMDT_SESS_MOD,    NULL, NULL },
     [CMD_SESSION_CLOSE_BUFFER]           = { NULL    , cm_session_close_buffer          , CMDSIG(1, VAL_TYPE_INT)              , CMDT_CMD_INPUT,   NULL, NULL },
     [CMD_SESSION_RUN_COMMAND]            = { NULL    , cm_session_run_command           , CMDSIG_NO_ARGS                       , CMDT_CMD_INPUT,   NULL, NULL },
@@ -242,7 +244,7 @@ static const OperationDefinition cm_operations[] = {
     [OP_MOVE_SELECT_BUFFER_START] = { "<wed-move-select-buffer-start>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_START, "Select to start of file" },
     [OP_MOVE_SELECT_BUFFER_END] = { "<wed-move-select-buffer-end>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_WITH_SELECT) }, 1, CMD_BP_TO_BUFFER_END, "Select to end of file" },
     [OP_MOVE_MATCHING_BRACKET] = { "<wed-move-matching-bracket>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BP_GOTO_MATCHING_BRACKET, "Move to matching bracket" },
-    [OP_MOVE_TO_CLICK_POSITION] = { "<wed-mouse-click>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_MOUSE_CLICK, "Move to mouse click position" },
+    [OP_MOVE_TO_CLICK_POSITION] = { "<wed-buffer-mouse-click>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_MOUSE_CLICK, "Move to mouse click position in buffer" },
     [OP_INDENT] = { "<wed-indent>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_BUFFER_INDENT, "Indent selected text" },
     [OP_UNINDENT] = { "<wed-unindent>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_BUFFER_INDENT, "Unindent selected text" },
     [OP_DELETE] = { "<wed-delete>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_BUFFER_DELETE_CHAR, "Delete next character" },
@@ -274,6 +276,7 @@ static const OperationDefinition cm_operations[] = {
     [OP_NEW] = { "<wed-new>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SESSION_ADD_EMPTY_BUFFER, "New file" },
     [OP_NEXT_BUFFER] = { "<wed-next-buffer>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_RIGHT) }, 1, CMD_SESSION_CHANGE_TAB, "Next tab" },
     [OP_PREV_BUFFER] = { "<wed-prev-buffer>", OM_NORMAL, { INT_VAL_STRUCT(DIRECTION_LEFT) }, 1, CMD_SESSION_CHANGE_TAB, "Previous tab" },
+    [OP_SET_CLICKED_TAB_ACTIVE] = { "<wed-tab-mouse-click>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SESSION_TAB_MOUSE_CLICK, "Make clicked tab active" },
     [OP_SAVE_ALL] = { "<wed-save-all>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SESSION_SAVE_ALL, "Save all" },
     [OP_CLOSE] = { "<wed-close>", OM_NORMAL, { INT_VAL_STRUCT(0) }, 1, CMD_SESSION_CLOSE_BUFFER, "Close file" },
     [OP_CMD] = { "<wed-cmd>", OM_NORMAL, CMD_NO_ARGS, 0, CMD_SESSION_RUN_COMMAND, "Open wed command prompt" },
@@ -1084,15 +1087,23 @@ static Status cm_buffer_mouse_click(const CommandArgs *cmd_args)
     Status status = STATUS_SUCCESS;
     Session *sess = cmd_args->sess;
     Buffer *buffer = sess->active_buffer;
-    MouseClickEvent mouse_click = se_get_last_mouse_click_event(sess);
-    BufferPos new_pos = bp_init_from_line_col(mouse_click.row,
-                                              mouse_click.col,
+    const MouseClickEvent *mouse_click = se_get_last_mouse_click_event(sess);
+
+    assert(mouse_click->event_type == MCET_BUFFER);
+
+    if (mouse_click->event_type != MCET_BUFFER) {
+        return STATUS_SUCCESS;
+    }
+
+    const ClickPos *click_pos = &mouse_click->data.click_pos;
+
+    BufferPos new_pos = bp_init_from_line_col(click_pos->row, click_pos->col,
                                               &buffer->pos);
 
-    if (mouse_click.type == MCT_PRESS) {
+    if (mouse_click->click_type == MCT_PRESS) {
         status = bf_set_bp(buffer, &new_pos, 0);
-    } else if (mouse_click.type == MCT_RELEASE ||
-               mouse_click.type == MCT_DRAG) {
+    } else if (mouse_click->click_type == MCT_RELEASE ||
+               mouse_click->click_type == MCT_DRAG) {
         bf_select_continue(buffer);
         status = bf_set_bp(buffer, &new_pos, 1);
     }
@@ -1786,6 +1797,24 @@ static Status cm_session_change_tab(const CommandArgs *cmd_args)
     }
 
     se_set_active_buffer(sess, new_active_buffer_index);
+
+    return STATUS_SUCCESS;
+}
+
+static Status cm_session_tab_mouse_click(const CommandArgs *cmd_args)
+{
+    Session *sess = cmd_args->sess;
+    const MouseClickEvent *mouse_click = se_get_last_mouse_click_event(sess);
+
+    assert(mouse_click->event_type == MCET_TAB);
+
+    if (mouse_click->event_type != MCET_TAB) {
+        return STATUS_SUCCESS;
+    }
+
+    int success = se_set_active_buffer(sess, mouse_click->data.buffer_index);
+    (void)success;
+    assert(success);
 
     return STATUS_SUCCESS;
 }

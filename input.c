@@ -132,14 +132,10 @@ static Status ip_add_keystr_input(InputBuffer *input_buffer, size_t pos,
 }
 
 Status ip_add_mouse_click_event(InputBuffer *input_buffer, const char *keystr,
-                                size_t keystr_len, MouseClickType type,
-                                size_t row, size_t col)
+                                size_t keystr_len,
+                                const MouseClickEvent *event)
 {
-   input_buffer->last_mouse_click = (MouseClickEvent) {
-        .type = type,
-        .row = row,
-        .col = col
-   };
+   input_buffer->last_mouse_click = *event;
 
    return ip_add_keystr_input_to_end(input_buffer, keystr, keystr_len);
 }
@@ -546,8 +542,9 @@ static void ip_get_monotonic_time(struct timespec *time)
 #endif
 }
 
-MouseClickEvent ip_get_last_mouse_click_event(const InputBuffer *input_buffer)
+const MouseClickEvent *ip_get_last_mouse_click_event(
+                                            const InputBuffer *input_buffer)
 {
-    return input_buffer->last_mouse_click;
+    return &input_buffer->last_mouse_click;
 }
 

@@ -129,6 +129,6 @@ int se_session_finished(const Session *);
 void se_set_session_finished(Session *);
 const char *se_get_file_type_display_name(const Session *, const Buffer *);
 void se_determine_filetypes_if_unset(Session *, Buffer *);
-MouseClickEvent se_get_last_mouse_click_event(const Session *);
+const MouseClickEvent *se_get_last_mouse_click_event(const Session *);
 
 #endif

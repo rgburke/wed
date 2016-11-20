@@ -1046,7 +1046,7 @@ void se_determine_filetypes_if_unset(Session *sess, Buffer *buffer)
     }
 }
 
-MouseClickEvent se_get_last_mouse_click_event(const Session *sess)
+const MouseClickEvent *se_get_last_mouse_click_event(const Session *sess)
 {
     return ip_get_last_mouse_click_event(&sess->input_buffer);
 }

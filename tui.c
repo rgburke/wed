@@ -23,12 +23,17 @@
 #include "config.h"
 
 #define SC_COLOR_PAIR(screen_comp) (COLOR_PAIR((screen_comp) + 1))
-#define WED_MOUSE_CLICK "<wed-mouse-click>"
+#define WED_MOUSE_BUFFER_CLICK "<wed-buffer-mouse-click>"
+#define WED_MOUSE_TAB_CLICK "<wed-tab-mouse-click>"
 
 static Status ti_init(UI *);
 static void ti_init_display(UI *);
 static short ti_get_ncurses_color(DrawColor);
+static MouseClickType ti_get_mouse_click_type(TermKeyMouseEvent);
+static int ti_convert_to_win_pos(const WINDOW *, size_t *row, size_t *col);
 static int ti_convert_to_buffer_pos(const TUI *, int *row_ptr, int *col_ptr);
+static int ti_convert_to_buffer_index(const TUI *, size_t row, size_t col,
+                                      size_t *buffer_index_ptr);
 static Status ti_get_input(UI *);
 static Status ti_update(UI *);
 static void ti_draw_buffer_tabs(TUI *);
@@ -155,26 +160,53 @@ static short ti_get_ncurses_color(DrawColor draw_color)
     return ncurses_colors[draw_color];
 }
 
+static MouseClickType ti_get_mouse_click_type(TermKeyMouseEvent event)
+{
+    static MouseClickType mouse_click_types[] = {
+        [TERMKEY_MOUSE_PRESS - 1] = MCT_PRESS,
+        [TERMKEY_MOUSE_DRAG - 1] = MCT_DRAG,
+        [TERMKEY_MOUSE_RELEASE - 1] = MCT_RELEASE
+    };
+
+    static const size_t mouse_click_type_num = ARRAY_SIZE(mouse_click_types,
+                                                          MouseClickType);
+    assert(event > 0 && event <= mouse_click_type_num);
+
+    return mouse_click_types[event - 1];
+}
+
+static int ti_convert_to_win_pos(const WINDOW *win, size_t *row_ptr,
+                                 size_t *col_ptr)
+{
+    int start_row, start_col;
+    getbegyx(win, start_row, start_col);
+    start_row++;
+    start_col++;
+
+    int rows, cols;
+    getmaxyx(win, rows, cols);
+
+    if (*row_ptr < (size_t)start_row ||
+        *row_ptr >= (size_t)(start_row + rows) ||
+        *col_ptr < (size_t)start_col ||
+        *col_ptr >= (size_t)(start_col + cols)) {
+        return 0;
+    }
+
+    *row_ptr -= start_row;
+    *col_ptr -= start_col;
+
+    return 1;
+}
+
 static int ti_convert_to_buffer_pos(const TUI *tui, int *row_ptr, int *col_ptr)
 {
     size_t row = *row_ptr;
     size_t col = *col_ptr;
 
-    int start_row, start_col;
-    getbegyx(tui->buffer_win, start_row, start_col);
-    start_row++;
-    start_col++;
-
-    int rows, cols;
-    getmaxyx(tui->buffer_win, rows, cols);
-
-    if (row < (size_t)start_row || row >= (size_t)(start_row + rows) ||
-        col < (size_t)start_col || col >= (size_t)(start_col + cols)) {
+    if (!ti_convert_to_win_pos(tui->buffer_win, &row, &col)) {
         return 0;
     }
-
-    row -= start_row;
-    col -= start_col;
 
     const BufferView *bv = tui->tv.bv;
 
@@ -184,6 +216,37 @@ static int ti_convert_to_buffer_pos(const TUI *tui, int *row_ptr, int *col_ptr)
 
     *row_ptr = row;
     *col_ptr = col;
+
+    return 1;
+}
+
+static int ti_convert_to_buffer_index(const TUI *tui, size_t row, size_t col,
+                                      size_t *buffer_index_ptr)
+{
+    if (!ti_convert_to_win_pos(tui->menu_win, &row, &col)) {
+        return 0;
+    }
+
+    const TabbedView *tv = &tui->tv;
+    size_t start_col = 0;
+    size_t tab_length;
+    size_t buffer_index;
+
+    for (buffer_index = 0; buffer_index < tv->buffer_tab_num; buffer_index++) {
+       tab_length = strlen(tv->buffer_tabs[buffer_index]); 
+
+       if (col >= start_col && col < start_col + tab_length) {
+           break;
+       }
+
+       start_col += tab_length;
+    }
+
+    if (buffer_index == tv->buffer_tab_num) {
+        buffer_index--;
+    }
+
+    *buffer_index_ptr = tv->first_buffer_tab_index + buffer_index;
 
     return 1;
 }
@@ -215,13 +278,40 @@ static Status ti_get_input(UI *ui)
                 termkey_interpret_mouse(termkey, &key, &event, NULL,
                                         &row, &col);
 
-                if (event != TERMKEY_MOUSE_UNKNOWN &&
-                    ti_convert_to_buffer_pos(tui, &row, &col)) {
+                if (event != TERMKEY_MOUSE_UNKNOWN) {
+                    size_t buffer_index;
 
-                    status = ip_add_mouse_click_event(input_buffer,
-                                                      WED_MOUSE_CLICK,
-                                                      strlen(WED_MOUSE_CLICK),
-                                                      event, row, col);
+                    if (ti_convert_to_buffer_pos(tui, &row, &col)) {
+                        MouseClickEvent mouse_click_event = {
+                            .event_type = MCET_BUFFER,
+                            .click_type = ti_get_mouse_click_type(event),
+                            .data = {
+                                .click_pos = {
+                                    .row = row,
+                                    .col = col
+                                }
+                            }
+                        };
+
+                        status = ip_add_mouse_click_event(input_buffer,
+                                WED_MOUSE_BUFFER_CLICK,
+                                strlen(WED_MOUSE_BUFFER_CLICK),
+                                &mouse_click_event);
+                    } else if (ti_convert_to_buffer_index(tui, row, col,
+                                                          &buffer_index)) {
+                        MouseClickEvent mouse_click_event = {
+                            .event_type = MCET_TAB,
+                            .click_type = ti_get_mouse_click_type(event),
+                            .data = {
+                                .buffer_index = buffer_index
+                            }
+                        };
+
+                        status = ip_add_mouse_click_event(input_buffer,
+                                WED_MOUSE_TAB_CLICK,
+                                strlen(WED_MOUSE_TAB_CLICK),
+                                &mouse_click_event);
+                    }
                 }
             } else {
                 status = ip_add_keystr_input_to_end(input_buffer, keystr,
