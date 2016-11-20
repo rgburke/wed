@@ -1808,7 +1808,8 @@ static Status cm_session_tab_mouse_click(const CommandArgs *cmd_args)
 
     assert(mouse_click->event_type == MCET_TAB);
 
-    if (mouse_click->event_type != MCET_TAB) {
+    if (mouse_click->event_type != MCET_TAB ||
+        mouse_click->click_type != MCT_PRESS) {
         return STATUS_SUCCESS;
     }
 
