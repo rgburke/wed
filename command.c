@@ -2482,7 +2482,7 @@ static Status cm_buffer_read(const CommandArgs *cmd_args)
     Value source = cmd_args->args[0];
     Session *sess = cmd_args->sess;
     Buffer *buffer = sess->active_buffer;
-    Status status;
+    Status status = STATUS_SUCCESS;
 
     if (source.type == VAL_TYPE_STR) {
         if (is_null_or_empty(SVAL(source))) {
@@ -2559,7 +2559,7 @@ static Status cm_session_write(const CommandArgs *cmd_args)
     Value dest = cmd_args->args[0];
     Session *sess = cmd_args->sess;
     Buffer *buffer = sess->active_buffer;
-    Status status;
+    Status status = STATUS_SUCCESS;
 
     if (dest.type == VAL_TYPE_STR) {
         if (is_null_or_empty(SVAL(dest))) {
