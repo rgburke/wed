@@ -233,7 +233,8 @@ static int ti_convert_to_buffer_index(const TUI *tui, size_t row, size_t col,
     size_t buffer_index;
 
     for (buffer_index = 0; buffer_index < tv->buffer_tab_num; buffer_index++) {
-       tab_length = strlen(tv->buffer_tabs[buffer_index]); 
+       tab_length = strlen(tv->buffer_tabs[buffer_index])
+                    + strlen(tv->tab_separator);
 
        if (col >= start_col && col < start_col + tab_length) {
            break;
@@ -400,6 +401,10 @@ static void ti_draw_buffer_tabs(TUI *tui)
         } else {
             waddstr(tui->menu_win, tv->buffer_tabs[k]); 
         } 
+
+        if (k < tv->buffer_tab_num - 1) {
+            waddstr(tui->menu_win, tv->tab_separator);
+        }
     }
 
     wclrtoeol(tui->menu_win);

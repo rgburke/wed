@@ -120,6 +120,8 @@ static void tv_update_buffer_tabs(TabbedView *tv, const Session *sess)
 {
     /* Each tab has the format {Buffer Id} {Buffer Name} */
     const char *tab_fmt = " %zu %s ";
+    tv->tab_separator = "|";
+    const size_t tab_separator_length = strlen(tv->tab_separator);
     size_t total_used_space = 0;
     size_t used_space = 0;
     Buffer *buffer;
@@ -135,7 +137,8 @@ static void tv_update_buffer_tabs(TabbedView *tv, const Session *sess)
             used_space = snprintf(tv->buffer_tabs[0], MAX_BUFFER_TAB_WIDTH,
                                   tab_fmt, start_index + 1,
                                   buffer->file_info.file_name);
-            used_space = MIN(used_space, MAX_BUFFER_TAB_WIDTH);
+            used_space = MIN(used_space, MAX_BUFFER_TAB_WIDTH)
+                         + tab_separator_length;
 
             if ((total_used_space + used_space > tv->cols) ||
                 start_index == 0 || 
@@ -167,7 +170,8 @@ static void tv_update_buffer_tabs(TabbedView *tv, const Session *sess)
         used_space = snprintf(tv->buffer_tabs[tv->buffer_tab_num],
                               MAX_BUFFER_TAB_WIDTH, tab_fmt, buffer_index + 1,
                               buffer->file_info.file_name);
-        used_space = MIN(used_space, MAX_BUFFER_TAB_WIDTH);
+        used_space = MIN(used_space, MAX_BUFFER_TAB_WIDTH)
+                     + tab_separator_length;
 
         if (total_used_space + used_space > tv->cols) {
             break;

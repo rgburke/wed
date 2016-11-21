@@ -43,6 +43,7 @@ typedef struct {
     size_t first_buffer_tab_index; /* The buffer index of the first buffer
                                       tab */
     size_t buffer_tab_num; /* Number of buffer tabs to display */
+    const char *tab_separator; /* The string used to separate tabs */
     /* Status info displayed in the bottom line of the window */
     char status_bar[MAX_STATUS_BAR_SECTIONS][MAX_STATUS_BAR_SECTION_WIDTH];
     size_t rows; /* The total display rows available */
