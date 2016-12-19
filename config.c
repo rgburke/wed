@@ -68,6 +68,7 @@ static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
     [CV_EXPANDTAB] = { "expandtab" , "et" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(0) , NULL , NULL, "Enables/Disables expanding tab characters into spaces" },
     [CV_AUTOINDENT] = { "autoindent", "ai" , CL_SESSION | CL_BUFFER, BOOL_VAL_STRUCT(1) , NULL , NULL, "Enables/Disables autoindent" },
     [CV_COLORCOLUMN] = { "colorcolumn", "cc", CL_SESSION | CL_BUFFER, INT_VAL_STRUCT(0), cf_colorcolumn_validator, NULL, "Sets column number to be highlighted" },
+    [CV_BUFFEREND] = { "bufferend", "be", CL_SESSION | CL_BUFFER, STR_VAL_STRUCT("~"), NULL, NULL, "Text to display on each line in the region after the end of a buffer" },
     [CV_WEDRUNTIME] = { "wedruntime", "wrt", CL_SESSION , STR_VAL_STRUCT(WEDRUNTIME), NULL , NULL, "Config definition location directory" },
     [CV_SYNTAX] = { "syntax" , "sy" , CL_SESSION , BOOL_VAL_STRUCT(1) , NULL , NULL, "Enables/Disables syntax highlighting" },
     [CV_THEME] = { "theme" , "th" , CL_SESSION , STR_VAL_STRUCT("default") , cf_theme_validator , cf_theme_on_change_event, "Set the active theme" },

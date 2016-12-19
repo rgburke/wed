@@ -610,10 +610,17 @@ static void bv_populate_buffer_data(const Buffer *buffer)
 
     bv->rows_drawn = row;
 
-    while (row < bv->rows) {
-        line = &bv->lines[row++];
-        cell = &line->cells[0];
-        bv_set_cell(cell, -1, 0, 1, CA_BUFFER_END, "%c", '~');
+    if (row < bv->rows) {
+        const char *end_str = cf_string(buffer->config, CV_BUFFEREND);
+        size_t end_str_len = strlen(end_str);
+        end_str_len = MIN(end_str_len, MIN(bv->cols - 1, CELL_TEXT_LENGTH));
+
+        while (row < bv->rows) {
+            line = &bv->lines[row++];
+            cell = &line->cells[0];
+            bv_set_cell(cell, -1, 0, 1, CA_BUFFER_END, "%.*s",
+                        end_str_len, end_str);
+        }
     }
 
     bv->resized = 0;

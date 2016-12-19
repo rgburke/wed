@@ -62,6 +62,7 @@ typedef enum {
     CV_EXPANDTAB,
     CV_AUTOINDENT,
     CV_COLORCOLUMN,
+    CV_BUFFEREND,
     CV_WEDRUNTIME,
     CV_SYNTAX,
     CV_THEME,
