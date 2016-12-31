@@ -32,6 +32,7 @@
 #include "clipboard.h"
 #include "command.h"
 #include "ui.h"
+#include "file_explorer.h"
 
 #if WED_FEATURE_LUA
 #include "wed_lua.h"
@@ -50,6 +51,7 @@ struct Session {
     Clipboard clipboard; /* Handles copy and paste to system clipboard */
     HashMap *config; /* Stores config variables */
     Prompt *prompt; /* Used to control prompt */
+    FileExplorer *file_explorer;
     CommandType exclude_cmd_types; /* Types of commands that shouldn't run */
     size_t buffer_num; /* Number of buffers being edited */
     size_t active_buffer_index; /* Index of active buffer */
@@ -94,6 +96,7 @@ int se_remove_buffer(Session *, Buffer *);
 Status se_make_prompt_active(Session *, const PromptOpt *);
 int se_end_prompt(Session *);
 int se_prompt_active(const Session *);
+int se_file_explorer_active(const Session *);
 void se_exclude_command_type(Session *, CommandType);
 void se_enable_command_type(Session *, CommandType);
 int se_command_type_excluded(const Session *, CommandType);

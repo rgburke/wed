@@ -2446,3 +2446,17 @@ size_t bf_get_text(const Buffer *buffer, const BufferPos *pos, char *buf,
     return gb_get_range(buffer->data, pos->offset, buf, text_len);
 }
 
+size_t bf_get_line(const Buffer *buffer, const BufferPos *pos, char *buf,
+                   size_t buf_len)
+{
+    BufferPos start = *pos;
+    BufferPos end = *pos;
+
+    bp_to_line_start(&start);
+    bp_to_line_end(&end);
+
+    size_t text_len = MIN(end.offset - start.offset, buf_len);
+    
+    return bf_get_text(buffer, &start, buf, text_len);
+}
+

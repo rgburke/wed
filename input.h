@@ -50,7 +50,8 @@ typedef enum {
 typedef enum {
     MCT_PRESS = TERMKEY_MOUSE_PRESS,
     MCT_DRAG = TERMKEY_MOUSE_DRAG,
-    MCT_RELEASE = TERMKEY_MOUSE_RELEASE
+    MCT_RELEASE = TERMKEY_MOUSE_RELEASE,
+    MCT_DOUBLE_PRESS
 } MouseClickType;
 
 /* The row and column clicked */

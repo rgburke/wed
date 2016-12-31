@@ -189,5 +189,7 @@ Status bf_duplicate_selection(Buffer *);
 Status bf_join_lines(Buffer *, const char *sep, size_t sep_len);
 size_t bf_get_text(const Buffer *, const BufferPos *, char *buf,
                    size_t text_len);
+size_t bf_get_line(const Buffer *, const BufferPos *, char *buf,
+                   size_t buf_len);
 
 #endif

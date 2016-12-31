@@ -22,8 +22,10 @@
 #include "util.h"
 #include "config.h"
 
+#define DOUBLE_CLICK_TIMEFRAME_NS 500000000 
 #define SC_COLOR_PAIR(screen_comp) (COLOR_PAIR((screen_comp) + 1))
 #define WED_MOUSE_BUFFER_CLICK "<wed-buffer-mouse-click>"
+#define WED_MOUSE_FILE_EXPLORER_CLICK "<wed-file-explorer-mouse-click>"
 #define WED_MOUSE_TAB_CLICK "<wed-tab-mouse-click>"
 
 static Status ti_init(UI *);
@@ -31,13 +33,22 @@ static void ti_init_display(UI *);
 static short ti_get_ncurses_color(DrawColor);
 static MouseClickType ti_get_mouse_click_type(TermKeyMouseEvent);
 static int ti_convert_to_win_pos(const WINDOW *, size_t *row, size_t *col);
-static int ti_convert_to_buffer_pos(const TUI *, int *row_ptr, int *col_ptr);
+static int ti_convert_to_buffer_pos(WINDOW *win, const BufferView *,
+                                    int *row_ptr, int *col_ptr);
 static int ti_convert_to_buffer_index(const TUI *, size_t row, size_t col,
                                       size_t *buffer_index_ptr);
+static int ti_events_equal(const MouseClickEvent *, const MouseClickEvent *);
+static int ti_monitor_for_double_click_event(TUI *, const WINDOW *,
+                                             const MouseClickEvent *);
+static void ti_get_mouse_double_click_event(const TUI *, const WINDOW *,
+                                            MouseClickEvent *);
 static Status ti_get_input(UI *);
 static Status ti_update(UI *);
+static void ti_setup_window(WINDOW *, const ViewDimensions *new,
+                            const ViewDimensions *old);
 static void ti_draw_buffer_tabs(TUI *);
 static void ti_draw_line_no(TUI *);
+static void ti_draw_file_explorer(TUI *);
 static void ti_draw_buffer(TUI *);
 static void ti_draw_buffer_view(const BufferView *, WINDOW *);
 static int ti_draw_buffer_line(WINDOW *, const BufferView *, const Line *);
@@ -137,8 +148,9 @@ static void ti_init_display(UI *ui)
 
     tui->menu_win = newwin(1, tui->cols, 0, 0); 
     tui->buffer_win = newwin(tui->rows - 2, tui->cols, 1, 0);
-    tui->status_win = newwin(1, tui->cols, tui->rows - 1, 0);
+    tui->status_win = newwin(0, tui->cols, tui->rows - 1, 0);
     tui->line_no_win = newwin(0, 0, 1, 0);
+    tui->file_explorer_win = newwin(0, 0, 1, 0);
 }
 
 static short ti_get_ncurses_color(DrawColor draw_color)
@@ -199,16 +211,15 @@ static int ti_convert_to_win_pos(const WINDOW *win, size_t *row_ptr,
     return 1;
 }
 
-static int ti_convert_to_buffer_pos(const TUI *tui, int *row_ptr, int *col_ptr)
+static int ti_convert_to_buffer_pos(WINDOW *win, const BufferView *bv,
+                                    int *row_ptr, int *col_ptr)
 {
     size_t row = *row_ptr;
     size_t col = *col_ptr;
 
-    if (!ti_convert_to_win_pos(tui->buffer_win, &row, &col)) {
+    if (!ti_convert_to_win_pos(win, &row, &col)) {
         return 0;
     }
-
-    const BufferView *bv = tui->tv.bv;
 
     if (!bv_convert_screen_pos_to_buffer_pos(bv, &row, &col)) {
         return 0;
@@ -252,6 +263,74 @@ static int ti_convert_to_buffer_index(const TUI *tui, size_t row, size_t col,
     return 1;
 }
 
+static int ti_events_equal(const MouseClickEvent *e1, const MouseClickEvent *e2)
+{
+    if (e1->event_type != e2->event_type ||
+        e1->click_type != e2->click_type) {
+        return 0;
+    }
+
+    if (e1->event_type == MCET_BUFFER) {
+        if (e1->data.click_pos.row != e2->data.click_pos.row ||
+            e1->data.click_pos.col != e2->data.click_pos.col) {
+            return 0;
+        }
+    } else if (e1->event_type == MCET_TAB) {
+        if (e1->data.buffer_index != e2->data.buffer_index) {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
+
+    return 1;
+}
+
+static int ti_monitor_for_double_click_event(TUI *tui, const WINDOW *click_win,
+                                             const MouseClickEvent *event)
+{
+    int double_click_detected = 0;
+    DoubleClickMonitor *double_click_monitor = &tui->double_click_monitor;
+    MouseClickEvent *last_event = &double_click_monitor->last_mouse_press;
+    struct timespec time;
+    memset(&time, 0, sizeof(struct timespec));
+
+    if (double_click_monitor->click_win == click_win &&
+        ti_events_equal(last_event, event)) {
+        get_monotonic_time(&time);
+        const struct timespec *last_mouse_press_time =
+            &double_click_monitor->last_mouse_press_time;
+         
+        if (time.tv_sec - last_mouse_press_time->tv_sec == 0 &&
+            time.tv_nsec - last_mouse_press_time->tv_nsec
+                <= DOUBLE_CLICK_TIMEFRAME_NS) {
+            double_click_detected = 1;
+        }
+    }
+
+    if (event->event_type == MCET_BUFFER && event->click_type == MCT_PRESS) {
+        *last_event = *event;
+
+        if (time.tv_nsec == 0) {
+            get_monotonic_time(&time);
+        }
+
+        double_click_monitor->last_mouse_press_time = time;
+        double_click_monitor->click_win = click_win;
+    }
+
+    return double_click_detected;
+}
+
+static void ti_get_mouse_double_click_event(const TUI *tui,
+                                            const WINDOW *click_win,
+                                            MouseClickEvent *event)
+{
+    if (click_win == tui->file_explorer_win) {
+        event->click_type = MCT_DOUBLE_PRESS;
+    }
+}
+
 static Status ti_get_input(UI *ui)
 {
     TUI *tui = (TUI *)ui;
@@ -281,8 +360,20 @@ static Status ti_get_input(UI *ui)
 
                 if (event != TERMKEY_MOUSE_UNKNOWN) {
                     size_t buffer_index;
+                    const WINDOW *click_win = NULL;
+                    const char *buffer_click_event = NULL;
 
-                    if (ti_convert_to_buffer_pos(tui, &row, &col)) {
+                    if (ti_convert_to_buffer_pos(tui->buffer_win, tui->tv.bv,
+                                                 &row, &col)) {
+                        buffer_click_event = WED_MOUSE_BUFFER_CLICK;
+                        click_win = tui->buffer_win;
+                    } else if (ti_convert_to_buffer_pos(tui->file_explorer_win,
+                        tui->sess->file_explorer->buffer->bv, &row, &col)) {
+                        buffer_click_event = WED_MOUSE_FILE_EXPLORER_CLICK;
+                        click_win = tui->file_explorer_win;
+                    }
+
+                    if (buffer_click_event != NULL) {
                         MouseClickEvent mouse_click_event = {
                             .event_type = MCET_BUFFER,
                             .click_type = ti_get_mouse_click_type(event),
@@ -294,9 +385,15 @@ static Status ti_get_input(UI *ui)
                             }
                         };
 
+                        if (ti_monitor_for_double_click_event(tui, click_win,
+                                    &mouse_click_event)) {
+                            ti_get_mouse_double_click_event(tui, click_win,
+                                    &mouse_click_event);
+                        }
+
                         status = ip_add_mouse_click_event(input_buffer,
-                                WED_MOUSE_BUFFER_CLICK,
-                                strlen(WED_MOUSE_BUFFER_CLICK),
+                                buffer_click_event,
+                                strlen(buffer_click_event),
                                 &mouse_click_event);
                     } else if (ti_convert_to_buffer_index(tui, row, col,
                                                           &buffer_index)) {
@@ -368,8 +465,9 @@ static Status ti_update(UI *ui)
     if (tui->tv.is_prompt_active) {
         ti_draw_prompt(tui);
     } else {
-        ti_draw_line_no(tui);
         ti_draw_buffer(tui);
+        ti_draw_line_no(tui);
+        ti_draw_file_explorer(tui);
         ti_draw_status_bar(tui);
     }
 
@@ -380,9 +478,39 @@ static Status ti_update(UI *ui)
     return STATUS_SUCCESS;
 }
 
+static void ti_setup_window(WINDOW *win, const ViewDimensions *new,
+                            const ViewDimensions *old)
+{
+    int width_diff = new->cols - old->cols;
+    int start_diff = new->start_col != old->start_col;
+
+    if (!width_diff && !start_diff) {
+        return;
+    }
+
+    werase(win);
+
+    if (width_diff > 0) {
+        mvwin(win, new->start_row, new->start_col);
+        start_diff = 0;
+    }
+
+    wresize(win, new->rows, new->cols);
+
+    if (width_diff < 0 || start_diff) {
+        mvwin(win, new->start_row, new->start_col);
+    }
+
+    werase(win);
+}
+
 static void ti_draw_buffer_tabs(TUI *tui)
 {
     const TabbedView *tv = &tui->tv;
+
+    ti_setup_window(tui->menu_win, &tv->vd.buffer_tab,
+                    &tv->last_vd.buffer_tab);
+    
     assert(tui->sess->active_buffer_index >= tui->tv.first_buffer_tab_index);
     size_t active_buffer_index = tui->sess->active_buffer_index -
                                  tui->tv.first_buffer_tab_index;
@@ -391,6 +519,9 @@ static void ti_draw_buffer_tabs(TUI *tui)
     wmove(tui->menu_win, 0, 0);
     wbkgd(tui->menu_win, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
     wattron(tui->menu_win, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
+    
+    const size_t tab_separator_num = tv->buffer_tab_num - 1;
+    size_t tab_separator_positions[tab_separator_num];
 
     for (size_t k = 0; k < tv->buffer_tab_num; k++) {
         if (k == active_buffer_index) {
@@ -402,57 +533,134 @@ static void ti_draw_buffer_tabs(TUI *tui)
             waddstr(tui->menu_win, tv->buffer_tabs[k]); 
         } 
 
-        if (k < tv->buffer_tab_num - 1) {
+        if (k < tab_separator_num) {
+            int y, x;
+            (void)y;
+            getyx(tui->menu_win, y, x);
+            tab_separator_positions[k] = x;
             waddstr(tui->menu_win, tv->tab_separator);
         }
     }
 
     wclrtoeol(tui->menu_win);
     wattroff(tui->menu_win, SC_COLOR_PAIR(SC_BUFFER_TAB_BAR));
+
+    for (size_t k = 0; k < tab_separator_num; k++) {
+        mvwvline(tui->menu_win, 0, tab_separator_positions[k], ACS_VLINE, 1);
+    }
+
     wnoutrefresh(tui->menu_win); 
 }
 
 static void ti_draw_line_no(TUI *tui)
 {
-    int win_x, win_y;
-    const BufferView *bv = tui->tv.bv;
-    (void)win_y;
+    const TabbedView *tv = &tui->tv;
+    const BufferView *bv = tv->bv;
 
-    getmaxyx(tui->line_no_win, win_y, win_x);
+    ti_setup_window(tui->line_no_win, &tv->vd.line_no, &tv->last_vd.line_no);
 
-    if (tui->tv.line_no_width == 0 && tui->tv.line_no_width == (size_t)win_x) {
+    size_t cols = tv->vd.line_no.cols;
+    size_t rows = tv->vd.line_no.rows;
+
+    if (cols == 0) {
         return;
-    } else if (tui->tv.line_no_width != tui->tv.last_line_no_width) {
-        wresize(tui->buffer_win, bv->rows, bv->cols);
-        mvwin(tui->buffer_win, 1, tui->tv.line_no_width);
-        werase(tui->line_no_win);
-        wresize(tui->line_no_win, bv->rows, tui->tv.line_no_width);
     }
 
     const Line *line;
 
-    for (size_t row = 0; row < bv->rows; row++) {
+    for (size_t row = 0; row < rows; row++) {
         line = &bv->lines[row];
         wmove(tui->line_no_win, row, 0);
 
         if (line->line_no != 0) {
             wattron(tui->line_no_win, SC_COLOR_PAIR(SC_LINENO));
-            wprintw(tui->line_no_win, "%*zu ",
-                    ((int)tui->tv.line_no_width - 1), line->line_no);
+            wprintw(tui->line_no_win, "%*zu ", ((int)cols - 1), line->line_no);
             wattroff(tui->line_no_win, SC_COLOR_PAIR(SC_LINENO));
         } else {
-            wprintw(tui->line_no_win, "%*s ",
-                    ((int)tui->tv.line_no_width - 1), "");
+            wprintw(tui->line_no_win, "%*s ", ((int)cols - 1), "");
         }
     }
+
+    mvwvline(tui->line_no_win, 0, cols - 1, ACS_VLINE, rows);
 
     wnoutrefresh(tui->line_no_win); 
 }
 
+static void ti_draw_file_explorer(TUI *tui)
+{
+    const TabbedView *tv = &tui->tv;
+
+    ti_setup_window(tui->file_explorer_win, &tv->vd.file_explorer,
+                    &tv->last_vd.file_explorer);
+
+    const size_t cols = tv->vd.file_explorer.cols;
+
+    if (cols == 0) {
+        return;
+    }
+
+    const Session *sess = tui->sess;
+    const FileExplorer *file_explorer = sess->file_explorer;
+    const size_t title_len = strlen(tv->file_explorer_title);
+    const size_t title_start_x =
+        ((FILE_EXPLORER_WIDTH - 3 - title_len) / 2) + 1;
+
+    wmove(tui->file_explorer_win, 0, 0);
+    wclrtoeol(tui->file_explorer_win);
+    wattron(tui->file_explorer_win, SC_COLOR_PAIR(SC_FILE_EXPLORER_TITLE));
+    wmove(tui->file_explorer_win, 0, title_start_x);
+    wprintw(tui->file_explorer_win, tv->file_explorer_title);
+    wattroff(tui->file_explorer_win, SC_COLOR_PAIR(SC_FILE_EXPLORER_TITLE));
+
+    const Buffer *buffer = fe_get_buffer(file_explorer);
+    const BufferView *bv = buffer->bv;
+    const size_t rows = tv->vd.file_explorer.rows;
+    const size_t dir_entries = file_explorer->dir_entries;
+
+    wmove(tui->file_explorer_win, 1, 0);
+    wattron(tui->file_explorer_win,
+            SC_COLOR_PAIR(SC_FILE_EXPLORER_FILE_ENTRY));
+    ti_draw_buffer_view(bv, tui->file_explorer_win);
+    wattroff(tui->file_explorer_win,
+             SC_COLOR_PAIR(SC_FILE_EXPLORER_FILE_ENTRY));
+
+    const size_t visible_dir_entries =
+        bv->screen_start.line_no <= dir_entries ?
+        dir_entries - (bv->screen_start.line_no - 1) : 0;
+
+    for (size_t row = 0; row < visible_dir_entries; row++) {
+        mvwchgat(tui->file_explorer_win, row + 1, 0, cols - 1, A_NORMAL,
+                 SC_FILE_EXPLORER_DIRECTORY_ENTRY + 1, NULL);
+    }
+
+    size_t selected_line_offset =
+        buffer->pos.line_no - bv->screen_start.line_no;
+    size_t selected_colour_pair =
+        selected_line_offset < visible_dir_entries ?
+        SC_FILE_EXPLORER_DIRECTORY_ENTRY + 1 : 1;
+
+    attr_t selected_attr = A_REVERSE;
+
+    if (!tv->is_file_explorer_active) {
+        selected_attr |= A_DIM;
+    }
+
+    mvwchgat(tui->file_explorer_win, selected_line_offset + 1, 0, cols - 1,
+             selected_attr, selected_colour_pair, NULL);
+
+    mvwvline(tui->file_explorer_win, 0, cols - 1, ACS_VLINE, rows);
+
+    wnoutrefresh(tui->file_explorer_win); 
+}
+
 static void ti_draw_buffer(TUI *tui)
 {
+    const TabbedView *tv = &tui->tv;
+
+    ti_setup_window(tui->buffer_win, &tv->vd.buffer, &tv->last_vd.buffer);
+
     wmove(tui->buffer_win, 0, 0);
-    ti_draw_buffer_view(tui->tv.bv, tui->buffer_win);
+    ti_draw_buffer_view(tv->bv, tui->buffer_win);
 }
 
 static void ti_draw_buffer_view(const BufferView *bv, WINDOW *win)
@@ -546,7 +754,8 @@ static void ti_draw_status_bar(TUI *tui)
     }
 
     size_t pos_info_len = strlen(tv->status_bar[2]);
-    mvwprintw(tui->status_win, 0, tui->cols - pos_info_len - 1,
+    mvwprintw(tui->status_win, 0,
+              tv->vd.status_bar.cols - pos_info_len - 1,
               tv->status_bar[2]);
 
     wattroff(tui->status_win, SC_COLOR_PAIR(SC_STATUS_BAR));
@@ -574,6 +783,15 @@ static void ti_draw_prompt(TUI *tui)
 
 static void ti_position_cursor(TUI *tui)
 {
+    const TabbedView *tv = &tui->tv;
+
+    if (tv->is_file_explorer_active) {
+        curs_set(0);
+        return;
+    } else {
+        curs_set(1);
+    }
+
     const BufferView *bv = tui->tv.bv;
     const Line *line;
     const Cell *cell;
@@ -726,6 +944,7 @@ static Status ti_end(UI *ui)
     delwin(tui->buffer_win);
     delwin(tui->status_win);
     delwin(tui->line_no_win);
+    delwin(tui->file_explorer_win);
     endwin();
 
     return STATUS_SUCCESS;

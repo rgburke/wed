@@ -18,6 +18,7 @@
 
 /* For DT_DIR */
 #define _BSD_SOURCE
+#define _DEFAULT_SOURCE
 
 /* In case user invokes completion on a directory 
  * containing a large number of files */
@@ -313,12 +314,6 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
 
     while (dir_ent_num++ < MAX_DIR_ENT_NUM &&
            (dir_ent = readdir(dir)) != NULL) {
-        if (errno) {
-            status = st_get_error(ERR_UNABLE_TO_READ_DIRECTORY,
-                                  "Unable to read from directory - %s",
-                                  strerror(errno));
-            goto cleanup;
-        }
 
         if (strcmp(".", dir_ent->d_name) == 0 ||
             strcmp("..", dir_ent->d_name) == 0) {
@@ -363,6 +358,12 @@ static Status pc_complete_path(const Session *sess, List *suggestions,
                 goto cleanup;
             }
         }
+    }
+
+    if (errno) {
+        status = st_get_error(ERR_UNABLE_TO_READ_DIRECTORY,
+                              "Unable to read from directory - %s",
+                              strerror(errno));
     }
 
 cleanup:

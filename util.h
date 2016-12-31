@@ -21,6 +21,8 @@
 
 #include <stddef.h>
 #include <stdarg.h>
+#include <time.h>
+#include <sys/time.h>
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -38,5 +40,6 @@ size_t occurrences(const char *str, const char *sub_str);
 char *replace(const char *str, const char *to_replace, const char *replacement);
 void *memrch(const void *str, int val, size_t bytes);
 void bytes_to_str(size_t bytes, char *buf, size_t buf_len);
+void get_monotonic_time(struct timespec *time);
 
 #endif

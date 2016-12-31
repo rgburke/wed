@@ -96,6 +96,8 @@ typedef struct {
     int resized; /* True when the display has been resized and a redraw is
                     required */
     size_t rows_drawn; /* The number of rows containing buffer content */
+    size_t screen_row_offset; /* Row offset of buffer view in display window */
+    size_t screen_col_offset; /* Col offset of buffer view in display window */
 } BufferView;
 
 struct Session;

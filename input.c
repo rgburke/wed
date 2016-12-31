@@ -21,8 +21,6 @@
 #include <signal.h>
 #include <string.h>
 #include <unistd.h>
-#include <time.h>
-#include <sys/time.h>
 #include <ctype.h>
 #include <ncurses.h>
 #include "input.h"
@@ -32,11 +30,6 @@
 #include "status.h"
 #include "util.h"
 #include "tui.h"
-
-#ifdef __MACH__
-#include <mach/clock.h>
-#include <mach/mach.h>
-#endif
 
 /* Limit the rate at which the screen is updated. At least
  * MIN_DRAW_INTERVAL_NS nano seconds must pass between
@@ -64,7 +57,6 @@ static int ip_is_wed_operation(const char *key, const char **next);
 static volatile int ip_window_resize_required = 0;
 static volatile int ip_continue_signal = 0;
 static volatile int ip_sigterm_signal = 0;
-static void ip_get_monotonic_time(struct timespec *);
 
 static void ip_sigwinch_handler(int signal)
 {
@@ -225,7 +217,7 @@ void ip_process_input(Session *sess)
     sigemptyset(&old_set);
     /* Use monotonic clock as we're only interested in
      * measuring time intervals that have passed */
-    ip_get_monotonic_time(&last_draw);
+    get_monotonic_time(&last_draw);
     fd_set fds;
 
     if (sess->wed_opt.test_mode) {
@@ -456,11 +448,11 @@ static void ip_handle_keypress(Session *sess, const char *keystr,
     se_save_key(sess, keystr);
 
     if (!*finished) {
-        ip_get_monotonic_time(&now);
+        get_monotonic_time(&now);
 
         if (now.tv_nsec - last_draw->tv_nsec >= MIN_DRAW_INTERVAL_NS) {
             sess->ui->update(sess->ui);
-            ip_get_monotonic_time(last_draw);
+            get_monotonic_time(last_draw);
         } else {
             /* A redraw is due but wait longer to see if the user enters
              * more input before refreshing screen. This allows us to deal
@@ -523,23 +515,6 @@ static int ip_is_wed_operation(const char *key, const char **next)
     *next = ++iter;
 
     return 1;
-}
-
-static void ip_get_monotonic_time(struct timespec *time)
-{
-#ifdef __MACH__
-    clock_serv_t clock;
-    mach_timespec_t mach;
-
-    host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &clock);
-    clock_get_time(clock, &mach);
-    mach_port_deallocate(mach_task_self(), clock);
-
-    time->tv_sec = mach.tv_sec;
-    time->tv_nsec = mach.tv_nsec;
-#else
-    clock_gettime(CLOCK_MONOTONIC, time);
-#endif
 }
 
 const MouseClickEvent *ip_get_last_mouse_click_event(

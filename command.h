@@ -89,6 +89,9 @@ typedef enum {
     CMD_SESSION_CLOSE_BUFFER,
     CMD_SESSION_RUN_COMMAND,
     CMD_SESSION_CHANGE_BUFFER,
+    CMD_SESSION_FILE_EXPLORER_TOGGLE_ACTIVE,
+    CMD_SESSION_FILE_EXPLORER_SELECT,
+    CMD_SESSION_FILE_EXPLORER_CLICK,
     CMD_SUSPEND,
     CMD_SESSION_END,
     CMD_SESSION_ECHO,
@@ -175,6 +178,7 @@ typedef enum {
     OP_CLOSE,
     OP_CMD,
     OP_CHANGE_BUFFER,
+    OP_SWITCH_TO_FILE_EXPLORER,
     OP_SUSPEND,
     OP_EXIT,
     OP_TOGGLE_SEARCH_TYPE,
@@ -185,7 +189,18 @@ typedef enum {
     OP_PROMPT_SUBMIT,
     OP_PROMPT_CANCEL,
     OP_PROMPT_COMPLETE,
-    OP_PROMPT_COMPLETE_PREV
+    OP_PROMPT_COMPLETE_PREV,
+    OP_FILE_EXPLORER_NEXT_ENTRY,
+    OP_FILE_EXPLORER_PREV_ENTRY,
+    OP_FILE_EXPLORER_NEXT_PAGE,
+    OP_FILE_EXPLORER_PREV_PAGE,
+    OP_FILE_EXPLORER_TOP,
+    OP_FILE_EXPLORER_BOTTOM,
+    OP_FILE_EXPLORER_FIND,
+    OP_FILE_EXPLORER_SELECT,
+    OP_FILE_EXPLORER_QUIT,
+    OP_FILE_EXPLORER_EXIT_WED,
+    OP_FILE_EXPLORER_CLICK_SELECT
 } Operation;
 
 /* Container structure for Command arguments */
@@ -247,19 +262,34 @@ typedef struct {
 
 /* Modes in which key bindings can be defined */
 typedef enum {
-    OM_NORMAL, /* Normal buffer is open */
+    OMM_SESSION          = 1 << 0,
+    OMM_BUFFER           = 1 << 1,
+    OMM_PROMPT           = 1 << 2,
+    OMM_PROMPT_COMPLETER = 1 << 3,
+    OMM_USER             = 1 << 4,
+    OMM_FILE_EXPLORER    = 1 << 5
+} OperationModeMap;
+
+typedef enum {
+    OM_SESSION, /* Actions possible in any mode e.g. mouse click */
+    OM_BUFFER, /* Normal buffer is open */
     OM_PROMPT, /* Prompt is open */
     OM_PROMPT_COMPLETER, /* Prompt with auto complete functionality is open */
     OM_USER, /* User defined mappings */
+    OM_FILE_EXPLORER, /* File Explorer is active */
     OM_ENTRY_NUM
 } OperationMode;
 
 /* Stores all key bindings */
 typedef struct {
+    OperationMode op_mode; /* The currently active operation mode */
+    OperationMode prev_op_mode; /* The previously active operation mode */
     int active_op_modes[OM_ENTRY_NUM]; /* Track which modes are active */
     RadixTree *maps[OM_ENTRY_NUM]; /* Key bindings for each mode */
 } KeyMap;
 
+/* A key mapping can either bind a key directly to an operation or to another
+ * keystr to be interpreted */
 typedef enum {
     KMT_OPERATION,
     KMT_KEYSTR
@@ -297,6 +327,7 @@ typedef struct {
 
 int cm_init_key_map(KeyMap *);
 void cm_free_key_map(KeyMap *);
+void cm_set_operation_mode(KeyMap *, OperationMode);
 Status cm_do_operation(struct Session *, const char *key, int *finished);
 int cm_is_valid_operation(const struct Session *, const char *key,
                           size_t key_len, int *is_prefix);

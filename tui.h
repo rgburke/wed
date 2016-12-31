@@ -25,6 +25,13 @@
 #include "tabbed_view.h"
 #include "session.h"
 
+/* Store mouse press data to determine if a double click has taken place */
+typedef struct {
+    MouseClickEvent last_mouse_press; /* Last mouse press data */
+    const WINDOW *click_win; /* Last mouse press window */
+    struct timespec last_mouse_press_time; /* Last mouse press time */
+} DoubleClickMonitor;
+
 /* This implements the UI interface from ui.h */
 typedef struct {
     UI ui; /* Extend the UI structure. TUI specific function pointers will be
@@ -39,9 +46,12 @@ typedef struct {
     WINDOW *status_win; /* Used to display status info and the prompt when
                            active */
     WINDOW *line_no_win; /* Used to display line numbers when active */
+    WINDOW *file_explorer_win; /* Used to display the file explorer */
     mmask_t mouse_mask; /* Previous mouse settings which can be toggled
                            back to */
-    TermKey *termkey;
+    TermKey *termkey; /* Use to process user input */
+    DoubleClickMonitor double_click_monitor; /* Monitor mouse clicks for
+                                                double click occurrences */
 } TUI;
 
 UI *ti_new(Session *);

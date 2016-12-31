@@ -54,10 +54,8 @@ Status fi_init(FileInfo *file_info, const char *path)
 
     if (S_ISDIR(file_info->file_stat.st_mode)) {
         file_info->file_attrs |= FATTR_DIR;
-        return STATUS_SUCCESS;
     } else if (!S_ISREG(file_info->file_stat.st_mode)) {
         file_info->file_attrs |= FATTR_SPECIAL;
-        return STATUS_SUCCESS;
     }
 
     file_info->abs_path = malloc(PATH_MAX + 1);

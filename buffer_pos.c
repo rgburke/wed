@@ -427,24 +427,24 @@ void bp_advance_to_line(BufferPos *pos, size_t line_no)
 
 void bp_reverse_to_line(BufferPos *pos, size_t line_no, int end_of_line)
 {
-    size_t lines = gb_lines(pos->data) + 1;
+    const size_t lines = gb_lines(pos->data) + 1;
     line_no = CORRECT_LINE_NO(line_no, lines);
+
     /* end_of_line reverses to the end of the line we want
      * instead of the start */
+    const size_t limit_line = end_of_line ? line_no + 1 : line_no;
 
-    if (end_of_line) {
-        line_no++;
-    }
-
-    while (pos->line_no > line_no) {
+    while (pos->line_no > limit_line) {
         if (!bp_prev_line(pos)) {
             break;
         }
     }
 
     if (end_of_line) {
-        bp_to_line_start(pos);
-        bp_prev_char(pos);
+        if (pos->line_no > line_no) {
+            bp_to_line_start(pos);
+            bp_prev_char(pos);
+        }
     }
 }
 

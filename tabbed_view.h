@@ -32,6 +32,26 @@
 #define MAX_STATUS_BAR_SECTIONS 3
 /* Put a limit on the length of a status message */
 #define MAX_STATUS_BAR_SECTION_WIDTH 512
+/* The width of the file explorer window
+ * TODO make this configurable */
+#define FILE_EXPLORER_WIDTH 30
+
+/* Describe a rectangular windows dimensions and its starting position */
+typedef struct {
+    size_t start_col;
+    size_t start_row;
+    size_t cols;
+    size_t rows;
+} ViewDimensions;
+
+/* The set of views and their dimensions available in this view */
+typedef struct {
+    ViewDimensions buffer_tab;
+    ViewDimensions line_no;
+    ViewDimensions buffer;
+    ViewDimensions file_explorer;
+    ViewDimensions status_bar;
+} ViewsDimensions;
 
 /* This structure is an in memory representation of the entire display that
  * is eventually drawn to a window */
@@ -48,13 +68,13 @@ typedef struct {
     char status_bar[MAX_STATUS_BAR_SECTIONS][MAX_STATUS_BAR_SECTION_WIDTH];
     size_t rows; /* The total display rows available */
     size_t cols; /* The total display columns available */
-    size_t line_no_width; /* Number of columns required to display line
-                             numbers */
-    size_t last_line_no_width; /* Columns required to display line numbers
-                                  from the last update */
     int is_prompt_active; /* True if the prompt is active */
     const char *prompt_text; /* The prompt text to display */
     size_t prompt_text_len; /* Length of the prompt text */
+    int is_file_explorer_active;
+    char file_explorer_title[FILE_EXPLORER_WIDTH];
+    ViewsDimensions vd; /* The most recently calculated view dimensions */
+    ViewsDimensions last_vd; /* The previously calculated view dimensions */
 } TabbedView;
 
 void tv_init(TabbedView *, size_t rows, size_t cols);

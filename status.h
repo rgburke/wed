@@ -127,7 +127,8 @@ typedef enum {
     ERR_UNABLE_TO_INITIALISE_TERMEKEY,
     ERR_INVALID_KEY_MAPPING,
     ERR_LUA_ERROR,
-    ERR_SHELL_COMMAND_ERROR
+    ERR_SHELL_COMMAND_ERROR,
+    ERR_UNABLE_TO_DETERMINE_CWD
 } ErrorCode;
 
 /* Structure used to represent success or failure */

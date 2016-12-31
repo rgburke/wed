@@ -789,8 +789,6 @@ static void bv_populate_cursor_data(Buffer *buffer)
 
 int bv_resize(BufferView *bv, size_t rows, size_t cols)
 {
-    size_t orig_rows_allocated = bv->rows_allocated;
-
     if (bv->rows != rows) {
         if (bv->rows > rows) {
             bv->rows = rows;
@@ -808,7 +806,7 @@ int bv_resize(BufferView *bv, size_t rows, size_t cols)
                 for (size_t row = bv->rows_allocated; row < rows; row++) {
                     line = &bv->lines[row];
                     line->line_no = 0;
-                    line->cells = calloc(cols, sizeof(Cell));
+                    line->cells = calloc(bv->cols_allocated, sizeof(Cell));
 
                     if (line->cells == NULL) {
                         return 0;
@@ -831,7 +829,7 @@ int bv_resize(BufferView *bv, size_t rows, size_t cols)
             if (bv->cols_allocated < cols) {
                 Line *line;
 
-                for (size_t row = 0; row < orig_rows_allocated; row++) {
+                for (size_t row = 0; row < bv->rows; row++) {
                     line = &bv->lines[row];
 
                     void *ptr = realloc(line->cells, cols * sizeof(Cell));
@@ -864,6 +862,7 @@ size_t bv_screen_col_no(const Buffer *buffer, const BufferPos *pos)
     size_t col_no;
 
     if (cf_bool(buffer->config, CV_LINEWRAP)) {
+        assert(bv->cols > 0);
         col_no = ((pos->col_no - 1) % bv->cols) + 1;
     } else {
         col_no = pos->col_no;
@@ -896,6 +895,13 @@ int bv_convert_screen_pos_to_buffer_pos(const BufferView *bv,
 {
     size_t row = *row_ptr;
     size_t col = *col_ptr;
+
+    if (row < bv->screen_row_offset || col < bv->screen_col_offset) {
+        return 0;
+    }
+
+    row -= bv->screen_row_offset;
+    col -= bv->screen_col_offset;
 
     if (row >= bv->rows || col >= bv->cols) {
         return 0;

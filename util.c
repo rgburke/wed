@@ -22,6 +22,11 @@
 #include <assert.h>
 #include "util.h"
 
+#ifdef __MACH__
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
 void warn(const char *error_msg)
 {
     fprintf(stderr, "%s\n", error_msg);
@@ -212,5 +217,22 @@ void bytes_to_str(size_t bytes, char *buf, size_t buf_len)
     int decimal_places = unit_index == 0 ? 0 : 2;
 
     snprintf(buf, buf_len, "%.*Lf %s", decimal_places, size, units[unit_index]);
+}
+
+void get_monotonic_time(struct timespec *time)
+{
+#ifdef __MACH__
+    clock_serv_t clock;
+    mach_timespec_t mach;
+
+    host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &clock);
+    clock_get_time(clock, &mach);
+    mach_port_deallocate(mach_task_self(), clock);
+
+    time->tv_sec = mach.tv_sec;
+    time->tv_nsec = mach.tv_nsec;
+#else
+    clock_gettime(CLOCK_MONOTONIC, time);
+#endif
 }
 

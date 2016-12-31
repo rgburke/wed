@@ -21,18 +21,24 @@
 #include "tabbed_view.h"
 #include "config.h"
 
+static void tv_determine_view_dimensions(TabbedView *, const Session *);
+static Buffer *tv_get_active_editing_buffer(const Session *);
 static Status tv_update_buffer_view(TabbedView *, const Session *);
 static size_t tv_determine_line_no_width(const Buffer *);
+static size_t tv_determine_file_explorer_width(const Session *,
+                                               size_t view_cols);
 static void tv_determine_prompt_data(TabbedView *, const Session *);
 static int tv_resize_buffer_view(const TabbedView *, BufferView *);
 static void tv_update_buffer_tabs(TabbedView *, const Session *);
 static void tv_update_status_bar(TabbedView *, Session *);
+static Status tv_update_file_explorer_view(TabbedView *, Session *);
 static size_t tv_status_file_info(TabbedView *, const Session *,
                                   size_t max_segment_width);
 static size_t tv_status_pos_info(TabbedView *, const Session *,
                                  size_t max_segment_width);
 static void tv_status_general_info(TabbedView *, Session *,
                                    size_t available_space);
+static void tv_init_view_dimensions(TabbedView *, size_t rows, size_t cols);
 
 void tv_init(TabbedView *tv, size_t rows, size_t cols)
 {
@@ -40,6 +46,8 @@ void tv_init(TabbedView *tv, size_t rows, size_t cols)
 
     tv->rows = rows;
     tv->cols = cols;
+
+    tv_init_view_dimensions(tv, rows, cols);
 }
 
 void tv_free(TabbedView *tv)
@@ -49,6 +57,8 @@ void tv_free(TabbedView *tv)
 
 Status tv_update(TabbedView *tv, Session *sess)
 {
+    tv_determine_view_dimensions(tv, sess);
+    RETURN_IF_FAIL(tv_update_file_explorer_view(tv, sess));
     RETURN_IF_FAIL(tv_update_buffer_view(tv, sess));
     tv_update_buffer_tabs(tv, sess);
     tv_update_status_bar(tv, sess);
@@ -56,15 +66,67 @@ Status tv_update(TabbedView *tv, Session *sess)
     return STATUS_SUCCESS;
 }
 
-static Status tv_update_buffer_view(TabbedView *tv, const Session *sess)
+static void tv_determine_view_dimensions(TabbedView *tv, const Session *sess)
+{
+    const Buffer *buffer = tv_get_active_editing_buffer(sess);
+    ViewsDimensions *vd = &tv->vd;
+
+    tv->last_vd = *vd;
+
+    const size_t rows = tv->rows;
+    const size_t cols = tv->cols;
+
+    tv->vd.status_bar = (ViewDimensions) {
+        .start_row = rows - 1,
+        .start_col = 0,
+        .rows = 1,
+        .cols = cols
+    };
+
+    tv->vd.file_explorer = (ViewDimensions) {
+        .start_row = 0,
+        .start_col = 0,
+        .rows = rows - 1,
+        .cols = tv_determine_file_explorer_width(sess, cols)
+    };
+
+    tv->vd.buffer_tab = (ViewDimensions) {
+        .start_row = 0,
+        .start_col = vd->file_explorer.cols,
+        .rows = 1,
+        .cols = tv->cols - vd->file_explorer.cols
+    };
+
+    tv->vd.line_no = (ViewDimensions) {
+        .start_row = 1,
+        .start_col = vd->file_explorer.cols,
+        .rows = rows - 2,
+        .cols = tv_determine_line_no_width(buffer)
+    };
+
+    tv->vd.buffer = (ViewDimensions) {
+        .start_row = 1,
+        .start_col = vd->line_no.cols + vd->file_explorer.cols,
+        .rows = rows - 2,
+        .cols = tv->cols - (vd->line_no.cols + vd->file_explorer.cols)
+    };
+}
+
+static Buffer *tv_get_active_editing_buffer(const Session *sess)
 {
     Buffer *buffer = sess->active_buffer;
-    tv->is_prompt_active = se_prompt_active(sess);
 
-    if (!tv->is_prompt_active && buffer != sess->error_buffer) {
-        tv->last_line_no_width = tv->line_no_width;
-        tv->line_no_width = tv_determine_line_no_width(buffer);
+    if (buffer == fe_get_buffer(sess->file_explorer)) {
+        buffer = buffer->next;
     }
+
+    return buffer;
+}
+
+static Status tv_update_buffer_view(TabbedView *tv, const Session *sess)
+{
+    Buffer *buffer = tv_get_active_editing_buffer(sess);
+    tv->is_prompt_active = se_prompt_active(sess);
 
     tv_determine_prompt_data(tv, sess);
 
@@ -89,6 +151,17 @@ static size_t tv_determine_line_no_width(const Buffer *buffer)
     return snprintf(lineno_str, sizeof(lineno_str), "%zu ", bf_lines(buffer));
 }
 
+static size_t tv_determine_file_explorer_width(const Session *sess,
+                                               size_t view_cols)
+{
+    if (cf_bool(sess->config, CV_FILE_EXPLORER) &&
+        (view_cols / 2) >= FILE_EXPLORER_WIDTH) {
+        return FILE_EXPLORER_WIDTH;
+    }
+
+    return 0;
+}
+
 static void tv_determine_prompt_data(TabbedView *tv, const Session *sess)
 {
     if (tv->is_prompt_active) {
@@ -107,10 +180,10 @@ static int tv_resize_buffer_view(const TabbedView *tv, BufferView *bv)
 
     if (tv->is_prompt_active) {
         rows = 1;
-        cols = tv->cols - (tv->prompt_text_len + 1);
+        cols = tv->vd.status_bar.cols - (tv->prompt_text_len + 1);
     } else {
         rows = tv->rows - 2;
-        cols = tv->cols - tv->line_no_width;
+        cols = tv->vd.buffer.cols;
     }
 
     return bv_resize(bv, rows, cols);
@@ -130,7 +203,7 @@ static void tv_update_buffer_tabs(TabbedView *tv, const Session *sess)
     if (sess->active_buffer_index < tv->first_buffer_tab_index) {
         tv->first_buffer_tab_index = sess->active_buffer_index;
     } else {
-        buffer = sess->active_buffer;
+        buffer = tv_get_active_editing_buffer(sess);
         size_t start_index = sess->active_buffer_index;
 
         while (1) {
@@ -140,7 +213,7 @@ static void tv_update_buffer_tabs(TabbedView *tv, const Session *sess)
             used_space = MIN(used_space, MAX_BUFFER_TAB_WIDTH)
                          + tab_separator_length;
 
-            if ((total_used_space + used_space > tv->cols) ||
+            if ((total_used_space + used_space > tv->vd.buffer_tab.cols) ||
                 start_index == 0 || 
                 start_index == tv->first_buffer_tab_index) {
                 break;
@@ -150,7 +223,7 @@ static void tv_update_buffer_tabs(TabbedView *tv, const Session *sess)
             buffer = se_get_buffer(sess, --start_index);
         }
 
-        if (total_used_space + used_space > tv->cols) {
+        if (total_used_space + used_space > tv->vd.buffer_tab.cols) {
             tv->first_buffer_tab_index = start_index + 1;
         }  
 
@@ -173,7 +246,7 @@ static void tv_update_buffer_tabs(TabbedView *tv, const Session *sess)
         used_space = MIN(used_space, MAX_BUFFER_TAB_WIDTH)
                      + tab_separator_length;
 
-        if (total_used_space + used_space > tv->cols) {
+        if (total_used_space + used_space > tv->vd.buffer_tab.cols) {
             break;
         }
 
@@ -197,14 +270,14 @@ static void tv_update_status_bar(TabbedView *tv, Session *sess)
      * Segment 2: Messages e.g. "Save Success" (Only exists if messages exist)
      * Segment 3: Position info e.g. Line No, Col No, ... */
 
-    size_t max_segment_width = MIN(tv->cols / segment_num,
+    size_t max_segment_width = MIN(tv->vd.status_bar.cols / segment_num,
                                    MAX_STATUS_BAR_SECTION_WIDTH);
 
     size_t file_info_size = tv_status_file_info(tv, sess, max_segment_width);
     size_t file_pos_size = tv_status_pos_info(tv, sess, max_segment_width);
 
     if (segment_num == 3) {
-        size_t available_space = tv->cols - file_info_size -
+        size_t available_space = tv->vd.status_bar.cols - file_info_size -
     /* The 3 is for a "| " seperator at the start and one space at the end */
                                  file_pos_size - 3;
         tv_status_general_info(tv, sess, available_space);
@@ -217,7 +290,8 @@ static size_t tv_status_file_info(TabbedView *tv, const Session *sess,
                                   size_t max_segment_width)
 {
     size_t file_info_free = max_segment_width;
-    const FileInfo *file_info = &sess->active_buffer->file_info;
+    const Buffer *buffer = tv_get_active_editing_buffer(sess);
+    const FileInfo *file_info = &buffer->file_info;
 
     char *file_info_text = " ";
 
@@ -261,7 +335,7 @@ static size_t tv_status_file_info(TabbedView *tv, const Session *sess,
 static size_t tv_status_pos_info(TabbedView *tv, const Session *sess,
                                  size_t max_segment_width)
 {
-    const Buffer *buffer = sess->active_buffer;
+    const Buffer *buffer = tv_get_active_editing_buffer(sess);
     const BufferView *bv = buffer->bv;
     const BufferPos *screen_start = &bv->screen_start;
     const BufferPos *pos = &buffer->pos;
@@ -346,9 +420,105 @@ static void tv_status_general_info(TabbedView *tv, Session *sess,
     free(msg);
 }
 
+static Status tv_update_file_explorer_view(TabbedView *tv, Session *sess)
+{
+
+    const FileExplorer *file_explorer = sess->file_explorer;
+    const char *dir_path = file_explorer->dir_path;
+    size_t dir_path_len = strlen(dir_path);
+    Buffer *buffer = fe_get_buffer(file_explorer);
+    buffer->bv->screen_row_offset = 1;
+    tv->is_file_explorer_active = se_file_explorer_active(sess);
+    const ViewDimensions *vd = &tv->vd.file_explorer;
+    const size_t width = FILE_EXPLORER_WIDTH - 3;
+
+    if (vd->cols > 0) {
+        const char *home = getenv("HOME");
+        size_t dir_path_start_index = 0;
+        const char *fmt = "%s";
+
+        if (home != NULL) {
+            const size_t home_len = strlen(home);
+
+            if (strncmp(home, dir_path, home_len) == 0) {
+                dir_path_start_index = home_len;
+                fmt = "~%s";
+                dir_path_len -= (home_len - 1);
+            }
+        }
+
+        if (dir_path_len > width) {
+            dir_path_start_index += (dir_path_len - width) + 3;
+            fmt = "...%s";
+        }
+
+        snprintf(tv->file_explorer_title, FILE_EXPLORER_WIDTH - 2, fmt,
+                 file_explorer->dir_path + dir_path_start_index);
+
+        if (!bv_resize(buffer->bv, vd->rows - 1, vd->cols)) {
+            return st_get_error(ERR_OUT_OF_MEMORY,
+                                "Unable to resize BufferView");
+        }
+
+        bv_update_view(sess, buffer);
+    } else if (tv->is_file_explorer_active) {
+        CommandArgs cmd_args = {
+            .sess = sess,
+            .arg_num = 0
+        };
+
+        RETURN_IF_FAIL(
+            cm_do_command(CMD_SESSION_FILE_EXPLORER_TOGGLE_ACTIVE, &cmd_args)
+        );
+
+        tv->is_file_explorer_active = 0;
+    }
+
+    return STATUS_SUCCESS;
+}
+
 void tv_resize(TabbedView *tv, size_t rows, size_t cols)
 {
     tv->rows = rows;
     tv->cols = cols;
-    tv->line_no_width = 0;
+
+    tv_init_view_dimensions(tv, rows, cols);
+}
+
+static void tv_init_view_dimensions(TabbedView *tv, size_t rows, size_t cols)
+{
+    tv->vd.status_bar = (ViewDimensions) {
+        .start_row = rows - 1,
+        .start_col = 0,
+        .rows = 1,
+        .cols = cols
+    };
+
+    tv->vd.buffer_tab = (ViewDimensions) {
+        .start_row = 0,
+        .start_col = 0,
+        .rows = 1,
+        .cols = cols
+    };
+
+    tv->vd.line_no = (ViewDimensions) {
+        .start_row = 1,
+        .start_col = 0,
+        .rows = rows - 2,
+        .cols = cols
+    };
+
+    tv->vd.file_explorer = (ViewDimensions) {
+        .start_row = 0,
+        .start_col = 0,
+        .rows = rows - 1,
+        .cols = cols
+    };
+
+    tv->vd.buffer = (ViewDimensions) {
+        .start_row = 1,
+        .start_col = 0,
+        .rows = rows - 2,
+        .cols = cols
+    };
 }

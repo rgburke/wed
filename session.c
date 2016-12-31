@@ -115,12 +115,22 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
     }
 
     Buffer *prompt_buffer;
+    Buffer *file_explorer_buffer;
 
     if ((prompt_buffer = bf_new_empty("prompt", sess->config)) == NULL) {
         return 0;
     }
 
     if ((sess->prompt = pr_new(prompt_buffer)) == NULL) {
+        return 0;
+    }
+
+    if ((file_explorer_buffer = bf_new_empty("file_explorer", sess->config))
+            == NULL) {
+        return 0;
+    }
+
+    if ((sess->file_explorer = fe_new(file_explorer_buffer)) == NULL) {
         return 0;
     }
 
@@ -193,6 +203,14 @@ int se_init(Session *sess, const WedOpt *wed_opt, char *buffer_paths[],
     /* The prompt currently uses a single line, so don't wrap content */
     cf_set_var(CE_VAL(sess, prompt_buffer), CL_BUFFER,
                CV_LINEWRAP, INT_VAL(0));
+
+    cf_set_var(CE_VAL(sess, file_explorer_buffer), CL_BUFFER,
+               CV_LINEWRAP, INT_VAL(0));
+    cf_set_var(CE_VAL(sess, file_explorer_buffer), CL_BUFFER,
+               CV_BUFFEREND, STR_VAL(""));
+
+    se_add_error(sess, fe_read_cwd(sess->file_explorer));
+
     se_enable_msgs(sess);
 
     sess->initialised = 1;
@@ -219,6 +237,7 @@ void se_free(Session *sess)
     cm_free_key_map(&sess->key_map);
     cf_free_config(sess->config);
     pr_free(sess->prompt, 1);
+    fe_free(sess->file_explorer);
     bf_free(sess->error_buffer);
     bf_free(sess->msg_buffer);
     list_free_all(sess->search_history);
@@ -409,11 +428,15 @@ Status se_make_prompt_active(Session *sess, const PromptOpt *prompt_opt)
 {
     RETURN_IF_FAIL(pr_reset_prompt(sess->prompt, prompt_opt));
 
-    sess->key_map.active_op_modes[OM_PROMPT] = 1;
+    OperationMode op_mode;
 
     if (pc_has_prompt_completer(prompt_opt->prompt_type)) {
-        sess->key_map.active_op_modes[OM_PROMPT_COMPLETER] = 1;
+        op_mode = OM_PROMPT_COMPLETER;
+    } else {
+        op_mode = OM_PROMPT;
     }
+
+    cm_set_operation_mode(&sess->key_map, op_mode);
 
     Buffer *prompt_buffer = pr_get_prompt_buffer(sess->prompt);
     prompt_buffer->next = sess->active_buffer;
@@ -436,8 +459,7 @@ int se_end_prompt(Session *sess)
 
     sess->active_buffer = prompt_buffer->next;
 
-    sess->key_map.active_op_modes[OM_PROMPT] = 0;
-    sess->key_map.active_op_modes[OM_PROMPT_COMPLETER] = 0;
+    cm_set_operation_mode(&sess->key_map, sess->key_map.prev_op_mode);
 
     return 1;
 }
@@ -451,6 +473,17 @@ int se_prompt_active(const Session *sess)
     }
 
     return sess->active_buffer == pr_get_prompt_buffer(sess->prompt);
+}
+
+int se_file_explorer_active(const Session *sess)
+{
+    assert(sess->active_buffer != NULL);
+
+    if (sess->active_buffer == NULL) {
+        return 0;
+    }
+
+    return sess->active_buffer == fe_get_buffer(sess->file_explorer);
 }
 
 void se_exclude_command_type(Session *sess, CommandType cmd_type)
