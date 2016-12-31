@@ -21,9 +21,13 @@ most basic tasks reading wed documentation should be unnecessary.
  - Configurable using config files and runtime config commands
  - Gap buffer used as underlying storage structure
 
-## Demo
+## Demo (v0.1)
 
-![weddemo](doc/wed-demo.gif)
+![weddemo](doc/wed-demo-v0.1.gif)
+
+## Screenshot (v0.2)
+
+![wedscreenshot](doc/wed-screenshot-v0.2.png)
 
 ## Quick Start
 
@@ -89,7 +93,7 @@ To uninstall wed run `sudo make uninstall`.
 As of 24/May/2016 wed builds successfully using the latest packages available
 on the following systems:
 
- - Ubuntu 15.10 and 12.04.5 LTS
+ - Ubuntu 16.10 and 12.04.5 LTS
  - FreeBSD 10.3
  - Cygwin 2.5.1
  - Arch Linux
@@ -101,7 +105,6 @@ to `config.mk` in order to do so.
 Wed is also available as a package on the following systems:
 
  - [Arch Linux](https://aur.archlinux.org/packages/wed-git)
- - [CRUX](https://github.com/6c37/crux-ports-git/tree/3.2/wed)
 
 For a quick overview of functionality read the [Key Bindings](#key-bindings)
 and [Config Variables](#config-variables) sections below.
@@ -329,11 +332,14 @@ tabwidth      | tw    | Global/File | int    | 8           | Sets tab character 
 expandtab     | et    | Global/File | bool   | false       | Enables/Disables expanding tab characters into spaces
 autoindent    | ai    | Global/File | bool   | true        | Enables/Disables autoindent
 colorcolumn   | cc    | Global/File | int    | 0           | Sets column number to be highlighted
+bufferend     | be    | Global/File | string | "~"         | Text to display on each line in the region after the end of a buffer
 wedruntime    | wrt   | Global      | string | WEDRUNTIME  | Config definition location directory (set in config.mk)
 syntax        | sy    | Global      | bool   | true        | Enables/Disables syntax highlighting
 theme         | th    | Global      | string | "default"   | Set the active theme
 syntaxdeftype | sdt   | Global      | string | "sl"        | Syntax definition type to use (allowed "sl", "sh" or "wed")
 shdatadir     | shdd  | Global      | string | ""          | Directory path containing language definition files
+mouse         | mo    | Global      | bool   | true        | Enables/Disables mouse support
+fileexplorer  | fe    | Global      | bool   | true        | Enables/Disables file explorer visibility
 filetype      | ft    | File        | string | ""          | Sets the type of the current file (drives syntaxtype)
 syntaxtype    | st    | File        | string | ""          | Set the syntax definition to use for highlighting
 fileformat    | ff    | File        | string | "unix"      | Sets line endings used by file (allowed "dos" or "unix")
@@ -677,16 +683,20 @@ type
 error
 todo
 
-Screen Component      | Description
-----------------------|--------------------------------------------------------
-lineno                | Line numbers that appear on the left side of the screen
-buffertabbar          | Tab bar at the top of the screen that lists buffers
-activebuffertabbar    | Active buffer in the tab bar
-statusbar             | Bar at the bottom of the screen showing position info
-errormessage          | Error messages that display on error
-bufferend             | The ~ characters that appear below the end of a buffer
-searchmatch           | Text that matches the current search term
-primarysearchmatch    | The currently selected search match
+Screen Component           | Description
+---------------------------|--------------------------------------------------------
+lineno                     | Line numbers that appear on the left side of the screen
+buffertabbar               | Tab bar at the top of the screen that lists buffers
+activebuffertabbar         | Active buffer in the tab bar
+statusbar                  | Bar at the bottom of the screen showing position info
+errormessage               | Error messages that display on error
+bufferend                  | The strings that appear on each line below the end of a buffer
+colorcolumn                | The column which is highlighted
+searchmatch                | Text that matches the current search term
+primarysearchmatch         | The currently selected search match
+fileexplorertitle          | The current working directory
+fileexplorerfileentry      | A file entry in the file explorer
+fileexplorerdirectoryentry | A directory entry in the file explorer
 ```
 
 The colors available to `fgcolor` and `bgcolor` in wed are:
@@ -771,8 +781,7 @@ For example, with the file content as `order Right`, the regex specifed as
 
 ## Current State and Future Development
 
-Wed is currently at version 0.1 which coincides with it being made public.
-Overall the basic elements of a text editor have been implemented and wed can
+The basic elements of a text editor have been implemented and wed can
 be used for general editing tasks. It is not ready for use in production or
 on data which isn't backed up or retrievable.
 There is still a great deal of new functionality to be added and much
@@ -790,7 +799,6 @@ before looking at the [Future Tasks](#future-tasks) section.
   - Highlight line or line number cursor is on.
   - Set session or buffer level variable using ":" syntax. i.e. `s:ln=0;` to
     turn off line numbers at global level.
-  - Add ability to filter file through external commands e.g. sort
   - Write unsaved changes to swap file. Swap files can then be used to
     recover lost changes or warn user file is open in another instance of wed.
   - Check if file has changed before writing and prompt user for action i.e.
@@ -809,8 +817,6 @@ before looking at the [Future Tasks](#future-tasks) section.
   - Add add context aware info bar under command prompt in a similar fashion 
     to the helpful functionality nano offers. For example, when opening a
     find prompt the search option key bindings can be shown.
-  - Add support for mouse e.g the user can click to move around and select
-    text using the mouse.
   - Add jump list functionality to allow jumping back to previous positions.
     This is particularly useful for moving around a file or set of files.
   - Add ctags support. The jump list functionaity described above would need
