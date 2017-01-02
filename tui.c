@@ -98,8 +98,7 @@ static Status ti_init(UI *ui)
                                TERMKEY_FLAG_SPACESYMBOL | TERMKEY_FLAG_CTRLC);
 
     if (tui->termkey == NULL) {
-        return st_get_error(ERR_UNABLE_TO_INITIALISE_TERMEKEY,
-                            "Unable to create termkey instance");
+        fatal("Unable to create termkey instance");
     }
 
     /* Represent ASCII DEL character as backspace */

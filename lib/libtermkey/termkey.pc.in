@@ -3,6 +3,6 @@ includedir=@INCDIR@
 
 Name: termkey
 Description: Abstract terminal key input library
-Version: 0.18
+Version: 0.19
 Libs: -L${libdir} -ltermkey
 Cflags: -I${includedir}

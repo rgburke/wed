@@ -278,6 +278,9 @@ static TermKey *termkey_alloc(void)
 
   tk->restore_termios_valid = 0;
 
+  tk->ti_getstr_hook = NULL;
+  tk->ti_getstr_hook_data = NULL;
+
   tk->waittime = 50; /* msec */
 
   tk->is_closed = 0;
@@ -404,7 +407,7 @@ TermKey *termkey_new(int fd, int flags)
   if(!termkey_init(tk, term))
     goto abort;
 
-  if(!termkey_start(tk))
+  if(!(flags & TERMKEY_FLAG_NOSTART) && !termkey_start(tk))
     goto abort;
 
   return tk;
@@ -429,9 +432,14 @@ TermKey *termkey_new_abstract(const char *term, int flags)
     return NULL;
   }
 
-  termkey_start(tk);
+  if(!(flags & TERMKEY_FLAG_NOSTART) && !termkey_start(tk))
+    goto abort;
 
   return tk;
+
+abort:
+  free(tk);
+  return NULL;
 }
 
 void termkey_free(TermKey *tk)
@@ -456,6 +464,12 @@ void termkey_destroy(TermKey *tk)
     termkey_stop(tk);
 
   termkey_free(tk);
+}
+
+void termkey_hook_terminfo_getstr(TermKey *tk, TermKey_Terminfo_Getstr_Hook *hookfn, void *data)
+{
+  tk->ti_getstr_hook = hookfn;
+  tk->ti_getstr_hook_data = data;
 }
 
 int termkey_start(TermKey *tk)
@@ -729,7 +743,13 @@ static TermKeyResult parse_utf8(const unsigned char *bytes, size_t len, long *cp
 
 static void emit_codepoint(TermKey *tk, long codepoint, TermKeyKey *key)
 {
-  if(codepoint < 0x20) {
+  if(codepoint == 0) {
+    // ASCII NUL = Ctrl-Space
+    key->type = TERMKEY_TYPE_KEYSYM;
+    key->code.sym = TERMKEY_SYM_SPACE;
+    key->modifiers = TERMKEY_KEYMOD_CTRL;
+  }
+  else if(codepoint < 0x20) {
     // C0 range
     key->code.codepoint = 0;
     key->modifiers = 0;
@@ -793,15 +813,15 @@ void termkey_canonicalise(TermKey *tk, TermKeyKey *key)
   int flags = tk->canonflags;
 
   if(flags & TERMKEY_CANON_SPACESYMBOL) {
-    if(key->type == TERMKEY_TYPE_UNICODE && key->code.number == 0x20) {
+    if(key->type == TERMKEY_TYPE_UNICODE && key->code.codepoint == 0x20) {
       key->type     = TERMKEY_TYPE_KEYSYM;
       key->code.sym = TERMKEY_SYM_SPACE;
     }
   }
   else {
     if(key->type == TERMKEY_TYPE_KEYSYM && key->code.sym == TERMKEY_SYM_SPACE) {
-      key->type        = TERMKEY_TYPE_UNICODE;
-      key->code.number = 0x20;
+      key->type           = TERMKEY_TYPE_UNICODE;
+      key->code.codepoint = 0x20;
       fill_utf8(key);
     }
   }

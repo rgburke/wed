@@ -9,7 +9,7 @@ extern "C" {
 #include <stdlib.h>
 
 #define TERMKEY_VERSION_MAJOR 0
-#define TERMKEY_VERSION_MINOR 18
+#define TERMKEY_VERSION_MINOR 19
 
 #define TERMKEY_CHECK_VERSION \
         termkey_check_version(TERMKEY_VERSION_MAJOR, TERMKEY_VERSION_MINOR)
@@ -151,7 +151,8 @@ enum {
   TERMKEY_FLAG_NOTERMIOS   = 1 << 4, /* Do not make initial termios calls on construction */
   TERMKEY_FLAG_SPACESYMBOL = 1 << 5, /* Sets TERMKEY_CANON_SPACESYMBOL */
   TERMKEY_FLAG_CTRLC       = 1 << 6, /* Allow Ctrl-C to be read as normal, disabling SIGINT */
-  TERMKEY_FLAG_EINTR       = 1 << 7  /* Return ERROR on signal (EINTR) rather than retry */
+  TERMKEY_FLAG_EINTR       = 1 << 7, /* Return ERROR on signal (EINTR) rather than retry */
+  TERMKEY_FLAG_NOSTART     = 1 << 8  /* Do not call termkey_start() in constructor */
 };
 
 enum {
@@ -165,6 +166,10 @@ TermKey *termkey_new(int fd, int flags);
 TermKey *termkey_new_abstract(const char *term, int flags);
 void     termkey_free(TermKey *tk);
 void     termkey_destroy(TermKey *tk);
+
+/* Mostly-undocumented hooks for doing evil evil things */
+typedef const char *TermKey_Terminfo_Getstr_Hook(const char *name, const char *value, void *data);
+void termkey_hook_terminfo_getstr(TermKey *tk, TermKey_Terminfo_Getstr_Hook *hookfn, void *data);
 
 int termkey_start(TermKey *tk);
 int termkey_stop(TermKey *tk);

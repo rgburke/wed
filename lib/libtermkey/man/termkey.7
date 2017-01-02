@@ -103,6 +103,9 @@ Disable the \fBSIGINT\fP behaviour of \fICtrl-C\fP. If this flag is provided, th
 .TP
 .B TERMKEY_FLAG_EINTR
 Without this flag, IO operations are retried when interrupted by a signal (\fBEINTR\fP). With this flag the \fBTERMKEY_RES_ERROR\fP result is returned instead.
+.TP
+.B TERMKEY_FLAG_NOSTART
+This flag is only meaningful to the constructor functions \fBtermkey_new\fP(3) and \fBtermkey_new_abstract\fP(3). If set, the constructor will not call \fBtermkey_start\fP(3) as part of the construction process. The user must call that at some future time before the instance will be usable.
 .PP
 The following canonicalisation flags are recognised.
 .TP

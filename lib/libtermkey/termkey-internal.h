@@ -44,6 +44,9 @@ struct TermKey {
   struct termios restore_termios;
   char restore_termios_valid;
 
+  TermKey_Terminfo_Getstr_Hook *ti_getstr_hook;
+  void *ti_getstr_hook_data;
+
   int waittime; // msec
 
   char   is_closed;

@@ -51,6 +51,12 @@ struct trie_node_arr {
 typedef struct {
   TermKey *tk;
 
+#ifdef HAVE_UNIBILIUM
+  unibi_term *unibi;  /* only valid until first 'start' call */
+#else
+  char *term; /* only valid until first 'start' call */
+#endif
+
   struct trie_node *root;
 
   char *start_string;
@@ -163,22 +169,26 @@ static struct trie_node *compress_trie(struct trie_node *n)
   return n;
 }
 
-static int load_terminfo(TermKeyTI *ti, const char *term)
+static int load_terminfo(TermKeyTI *ti)
 {
   int i;
 
 #ifdef HAVE_UNIBILIUM
-  unibi_term *unibi = unibi_from_term(term);
-  if(!unibi)
-    return 0;
+  unibi_term *unibi = ti->unibi;
 #else
-  int err;
+  {
+    int err;
 
-  /* Have to cast away the const. But it's OK - we know terminfo won't really
-   * modify term */
-  if(setupterm((char*)term, 1, &err) != OK)
-    return 0;
+    /* Have to cast away the const. But it's OK - we know terminfo won't really
+    * modify term */
+    if(setupterm((char*)ti->term, 1, &err) != OK)
+      return 0;
+  }
 #endif
+
+  ti->root = new_node_arr(0, 0xff);
+  if(!ti->root)
+    return 0;
 
 #ifdef HAVE_UNIBILIUM
   for(i = unibi_string_begin_+1; i < unibi_string_end_; i++)
@@ -200,6 +210,10 @@ static int load_terminfo(TermKeyTI *ti, const char *term)
 #else
     const char *value = tigetstr(strnames[i]);
 #endif
+
+    if(ti->tk->ti_getstr_hook)
+      value = (ti->tk->ti_getstr_hook)(name, value, ti->tk->ti_getstr_hook_data);
+
     if(!value || value == (char*)-1)
       continue;
 
@@ -239,7 +253,7 @@ static int load_terminfo(TermKeyTI *ti, const char *term)
    * time we want to use it
    */
 #ifdef HAVE_UNIBILIUM
-  const char *keypad_xmit = unibi_get_str(unibi, unibi_pkey_xmit);
+  const char *keypad_xmit = unibi_get_str(unibi, unibi_keypad_xmit);
 #endif
 
   if(keypad_xmit)
@@ -248,7 +262,7 @@ static int load_terminfo(TermKeyTI *ti, const char *term)
     ti->start_string = NULL;
 
 #ifdef HAVE_UNIBILIUM
-  const char *keypad_local = unibi_get_str(unibi, unibi_pkey_local);
+  const char *keypad_local = unibi_get_str(unibi, unibi_keypad_local);
 #endif
 
   if(keypad_local)
@@ -258,7 +272,11 @@ static int load_terminfo(TermKeyTI *ti, const char *term)
 
 #ifdef HAVE_UNIBILIUM
   unibi_destroy(unibi);
+#else
+  free(ti->term);
 #endif
+
+  ti->root = compress_trie(ti->root);
 
   return 1;
 }
@@ -270,22 +288,28 @@ static void *new_driver(TermKey *tk, const char *term)
     return NULL;
 
   ti->tk = tk;
+  ti->root = NULL;
 
-  ti->root = new_node_arr(0, 0xff);
-  if(!ti->root)
-    goto abort_free_ti;
+#ifdef HAVE_UNIBILIUM
+  ti->unibi = unibi_from_term(term);
+  if(!ti->unibi)
+    goto abort_free;
+#else
+  {
+    int err;
 
-  if(!load_terminfo(ti, term))
-    goto abort_free_trie;
+    /* Have to cast away the const. But it's OK - we know terminfo won't really
+    * modify term */
+    if(setupterm((char*)term, 1, &err) != OK)
+      goto abort_free;
 
-  ti->root = compress_trie(ti->root);
+    ti->term = strdup(term);
+  }
+#endif
 
   return ti;
 
-abort_free_trie:
-  free_trie(ti->root);
-
-abort_free_ti:
+abort_free:
   free(ti);
 
   return NULL;
@@ -295,8 +319,13 @@ static int start_driver(TermKey *tk, void *info)
 {
   TermKeyTI *ti = info;
   struct stat statbuf;
-  char *start_string = ti->start_string;
+  char *start_string;
   size_t len;
+
+  if(!ti->root)
+    load_terminfo(ti);
+
+  start_string = ti->start_string;
 
   if(tk->fd == -1 || !start_string)
     return 1;

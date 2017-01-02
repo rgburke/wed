@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <errno.h>
+#include <unistd.h>
 #include "../termkey.h"
 #include "taplib.h"
 
