@@ -214,6 +214,7 @@ depending on whether line wrap is disabled or enabled.
 <M-C-Right> or <M-Right>    Next tab
 <M-C-Left> or <M-Left>      Previous tab
 <C-_>                       Change file
+<C-t>                       Switch to/from File Explorer
 <C-e> or <C-\>              Run wed command
 <M-z>                       Suspend
 <Escape> or <M-c>           Exit
