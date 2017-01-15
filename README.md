@@ -20,6 +20,8 @@ most basic tasks reading wed documentation should be unnecessary.
  - Unlimited undo & redo
  - Configurable using config files and runtime config commands
  - Gap buffer used as underlying storage structure
+ - Mouse support
+ - File Explorer
 
 ## Demo (v0.1)
 
