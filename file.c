@@ -41,7 +41,13 @@ Status fi_init(FileInfo *file_info, const char *path)
         return OUT_OF_MEMORY("Unable to allocate file path");
     }
 
-    file_info->file_name = basename(file_info->rel_path);
+    file_info->file_name = strdup(basename(file_info->rel_path));
+
+    if (file_info->file_name == NULL) {
+        free(file_info->rel_path);
+        return OUT_OF_MEMORY("Unable to allocate file name");
+    }
+
     file_info->file_attrs = FATTR_NONE;
 
     int exists = (stat(file_info->rel_path, &file_info->file_stat) == 0);
@@ -63,6 +69,7 @@ Status fi_init(FileInfo *file_info, const char *path)
 
     if (file_info->abs_path == NULL) {
         free(file_info->rel_path);
+        free(file_info->file_name);
         return OUT_OF_MEMORY("Unable to allocate file path");
     }
 
@@ -70,6 +77,7 @@ Status fi_init(FileInfo *file_info, const char *path)
      * See man 3 realpath */
     if (realpath(file_info->rel_path, file_info->abs_path) == NULL) {
         free(file_info->rel_path);
+        free(file_info->file_name);
         free(file_info->abs_path);
         return st_get_error(ERR_UNABLE_TO_GET_ABS_PATH,
                             "Unable to determine absolute path"
@@ -129,9 +137,9 @@ void fi_free(FileInfo *file_info)
         free(file_info->abs_path);
     } else if (fi_has_file_path(file_info)) {
         free(file_info->rel_path);
-    } else {
-        free(file_info->file_name);
     }
+
+    free(file_info->file_name);
 }
 
 /* Replace ~ at the start of a file path with
