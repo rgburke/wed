@@ -2096,6 +2096,7 @@ static Status cm_session_file_explorer_toggle_active(
     if (sess->active_buffer == fe_buffer) {
         sess->active_buffer = fe_buffer->next;
         cm_set_operation_mode(&sess->key_map, OM_BUFFER);
+        se_enable_command_type(sess, CMDT_BUFFER_MOD);
     } else {
         if (!cf_bool(sess->config, CV_FILE_EXPLORER)) {
             RETURN_IF_FAIL(
@@ -2107,6 +2108,7 @@ static Status cm_session_file_explorer_toggle_active(
         fe_buffer->next = sess->active_buffer;
         sess->active_buffer = fe_buffer;
         cm_set_operation_mode(&sess->key_map, OM_FILE_EXPLORER);
+        se_exclude_command_type(sess, CMDT_BUFFER_MOD);
     }
 
     return STATUS_SUCCESS;
