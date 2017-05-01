@@ -245,6 +245,12 @@ typedef struct {
 #define CMDSIG_NO_ARGS CMDSIG_STRUCT(0,0,VAL_TYPE_INT)
 #define CMDSIG(arg_num,...) CMDSIG_STRUCT(0,(arg_num),__VA_ARGS__)
 
+/* General command properties */
+typedef enum {
+    CP_NONE = 0,
+    CP_RUN_PRE_SESS_INIT = 1 << 0
+} CommandProperties;
+
 /* Command descriptor */
 typedef struct {
     const char *function_name; /* Config function name */
@@ -252,6 +258,7 @@ typedef struct {
     CommandSignature command_signature; /* Arg info */
     CommandType command_type; /* High level categorisation of 
                                  what this command does */
+    CommandProperties command_properties; /* General properties  */
     const char *arg_description; /* Description of the arguments this command
                                     expects */
     const char *description; /* Description of the action this command
