@@ -18,3 +18,4 @@ config_scan.c
 build_config.h
 test.output
 config.mk
+.ycm_extra_conf.py
