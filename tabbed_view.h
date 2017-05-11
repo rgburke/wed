@@ -22,6 +22,7 @@
 #include "buffer_view.h"
 #include "util.h"
 #include "session.h"
+#include "config.h"
 
 /* Put a limit on the number of buffer tabs that can be drawn */
 #define MAX_VISIBLE_BUFFER_TABS 30
@@ -32,9 +33,6 @@
 #define MAX_STATUS_BAR_SECTIONS 3
 /* Put a limit on the length of a status message */
 #define MAX_STATUS_BAR_SECTION_WIDTH 512
-/* The width of the file explorer window
- * TODO make this configurable */
-#define FILE_EXPLORER_WIDTH 30
 
 /* Describe a rectangular windows dimensions and its starting position */
 typedef struct {
@@ -72,7 +70,7 @@ typedef struct {
     const char *prompt_text; /* The prompt text to display */
     size_t prompt_text_len; /* Length of the prompt text */
     int is_file_explorer_active;
-    char file_explorer_title[FILE_EXPLORER_WIDTH];
+    char file_explorer_title[CFG_FILE_EXPLORER_WIDTH_MAX];
     ViewsDimensions vd; /* The most recently calculated view dimensions */
     ViewsDimensions last_vd; /* The previously calculated view dimensions */
 } TabbedView;

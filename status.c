@@ -83,7 +83,8 @@ static const char *st_default_error_messages[] = {
     [ERR_INVALID_KEY_MAPPING]                 = "Invalid key mapping",
     [ERR_LUA_ERROR]                           = "Lua error",
     [ERR_SHELL_COMMAND_ERROR]                 = "Shell command error",
-    [ERR_UNABLE_TO_DETERMINE_CWD]             = "Unable to determine current working directory"
+    [ERR_UNABLE_TO_DETERMINE_CWD]             = "Unable to determine current working directory",
+    [ERR_INVALID_FILE_EXPLORER_WIDTH]         = "Invalid file explorer width"
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)

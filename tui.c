@@ -600,9 +600,11 @@ static void ti_draw_file_explorer(TUI *tui)
 
     const Session *sess = tui->sess;
     const FileExplorer *file_explorer = sess->file_explorer;
+    const size_t file_explorer_width = cf_int(sess->config,
+                                              CV_FILE_EXPLORER_WIDTH);
     const size_t title_len = strlen(tv->file_explorer_title);
     const size_t title_start_x =
-        ((FILE_EXPLORER_WIDTH - 3 - title_len) / 2) + 1;
+        ((file_explorer_width - 3 - title_len) / 2) + 1;
 
     wmove(tui->file_explorer_win, 0, 0);
     wclrtoeol(tui->file_explorer_win);

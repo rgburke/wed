@@ -154,9 +154,13 @@ static size_t tv_determine_line_no_width(const Buffer *buffer)
 static size_t tv_determine_file_explorer_width(const Session *sess,
                                                size_t view_cols)
 {
-    if (cf_bool(sess->config, CV_FILE_EXPLORER) &&
-        (view_cols / 2) >= FILE_EXPLORER_WIDTH) {
-        return FILE_EXPLORER_WIDTH;
+    if (cf_bool(sess->config, CV_FILE_EXPLORER)) {
+        const size_t file_explorer_width = cf_int(sess->config,
+                                                  CV_FILE_EXPLORER_WIDTH);
+
+        if ((view_cols / 2) >= file_explorer_width) {
+            return cf_int(sess->config, CV_FILE_EXPLORER_WIDTH);
+        }
     }
 
     return 0;
@@ -422,7 +426,6 @@ static void tv_status_general_info(TabbedView *tv, Session *sess,
 
 static Status tv_update_file_explorer_view(TabbedView *tv, Session *sess)
 {
-
     const FileExplorer *file_explorer = sess->file_explorer;
     const char *dir_path = file_explorer->dir_path;
     size_t dir_path_len = strlen(dir_path);
@@ -430,7 +433,9 @@ static Status tv_update_file_explorer_view(TabbedView *tv, Session *sess)
     buffer->bv->screen_row_offset = 1;
     tv->is_file_explorer_active = se_file_explorer_active(sess);
     const ViewDimensions *vd = &tv->vd.file_explorer;
-    const size_t width = FILE_EXPLORER_WIDTH - 3;
+    const size_t file_explorer_width = cf_int(sess->config,
+                                              CV_FILE_EXPLORER_WIDTH);
+    const size_t width = file_explorer_width - 3;
 
     if (vd->cols > 0) {
         const char *home = getenv("HOME");
@@ -452,7 +457,7 @@ static Status tv_update_file_explorer_view(TabbedView *tv, Session *sess)
             fmt = "...%s";
         }
 
-        snprintf(tv->file_explorer_title, FILE_EXPLORER_WIDTH - 2, fmt,
+        snprintf(tv->file_explorer_title, file_explorer_width - 2, fmt,
                  file_explorer->dir_path + dir_path_start_index);
 
         if (!bv_resize(buffer->bv, vd->rows - 1, vd->cols)) {

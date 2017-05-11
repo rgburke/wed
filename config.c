@@ -49,6 +49,7 @@ static const ConfigVariableDescriptor *cf_get_variable(const HashMap *config,
                                                        ConfigVariable);
 static const char *cf_get_config_level_str(ConfigLevel);
 static Status cf_tabwidth_validator(ConfigEntity, Value);
+static Status cf_fileexplorerwidth_validator(ConfigEntity, Value);
 static Status cf_filetype_validator(ConfigEntity, Value);
 static Status cf_filetype_on_change_event(ConfigEntity, Value, Value);
 static Status cf_syntaxtype_validator(ConfigEntity, Value);
@@ -76,6 +77,7 @@ static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
     [CV_SHDATADIR] = { "shdatadir", "shdd", CL_SESSION, STR_VAL_STRUCT(""), NULL, NULL, "Directory path containing language definition files" },
     [CV_MOUSE] = { "mouse", "mo" , CL_SESSION , BOOL_VAL_STRUCT(1), NULL, cf_mouse_on_change_event, "Enables/Disables mouse support" },
     [CV_FILE_EXPLORER] = { "fileexplorer", "fe" , CL_SESSION , BOOL_VAL_STRUCT(1), NULL, NULL, "Enables/Disables file explorer visibility" },
+    [CV_FILE_EXPLORER_WIDTH] = { "fileexplorerwidth", "few" , CL_SESSION , INT_VAL_STRUCT(CFG_FILE_EXPLORER_WIDTH_DEFAULT), cf_fileexplorerwidth_validator, NULL, "Sets the file explorer width" },
     [CV_FILETYPE] = { "filetype" , "ft" , CL_BUFFER , STR_VAL_STRUCT("") , cf_filetype_validator , cf_filetype_on_change_event, "Sets the type of the current file" },
     [CV_SYNTAXTYPE] = { "syntaxtype", "st" , CL_BUFFER , STR_VAL_STRUCT("") , cf_syntaxtype_validator, cf_syntaxtype_on_change_event, "Set the syntax definition to use for highlighting" },
     [CV_FILEFORMAT] = { "fileformat", "ff" , CL_BUFFER , STR_VAL_STRUCT("unix") , cf_fileformat_validator, cf_fileformat_on_change_event, "Sets line endings used by file" }
@@ -557,6 +559,22 @@ static Status cf_tabwidth_validator(ConfigEntity entity, Value value)
         return st_get_error(ERR_INVALID_TABWIDTH,
                             "tabwidth value must be in range %d - %d inclusive",
                             CFG_TABWIDTH_MIN, CFG_TABWIDTH_MAX);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static Status cf_fileexplorerwidth_validator(ConfigEntity entity, Value value)
+{
+    (void)entity;
+
+    if (IVAL(value) < CFG_FILE_EXPLORER_WIDTH_MIN ||
+        IVAL(value) > CFG_FILE_EXPLORER_WIDTH_MAX) {
+        return st_get_error(ERR_INVALID_FILE_EXPLORER_WIDTH,
+                            "fileexplorerwidth must be in the range %d - %d "
+                            "inclusive",
+                            CFG_FILE_EXPLORER_WIDTH_MIN,
+                            CFG_FILE_EXPLORER_WIDTH_MAX);
     }
 
     return STATUS_SUCCESS;
