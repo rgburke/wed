@@ -54,6 +54,9 @@ static Status cf_filetype_validator(ConfigEntity, Value);
 static Status cf_filetype_on_change_event(ConfigEntity, Value, Value);
 static Status cf_syntaxtype_validator(ConfigEntity, Value);
 static Status cf_syntaxtype_on_change_event(ConfigEntity, Value, Value);
+static Status cf_syntaxhorizon_validator(ConfigEntity, Value);
+static Status cf_syntaxhorizon_on_change_event(ConfigEntity entity,
+                                               Value, Value);
 static Status cf_theme_validator(ConfigEntity, Value);
 static Status cf_theme_on_change_event(ConfigEntity, Value, Value);
 static Status cf_fileformat_validator(ConfigEntity, Value);
@@ -72,6 +75,7 @@ static const ConfigVariableDescriptor cf_default_config[CV_ENTRY_NUM] = {
     [CV_BUFFEREND] = { "bufferend", "be", CL_SESSION | CL_BUFFER, STR_VAL_STRUCT("~"), NULL, NULL, "Text to display on each line in the region after the end of a buffer" },
     [CV_WEDRUNTIME] = { "wedruntime", "wrt", CL_SESSION , STR_VAL_STRUCT(WEDRUNTIME), NULL , NULL, "Config definition location directory" },
     [CV_SYNTAX] = { "syntax" , "sy" , CL_SESSION , BOOL_VAL_STRUCT(1) , NULL , NULL, "Enables/Disables syntax highlighting" },
+    [CV_SYNTAX_HORIZON] = { "syntaxhorizon" , "sh" , CL_SESSION , INT_VAL_STRUCT(CFG_SYNTAX_HORIZON_DEFAULT), cf_syntaxhorizon_validator, cf_syntaxhorizon_on_change_event, "Number of lines above the visible view to tokenize from" },
     [CV_THEME] = { "theme" , "th" , CL_SESSION , STR_VAL_STRUCT("default") , cf_theme_validator , cf_theme_on_change_event, "Set the active theme" },
     [CV_SYNTAXDEFTYPE] = { "syntaxdeftype", "sdt", CL_SESSION, STR_VAL_STRUCT(WED_DEFAULT_SDT), cf_sdt_validator, NULL, "Syntax definition type to use" },
     [CV_SHDATADIR] = { "shdatadir", "shdd", CL_SESSION, STR_VAL_STRUCT(""), NULL, NULL, "Directory path containing language definition files" },
@@ -632,6 +636,31 @@ static Status cf_syntaxtype_validator(ConfigEntity entity, Value value)
 
 static Status cf_syntaxtype_on_change_event(ConfigEntity entity, Value old_val,
                                             Value new_val)
+{
+    (void)old_val;
+    (void)new_val;
+
+    bf_free_syntax_match_cache(entity.buffer);
+
+    return STATUS_SUCCESS;
+}
+
+static Status cf_syntaxhorizon_validator(ConfigEntity entity, Value value)
+{
+    (void)entity;
+
+    if (IVAL(value) < CFG_SYNTAX_HORIZON_MIN) {
+        return st_get_error(ERR_INVALID_SYNTAX_HORIZON,
+                            "syntaxhoirzon must be at least %d",
+                            CFG_SYNTAX_HORIZON_MIN);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static Status cf_syntaxhorizon_on_change_event(ConfigEntity entity,
+                                               Value old_val,
+                                               Value new_val)
 {
     (void)old_val;
     (void)new_val;

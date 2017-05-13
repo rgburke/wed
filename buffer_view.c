@@ -25,7 +25,7 @@
 #include "config.h"
 #include "util.h"
 
-#define SYNTAX_CACHE_LINES 10
+#define SYNTAX_LOOK_AHEAD_LINES 10
 
 static int bv_vertical_scroll_linewrap(Buffer *);
 static int bv_vertical_scroll(Buffer *);
@@ -33,7 +33,8 @@ static int bv_horizontal_scroll(Buffer *);
 
 static SyntaxMatches *bv_get_syntax_matches(const Session *, Buffer *,
                                             const BufferPos *draw_pos);
-static int bv_can_use_syntax_match_cache(Buffer *, const BufferPos *draw_pos);
+static int bv_can_use_syntax_match_cache(Buffer *, const BufferPos *draw_pos,
+                                         size_t syntax_look_behind);
 
 static void bv_set_cell(Cell *, size_t offset, size_t col_no, size_t col_width,
                         CellAttribute, const char *fmt, ...);
@@ -315,14 +316,16 @@ static SyntaxMatches *bv_get_syntax_matches(const Session *sess,
      * a load overhead */
     BufferView *bv = buffer->bv;
     BufferPos syn_start = *draw_pos;
+    const size_t syntax_look_behind = cf_int(sess->config, CV_SYNTAX_HORIZON);
+
     bf_change_multi_line(buffer, &syn_start, DIRECTION_UP,
-                         SYNTAX_CACHE_LINES, 0);
+                         syntax_look_behind, 0);
 
     for (size_t k = 0; !bp_on_empty_line(&syn_start) && k < 20; k++) {
         bf_change_line(buffer, &syn_start, DIRECTION_UP, 0); 
     }
 
-    if (bv_can_use_syntax_match_cache(buffer, draw_pos)) {
+    if (bv_can_use_syntax_match_cache(buffer, draw_pos, syntax_look_behind)) {
         bv->syn_match_cache.syn_matches->current_match = 0;
         return bv->syn_match_cache.syn_matches;
     } else if (bv->syn_match_cache.syn_matches != NULL) {
@@ -331,7 +334,7 @@ static SyntaxMatches *bv_get_syntax_matches(const Session *sess,
 
     BufferPos syn_end = *draw_pos;
     bf_change_multi_line(buffer, &syn_end, DIRECTION_DOWN,
-                         bv->rows + SYNTAX_CACHE_LINES, 0);
+                         bv->rows + SYNTAX_LOOK_AHEAD_LINES, 0);
 
     size_t syn_examine_length = syn_end.offset - syn_start.offset;
     char *syn_examine_text = malloc(syn_examine_length + 1);
@@ -362,7 +365,8 @@ static SyntaxMatches *bv_get_syntax_matches(const Session *sess,
 }
 
 static int bv_can_use_syntax_match_cache(Buffer *buffer,
-                                         const BufferPos *draw_pos)
+                                         const BufferPos *draw_pos,
+                                         const size_t syntax_look_behind)
 {
     BufferView *bv = buffer->bv;
     const SyntaxMatchCache *syn_match_cache = &bv->syn_match_cache;
@@ -379,9 +383,9 @@ static int bv_can_use_syntax_match_cache(Buffer *buffer,
     };
 
     bf_change_multi_line(buffer, &screen_start_range.start, DIRECTION_UP,
-                         SYNTAX_CACHE_LINES, 0);
+                         syntax_look_behind, 0);
     bf_change_multi_line(buffer, &screen_start_range.end, DIRECTION_DOWN,
-                         SYNTAX_CACHE_LINES, 0);
+                         SYNTAX_LOOK_AHEAD_LINES, 0);
 
     if (bf_bp_in_range(&screen_start_range, draw_pos)) {
         return 1;

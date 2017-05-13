@@ -31,14 +31,15 @@
                 .buffer = (bufferref) \
             }
 
-/* tab width value limits */
 #define CFG_TABWIDTH_MIN 1
 #define CFG_TABWIDTH_MAX 8
-/* Default width of the file explorer window */
+
 #define CFG_FILE_EXPLORER_WIDTH_DEFAULT 30
-/* File explorer width value limits */
 #define CFG_FILE_EXPLORER_WIDTH_MIN 5
 #define CFG_FILE_EXPLORER_WIDTH_MAX 1024
+
+#define CFG_SYNTAX_HORIZON_DEFAULT 20
+#define CFG_SYNTAX_HORIZON_MIN 0
 
 /* Some variables apply at the session and buffer levels
  * e.g. ln=0; in ~/.wedrc turns off line numbers for all buffers.
@@ -71,6 +72,7 @@ typedef enum {
     CV_BUFFEREND,
     CV_WEDRUNTIME,
     CV_SYNTAX,
+    CV_SYNTAX_HORIZON,
     CV_THEME,
     CV_SYNTAXDEFTYPE,
     CV_SHDATADIR,
