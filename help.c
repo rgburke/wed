@@ -25,6 +25,7 @@
 #include "config.h"
 
 typedef Status (*TableGenerator)(HelpTable *);
+typedef void (*TableFree)(HelpTable *);
 
 static void hp_free_help_table(HelpTable *);
 static Status hp_bf_insert(Buffer *, const char *str);
@@ -40,22 +41,29 @@ Status hp_generate_help_text(Buffer *buffer)
 
     static struct HelpSection {
         const char *title;
-        TableGenerator table_generator;
+        struct HelpGenerator {
+            TableGenerator table_generator;
+            TableFree table_free;
+        } help_generator;
     } const help_sections[] = {
-        { "Default Key Bindings", cm_generate_keybinding_table },
-        { "Config Variables"    , cf_generate_variable_table   },
-        { "Commands"            , cm_generate_command_table    }
+        { "Default Key Bindings", { cm_generate_keybinding_table, NULL                   } },
+        { "Config Variables"    , { cf_generate_variable_table  , cf_free_variable_table } },
+        { "Commands"            , { cm_generate_command_table   , NULL                   } },
+        { "Errors"              , { cm_generate_error_table     , cm_free_error_table    } }
     };
 
+    const struct HelpSection *help_section;
     static const size_t help_section_num = ARRAY_SIZE(help_sections,
                                                       struct HelpSection);
 
     for (size_t k = 0; k < help_section_num; k++) {
+        help_section = &help_sections[k];
+
         RETURN_IF_FAIL(hp_bf_insert(buffer, "\n"));
-        RETURN_IF_FAIL(hp_bf_insert(buffer, help_sections[k].title));
+        RETURN_IF_FAIL(hp_bf_insert(buffer, help_section->title));
         RETURN_IF_FAIL(hp_bf_insert(buffer, "\n\n"));
 
-        status = help_sections[k].table_generator(&help_table);
+        status = help_section->help_generator.table_generator(&help_table);
 
         if (!STATUS_IS_SUCCESS(status)) {
             hp_free_help_table(&help_table);
@@ -63,6 +71,10 @@ Status hp_generate_help_text(Buffer *buffer)
         }
 
         status = hp_insert_help_table(buffer, &help_table);
+
+        if (help_section->help_generator.table_free != NULL) {
+            help_section->help_generator.table_free(&help_table);
+        }
 
         hp_free_help_table(&help_table);
     }

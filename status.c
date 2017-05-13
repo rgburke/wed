@@ -23,8 +23,6 @@
 #include "value.h"
 #include "util.h"
 
-static const char *st_get_default_error_message(ErrorCode);
-
 static const char *st_default_error_messages[] = {
     [ERR_NONE]                                = "",
     [ERR_FILE_DOESNT_EXIST]                   = "File doesn't exist",
@@ -34,6 +32,8 @@ static const char *st_default_error_messages[] = {
     [ERR_UNABLE_TO_READ_FILE]                 = "Unable to read from file",
     [ERR_UNABLE_TO_WRITE_TO_FILE]             = "Unable to write to file",
     [ERR_INVALID_COMMAND]                     = "Invalid command",
+    [ERR_INVALID_COMMAND_ARG_NUM]             = "Invalid number of command arguments",
+    [ERR_INVALID_COMMAND_ARG_TYPE]            = "Invalid command argument type",
     [ERR_INVALID_CHARACTER]                   = "Invalid character",
     [ERR_INVALID_STRING]                      = "Invalid string",
     [ERR_INVALID_VAR]                         = "Invalid variable",
@@ -85,7 +85,8 @@ static const char *st_default_error_messages[] = {
     [ERR_SHELL_COMMAND_ERROR]                 = "Shell command error",
     [ERR_UNABLE_TO_DETERMINE_CWD]             = "Unable to determine current working directory",
     [ERR_INVALID_FILE_EXPLORER_WIDTH]         = "Invalid file explorer width",
-    [ERR_INVALID_SYNTAX_HORIZON]              = "Invalid syntax horizon"
+    [ERR_INVALID_SYNTAX_HORIZON]              = "Invalid syntax horizon",
+    [ERR_ENTRY_NUM]                           = ""
 };
 
 Status st_get_error(ErrorCode error_code, const char *format, ...)
@@ -122,7 +123,7 @@ Status st_get_custom_error(ErrorCode error_code, const char *format,
     return STATUS_ERROR(error_code, error_msg, 0);
 }
 
-static const char *st_get_default_error_message(ErrorCode error_code)
+const char *st_get_default_error_message(ErrorCode error_code)
 {
     assert(error_code < ARRAY_SIZE(st_default_error_messages, const char *));
     assert(error_code != ERR_NONE);

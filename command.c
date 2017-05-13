@@ -821,6 +821,47 @@ Status cm_generate_command_table(HelpTable *help_table)
     return STATUS_SUCCESS;
 }
 
+Status cm_generate_error_table(HelpTable *help_table)
+{
+    if (!hp_init_help_table(help_table, ERR_ENTRY_NUM, 2)) {
+        return OUT_OF_MEMORY("Unable to create error table");
+    }
+
+    const char ***error_table = help_table->table;
+
+    error_table[0][0] = "Error Code";
+    error_table[0][1] = "Description";
+
+    char error_code[8];
+    char *error_code_str;
+
+    for (size_t k = ERR_NONE + 1; k < ERR_ENTRY_NUM; k++) {
+        snprintf(error_code, sizeof(error_code), "%zu", k);
+
+        if ((error_code_str = strdup(error_code)) == NULL) {
+            return OUT_OF_MEMORY("Unable to allocate error code string");
+        }
+
+        error_table[k][0] = error_code_str;
+        error_table[k][1] = st_get_default_error_message(k);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+void cm_free_error_table(HelpTable *help_table)
+{
+    if (help_table == NULL || help_table->table == NULL) {
+        return;
+    }
+
+    const char ***error_table = help_table->table;
+
+    for (size_t k = ERR_NONE + 1; k < ERR_ENTRY_NUM; k++) {
+        free((char *)error_table[k][0]);
+    }
+}
+
 Status cm_get_file_output_stream(FileOutputStream *fos, const char *file_path)
 {
     assert(!is_null_or_empty(file_path));

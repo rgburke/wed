@@ -130,7 +130,8 @@ typedef enum {
     ERR_SHELL_COMMAND_ERROR,
     ERR_UNABLE_TO_DETERMINE_CWD,
     ERR_INVALID_FILE_EXPLORER_WIDTH,
-    ERR_INVALID_SYNTAX_HORIZON
+    ERR_INVALID_SYNTAX_HORIZON,
+    ERR_ENTRY_NUM
 } ErrorCode;
 
 /* Structure used to represent success or failure */
@@ -142,6 +143,7 @@ typedef struct {
 
 Status st_get_error(ErrorCode, const char *format, ...);
 Status st_get_custom_error(ErrorCode, const char *format, va_list);
+const char *st_get_default_error_message(ErrorCode);
 void st_free_status(Status);
 
 #endif

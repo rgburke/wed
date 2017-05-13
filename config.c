@@ -511,7 +511,7 @@ const char *cf_string(const HashMap *config, ConfigVariable config_var)
 
 Status cf_generate_variable_table(HelpTable *help_table)
 {
-    if (!hp_init_help_table(help_table, cf_var_num + 1, 5)) {
+    if (!hp_init_help_table(help_table, cf_var_num + 1, 6)) {
         return OUT_OF_MEMORY("Unable to create variable table");
     }
 
@@ -521,7 +521,8 @@ Status cf_generate_variable_table(HelpTable *help_table)
     var_table[0][1] = "Short Name";
     var_table[0][2] = "Level";
     var_table[0][3] = "Type";
-    var_table[0][4] = "Description";
+    var_table[0][4] = "Default Value";
+    var_table[0][5] = "Description";
 
     const ConfigVariableDescriptor *var;
 
@@ -532,10 +533,24 @@ Status cf_generate_variable_table(HelpTable *help_table)
         var_table[k + 1][1] = var->short_name;
         var_table[k + 1][2] = cf_get_config_level_str(var->config_levels);
         var_table[k + 1][3] = va_value_type_string(var->default_value.type);
-        var_table[k + 1][4] = var->description;
+        var_table[k + 1][4] = va_to_string(var->default_value);
+        var_table[k + 1][5] = var->description;
     }
 
     return STATUS_SUCCESS;
+}
+
+void cf_free_variable_table(HelpTable *help_table)
+{
+    if (help_table == NULL || help_table->table == NULL) {
+        return;
+    }
+
+    const char ***var_table = help_table->table;
+
+    for (size_t k = 0; k < cf_var_num; k++) {
+        free((char *)var_table[k + 1][4]);
+    }
 }
 
 static const char *cf_get_config_level_str(ConfigLevel config_levels)

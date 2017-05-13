@@ -126,5 +126,6 @@ int cf_bool(const HashMap *config, ConfigVariable);
 long cf_int(const HashMap *config, ConfigVariable);
 const char *cf_string(const HashMap *config, ConfigVariable);
 Status cf_generate_variable_table(HelpTable *);
+void cf_free_variable_table(HelpTable *);
 
 #endif

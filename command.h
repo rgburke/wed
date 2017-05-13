@@ -342,5 +342,7 @@ Status cm_do_command(Command cmd, CommandArgs *cmd_args);
 int cm_get_command(const char *function_name, Command *cmd);
 Status cm_generate_keybinding_table(HelpTable *);
 Status cm_generate_command_table(HelpTable *);
+Status cm_generate_error_table(HelpTable *);
+void cm_free_error_table(HelpTable *);
 
 #endif
