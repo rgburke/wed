@@ -327,25 +327,27 @@ are equivalent.
 The table below lists the variables available in wed and their properties:
 
 ```
-Name          | Short | Level       | Type   | Default Val | Description
---------------|-------|-------------|--------|-------------|---------------------------------------------------------
-linewrap      | lw    | Global/File | bool   | true        | Enables/Disables line wrap
-lineno        | ln    | Global/File | bool   | true        | Enables/Disables line numbers
-tabwidth      | tw    | Global/File | int    | 8           | Sets tab character screen width (allowed 1 - 8)
-expandtab     | et    | Global/File | bool   | false       | Enables/Disables expanding tab characters into spaces
-autoindent    | ai    | Global/File | bool   | true        | Enables/Disables autoindent
-colorcolumn   | cc    | Global/File | int    | 0           | Sets column number to be highlighted
-bufferend     | be    | Global/File | string | "~"         | Text to display on each line in the region after the end of a buffer
-wedruntime    | wrt   | Global      | string | WEDRUNTIME  | Config definition location directory (set in config.mk)
-syntax        | sy    | Global      | bool   | true        | Enables/Disables syntax highlighting
-theme         | th    | Global      | string | "default"   | Set the active theme
-syntaxdeftype | sdt   | Global      | string | "sl"        | Syntax definition type to use (allowed "sl", "sh" or "wed")
-shdatadir     | shdd  | Global      | string | ""          | Directory path containing language definition files
-mouse         | mo    | Global      | bool   | true        | Enables/Disables mouse support
-fileexplorer  | fe    | Global      | bool   | true        | Enables/Disables file explorer visibility
-filetype      | ft    | File        | string | ""          | Sets the type of the current file (drives syntaxtype)
-syntaxtype    | st    | File        | string | ""          | Set the syntax definition to use for highlighting
-fileformat    | ff    | File        | string | "unix"      | Sets line endings used by file (allowed "dos" or "unix")
+Name              | Short | Level       | Type   | Default Val | Description
+------------------|-------|-------------|--------|-------------|---------------------------------------------------------
+linewrap          | lw    | Global/File | bool   | true        | Enables/Disables line wrap
+lineno            | ln    | Global/File | bool   | true        | Enables/Disables line numbers
+tabwidth          | tw    | Global/File | int    | 8           | Sets tab character screen width (allowed 1 - 8)
+expandtab         | et    | Global/File | bool   | false       | Enables/Disables expanding tab characters into spaces
+autoindent        | ai    | Global/File | bool   | true        | Enables/Disables autoindent
+colorcolumn       | cc    | Global/File | int    | 0           | Sets column number to be highlighted
+bufferend         | be    | Global/File | string | "~"         | Text to display on each line in the region after the end of a buffer
+wedruntime        | wrt   | Global      | string | WEDRUNTIME  | Config definition location directory (set in config.mk)
+syntax            | sy    | Global      | bool   | true        | Enables/Disables syntax highlighting
+syntaxhorizon     | sh    | Global      | int    | 20          | Number of lines above the visible view to tokenize from
+theme             | th    | Global      | string | "default"   | Set the active theme
+syntaxdeftype     | sdt   | Global      | string | "sl"        | Syntax definition type to use (allowed "sl", "sh" or "wed")
+shdatadir         | shdd  | Global      | string | ""          | Directory path containing language definition files
+mouse             | mo    | Global      | bool   | true        | Enables/Disables mouse support
+fileexplorer      | fe    | Global      | bool   | true        | Enables/Disables file explorer visibility
+fileexplorerwidth | few   | Global      | int    | 30          | Sets the file explorer width in columns
+filetype          | ft    | File        | string | ""          | Sets the type of the current file (drives syntaxtype)
+syntaxtype        | st    | File        | string | ""          | Set the syntax definition to use for highlighting
+fileformat        | ff    | File        | string | "unix"      | Sets line endings used by file (allowed "dos" or "unix")
 ```
 
 An example of a `~/.wedrc` could be:
