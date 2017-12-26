@@ -491,10 +491,10 @@ void cm_set_operation_mode(KeyMap *key_map, OperationMode op_mode)
     static const OperationModeMap operation_mode_active_maps[OM_ENTRY_NUM] = {
         OMM_SESSION,
         OMM_SESSION | OMM_BUFFER | OMM_USER,
-        OMM_SESSION | OMM_BUFFER | OMM_PROMPT,
-        OMM_SESSION | OMM_BUFFER | OMM_PROMPT | OMM_PROMPT_COMPLETER,
+        OMM_SESSION | OMM_BUFFER | OMM_PROMPT | OMM_USER,
+        OMM_SESSION | OMM_BUFFER | OMM_PROMPT | OMM_PROMPT_COMPLETER | OMM_USER,
         OMM_USER,
-        OMM_SESSION | OMM_FILE_EXPLORER
+        OMM_SESSION | OMM_FILE_EXPLORER | OMM_USER
     };
 
     key_map->prev_op_mode = key_map->op_mode;
