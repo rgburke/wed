@@ -86,6 +86,7 @@ static const char *st_default_error_messages[] = {
     [ERR_UNABLE_TO_DETERMINE_CWD]             = "Unable to determine current working directory",
     [ERR_INVALID_FILE_EXPLORER_WIDTH]         = "Invalid file explorer width",
     [ERR_INVALID_SYNTAX_HORIZON]              = "Invalid syntax horizon",
+    [ERR_INVALID_FILE_EXPLORER_POSITION]      = "Invalid file explorer position",
     [ERR_ENTRY_NUM]                           = ""
 };
 

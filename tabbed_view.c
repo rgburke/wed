@@ -83,30 +83,37 @@ static void tv_determine_view_dimensions(TabbedView *tv, const Session *sess)
         .cols = cols
     };
 
+    const size_t file_explorer_width =
+        tv_determine_file_explorer_width(sess, cols);
+    const int file_explorer_left =
+        CFG_FILE_EXPLORER_POSITION_IS_LEFT(sess->config);
+    const size_t file_explorer_offset =
+        file_explorer_left ? file_explorer_width : 0;
+
     tv->vd.file_explorer = (ViewDimensions) {
         .start_row = 0,
-        .start_col = 0,
+        .start_col = file_explorer_left ? 0 : cols - file_explorer_width,
         .rows = rows - 1,
-        .cols = tv_determine_file_explorer_width(sess, cols)
+        .cols = file_explorer_width
     };
 
     tv->vd.buffer_tab = (ViewDimensions) {
         .start_row = 0,
-        .start_col = vd->file_explorer.cols,
+        .start_col = file_explorer_offset,
         .rows = 1,
         .cols = tv->cols - vd->file_explorer.cols
     };
 
     tv->vd.line_no = (ViewDimensions) {
         .start_row = 1,
-        .start_col = vd->file_explorer.cols,
+        .start_col = file_explorer_offset,
         .rows = rows - 2,
         .cols = tv_determine_line_no_width(buffer)
     };
 
     tv->vd.buffer = (ViewDimensions) {
         .start_row = 1,
-        .start_col = vd->line_no.cols + vd->file_explorer.cols,
+        .start_col = vd->line_no.cols + file_explorer_offset,
         .rows = rows - 2,
         .cols = tv->cols - (vd->line_no.cols + vd->file_explorer.cols)
     };
@@ -460,7 +467,12 @@ static Status tv_update_file_explorer_view(TabbedView *tv, Session *sess)
         snprintf(tv->file_explorer_title, file_explorer_width - 2, fmt,
                  file_explorer->dir_path + dir_path_start_index);
 
-        if (!bv_resize(buffer->bv, vd->rows - 1, vd->cols)) {
+        const int file_explorer_left =
+            CFG_FILE_EXPLORER_POSITION_IS_LEFT(sess->config);
+        const size_t cols = file_explorer_left ? vd->cols : vd->cols - 1;
+        buffer->bv->screen_col_offset = !file_explorer_left;
+
+        if (!bv_resize(buffer->bv, vd->rows - 1, cols)) {
             return st_get_error(ERR_OUT_OF_MEMORY,
                                 "Unable to resize BufferView");
         }

@@ -592,6 +592,7 @@ static void ti_draw_file_explorer(TUI *tui)
     ti_setup_window(tui->file_explorer_win, &tv->vd.file_explorer,
                     &tv->last_vd.file_explorer);
 
+    const size_t rows = tv->vd.file_explorer.rows;
     const size_t cols = tv->vd.file_explorer.cols;
 
     if (cols == 0) {
@@ -602,35 +603,45 @@ static void ti_draw_file_explorer(TUI *tui)
     const FileExplorer *file_explorer = sess->file_explorer;
     const size_t file_explorer_width = cf_int(sess->config,
                                               CV_FILE_EXPLORER_WIDTH);
+    const int file_explorer_left =
+        CFG_FILE_EXPLORER_POSITION_IS_LEFT(sess->config);
     const size_t title_len = strlen(tv->file_explorer_title);
     const size_t title_start_x =
         ((file_explorer_width - 3 - title_len) / 2) + 1;
 
-    wmove(tui->file_explorer_win, 0, 0);
-    wclrtoeol(tui->file_explorer_win);
-    wattron(tui->file_explorer_win, SC_COLOR_PAIR(SC_FILE_EXPLORER_TITLE));
-    wmove(tui->file_explorer_win, 0, title_start_x);
-    wprintw(tui->file_explorer_win, tv->file_explorer_title);
-    wattroff(tui->file_explorer_win, SC_COLOR_PAIR(SC_FILE_EXPLORER_TITLE));
+    WINDOW *win;
+
+    if (file_explorer_left) {
+        win = tui->file_explorer_win;
+    } else {
+        wmove(tui->file_explorer_win, 0, 0);
+        mvwvline(tui->file_explorer_win, 0, 0, ACS_VLINE, rows);
+
+        win = derwin(tui->file_explorer_win, rows, cols - 1, 0, 1);
+    }
+
+    wmove(win, 0, 0);
+    wclrtoeol(win);
+    wattron(win, SC_COLOR_PAIR(SC_FILE_EXPLORER_TITLE));
+    wmove(win, 0, title_start_x);
+    wprintw(win, tv->file_explorer_title);
+    wattroff(win, SC_COLOR_PAIR(SC_FILE_EXPLORER_TITLE));
 
     const Buffer *buffer = fe_get_buffer(file_explorer);
     const BufferView *bv = buffer->bv;
-    const size_t rows = tv->vd.file_explorer.rows;
     const size_t dir_entries = file_explorer->dir_entries;
 
-    wmove(tui->file_explorer_win, 1, 0);
-    wattron(tui->file_explorer_win,
-            SC_COLOR_PAIR(SC_FILE_EXPLORER_FILE_ENTRY));
-    ti_draw_buffer_view(bv, tui->file_explorer_win);
-    wattroff(tui->file_explorer_win,
-             SC_COLOR_PAIR(SC_FILE_EXPLORER_FILE_ENTRY));
+    wmove(win, 1, 0);
+    wattron(win, SC_COLOR_PAIR(SC_FILE_EXPLORER_FILE_ENTRY));
+    ti_draw_buffer_view(bv, win);
+    wattroff(win, SC_COLOR_PAIR(SC_FILE_EXPLORER_FILE_ENTRY));
 
     const size_t visible_dir_entries =
         bv->screen_start.line_no <= dir_entries ?
         dir_entries - (bv->screen_start.line_no - 1) : 0;
 
     for (size_t row = 0; row < visible_dir_entries; row++) {
-        mvwchgat(tui->file_explorer_win, row + 1, 0, cols - 1, A_NORMAL,
+        mvwchgat(win, row + 1, 0, cols - 1, A_NORMAL,
                  SC_FILE_EXPLORER_DIRECTORY_ENTRY + 1, NULL);
     }
 
@@ -646,10 +657,15 @@ static void ti_draw_file_explorer(TUI *tui)
         selected_attr |= A_DIM;
     }
 
-    mvwchgat(tui->file_explorer_win, selected_line_offset + 1, 0, cols - 1,
+    mvwchgat(win, selected_line_offset + 1, 0, cols - 1,
              selected_attr, selected_colour_pair, NULL);
 
-    mvwvline(tui->file_explorer_win, 0, cols - 1, ACS_VLINE, rows);
+    if (file_explorer_left) {
+        mvwvline(win, 0, cols - 1, ACS_VLINE, rows);
+    } else {
+        touchwin(tui->file_explorer_win);
+        delwin(win);
+    }
 
     wnoutrefresh(tui->file_explorer_win); 
 }
